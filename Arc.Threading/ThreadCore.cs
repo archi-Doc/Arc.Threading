@@ -245,6 +245,8 @@ namespace Arc.Threading
             }
         }
 
+        public int Dummy { get; set; }
+
         /// <summary>
         /// Gets a <see cref="System.Threading.CancellationToken"/> which is used to terminate thread/task.
         /// </summary>
