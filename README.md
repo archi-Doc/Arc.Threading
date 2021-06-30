@@ -19,6 +19,16 @@ Install-Package Arc.Threading
 
 ## ThreadCore
 
+`ThreadCore` is a wrapper class for `Thread` `Task` `Task<TResult>`.
+
+The main purpose of `ThreadCore` is
+
+1. Manage Thread/Task in a tree structure.
+2. Terminate or pause Thread/Task from outside Thread/Task.
+3. Unify the format of the method by passing `ThreadCore` as a parameter.
+
+`ThreadCore` is intended for long-running processes such as `Thread`, but it can also be used for `Task`.
+
 ```csharp
 using System;
 using System.Threading;

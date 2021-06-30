@@ -30,7 +30,7 @@ namespace Arc.Threading
     public class ThreadCore : ThreadCoreBase
     {
         /// <summary>
-        /// Gets the root (application) object of all ThreadCoreBase classes.
+        /// Gets the root object of all ThreadCoreBase classes.
         /// </summary>
         public static ThreadCoreRoot Root { get; } = new();
 
@@ -292,7 +292,7 @@ namespace Arc.Threading
         }
 
         /// <summary>
-        /// Wait for the termination of the thread/task.<br/>
+        /// Waits for the termination of the thread/task.<br/>
         /// Note that you need to call <see cref="Terminate"/> to terminate the object from outside the thread/task.
         /// </summary>
         /// <param name="millisecondTimeout">The number of milliseconds to wait before termination, or -1 to wait indefinitely.</param>
