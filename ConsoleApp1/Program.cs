@@ -11,6 +11,8 @@ namespace ConsoleApp1
     {
         public static async Task Main(string[] args)
         {
+            // ThreadCore.Root is the root object of all ThreadCoreBase classes.
+
             AppDomain.CurrentDomain.ProcessExit += async (s, e) =>
             {// Console window closing or process terminated.
                 ThreadCore.Root.Terminate(); // Send a termination signal to the root.
@@ -47,7 +49,7 @@ namespace ConsoleApp1
                 Console.WriteLine("ThreadCore 1: End");
             });
 
-            var group = new ThreadCoreGroup(ThreadCore.Root); // ThreadCoreGroup is not associated with Thread/Task.
+            var group = new ThreadCoreGroup(ThreadCore.Root); // ThreadCoreGroup is a collection of ThreadCore objects and it's not associated with Thread/Task.
             var c2 = new TaskCore(group, async parameter =>
             {// Core 2 (TaskCore): Shows a message, wait for 3 seconds, and terminates.
                 var core = (TaskCore)parameter!; // Get TaskCore from the parameter.

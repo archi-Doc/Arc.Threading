@@ -3,7 +3,7 @@
 
 Arc.Threading is a support library for Task/Thread.
 
-Work in progress
+This document may be inaccurate. It would be greatly appreciated if anyone could make additions and corrections.
 
 
 
@@ -30,6 +30,8 @@ The main purpose of `ThreadCore` is
 `ThreadCore` is intended for long-running processes such as `Thread`, but it can also be used for `Task`.
 
 ```csharp
+// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
+
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -41,6 +43,8 @@ namespace ConsoleApp1
     {
         public static async Task Main(string[] args)
         {
+            // ThreadCore.Root is the root object of all ThreadCoreBase classes.
+
             AppDomain.CurrentDomain.ProcessExit += async (s, e) =>
             {// Console window closing or process terminated.
                 ThreadCore.Root.Terminate(); // Send a termination signal to the root.
@@ -77,7 +81,8 @@ namespace ConsoleApp1
                 Console.WriteLine("ThreadCore 1: End");
             });
 
-            var c2 = new TaskCore(ThreadCore.Root, async parameter =>
+            var group = new ThreadCoreGroup(ThreadCore.Root); // ThreadCoreGroup is a collection of ThreadCore objects and it's not associated with Thread/Task.
+            var c2 = new TaskCore(group, async parameter =>
             {// Core 2 (TaskCore): Shows a message, wait for 3 seconds, and terminates.
                 var core = (TaskCore)parameter!; // Get TaskCore from the parameter.
                 Console.WriteLine("TaskCore 2: Start");
@@ -93,7 +98,7 @@ namespace ConsoleApp1
                 }
 
                 Console.WriteLine("TaskCore 2: End");
-                core.Dispose(); // You can dispose the object if you want.
+                core.Dispose(); // You can dispose the object if you want (automatically disposed anyway).
             });
 
             try
@@ -105,7 +110,7 @@ namespace ConsoleApp1
             }
 
             c2.Terminate(); // Send a termination signal to the TaskCore2.
-            // c2.Dispose(); // Same as above
+            // group.Dispose(); // Same as above
 
             await ThreadCore.Root.WaitForTermination(-1); // Wait for the termination infinitely.
             ThreadCore.Root.TerminationEvent.Set(); // The termination process is complete (#1).

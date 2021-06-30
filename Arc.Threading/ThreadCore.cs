@@ -216,7 +216,7 @@ namespace Arc.Threading
     }
 
     /// <summary>
-    /// This class is not associated with Thread/Task, but can contain multiple ThreadCoreBase.
+    /// ThreadCoreGroup is a collection of ThreadCore objects and it's not associated with Thread/Task.
     /// </summary>
     public class ThreadCoreGroup : ThreadCoreBase
     {
