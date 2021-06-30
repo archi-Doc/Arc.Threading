@@ -47,7 +47,8 @@ namespace ConsoleApp1
                 Console.WriteLine("ThreadCore 1: End");
             });
 
-            var c2 = new TaskCore(ThreadCore.Root, async parameter =>
+            var group = new ThreadCoreGroup(ThreadCore.Root); // ThreadCoreGroup is not associated with Thread/Task.
+            var c2 = new TaskCore(group, async parameter =>
             {// Core 2 (TaskCore): Shows a message, wait for 3 seconds, and terminates.
                 var core = (TaskCore)parameter!; // Get TaskCore from the parameter.
                 Console.WriteLine("TaskCore 2: Start");
@@ -63,7 +64,7 @@ namespace ConsoleApp1
                 }
 
                 Console.WriteLine("TaskCore 2: End");
-                core.Dispose(); // You can dispose the object if you want.
+                core.Dispose(); // You can dispose the object if you want (automatically disposed anyway).
             });
 
             try
@@ -75,7 +76,7 @@ namespace ConsoleApp1
             }
 
             c2.Terminate(); // Send a termination signal to the TaskCore2.
-            // c2.Dispose(); // Same as above
+            // group.Dispose(); // Same as above
 
             await ThreadCore.Root.WaitForTermination(-1); // Wait for the termination infinitely.
             ThreadCore.Root.TerminationEvent.Set(); // The termination process is complete (#1).

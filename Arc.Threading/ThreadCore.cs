@@ -49,6 +49,9 @@ namespace Arc.Threading
         /// <inheritdoc/>
         public override bool IsAlive => this.Thread.IsAlive;
 
+        /// <inheritdoc/>
+        public override bool IsThreadOrTask => true;
+
         /// <summary>
         /// Gets an instance of <see cref="System.Threading.Thread"/>.
         /// </summary>
@@ -111,6 +114,9 @@ namespace Arc.Threading
         /// <inheritdoc/>
         public override bool IsAlive => !this.Task.IsCompleted; // this.Task.Status != TaskStatus.RanToCompletion && this.Task.Status != TaskStatus.Canceled && this.Task.Status != TaskStatus.Faulted;
 
+        /// <inheritdoc/>
+        public override bool IsThreadOrTask => true;
+
         /// <summary>
         /// Gets an instance of <see cref="System.Threading.Tasks.Task"/>.
         /// </summary>
@@ -147,11 +153,16 @@ namespace Arc.Threading
 
     /// <summary>
     /// Support class for <see cref="System.Threading.Tasks.Task{TResult}"/>.<br/>
-    /// method: async <see cref="System.Threading.Tasks.Task{TResult}"/> Method(<see cref="object"/>? parameter).
     /// </summary>
     /// <typeparam name="TResult">The type of the result produced by this task.</typeparam>
     public class TaskCore<TResult> : ThreadCoreBase
     {
+        /// <summary>
+        /// Initializes a new instance of the <see cref="TaskCore{TResult}"/> class.<br/>
+        /// method: async <see cref="System.Threading.Tasks.Task{TResult}"/> Method(<see cref="object"/>? parameter).
+        /// </summary>
+        /// <param name="parent">The parent.</param>
+        /// <param name="method">The method that executes on a <see cref="System.Threading.Tasks.Task{TResult}"/>.</param>
         public TaskCore(ThreadCoreBase parent, Func<object?, Task<TResult>> method)
             : base(parent)
         {
@@ -166,6 +177,9 @@ namespace Arc.Threading
 
         /// <inheritdoc/>
         public override bool IsAlive => !this.Task.IsCompleted;
+
+        /// <inheritdoc/>
+        public override bool IsThreadOrTask => true;
 
         /// <summary>
         /// Gets an instance of <see cref="System.Threading.Tasks.Task{TResult}"/>.
@@ -202,6 +216,24 @@ namespace Arc.Threading
     }
 
     /// <summary>
+    /// This class is not associated with Thread/Task, but can contain multiple ThreadCoreBase.
+    /// </summary>
+    public class ThreadCoreGroup : ThreadCoreBase
+    {
+        /// <summary>
+        /// Initializes a new instance of the <see cref="ThreadCoreGroup"/> class.<br/>
+        /// </summary>
+        /// <param name="parent">The parent.</param>
+        public ThreadCoreGroup(ThreadCoreBase parent)
+            : base(parent)
+        {
+        }
+
+        /// <inheritdoc/>
+        public override bool IsAlive => !this.IsTerminated;
+    }
+
+    /// <summary>
     /// Class for the root object.
     /// </summary>
     public class ThreadCoreRoot : ThreadCoreBase
@@ -234,7 +266,7 @@ namespace Arc.Threading
                 if (++cleanupCount >= CleanupThreshold)
                 {
                     cleanupCount = 0;
-                    ThreadCore.Root?.Clean();
+                    ThreadCore.Root?.Clean(out _);
                 }
 
                 this.parent = parent;
@@ -265,6 +297,11 @@ namespace Arc.Threading
         /// Gets a value indicating whether the thread/task is running.
         /// </summary>
         public virtual bool IsAlive => true;
+
+        /// <summary>
+        /// Gets a value indicating whether the object is associated with Thread/Task.
+        /// </summary>
+        public virtual bool IsThreadOrTask => false;
 
         /*public virtual void Start()
         {
@@ -303,24 +340,16 @@ namespace Arc.Threading
             var sw = new Stopwatch();
             sw.Start();
 
-            var c = ThreadCore.Root;
             while (true)
             {
                 lock (TreeSync)
                 {
-                    var array = c.hashSet.ToArray();
-                    foreach (var x in array)
-                    {
-                        if (!x.IsAlive)
-                        {
-                            x.Dispose();
-                        }
-                    }
+                    this.Clean(out var numberOfActiveObjects);
 
-                    if (c.hashSet.Count == 0)
+                    if (numberOfActiveObjects == 0)
                     {
-                        if (c.parent == null || !c.IsAlive)
-                        {// Root or not running
+                        if (!this.IsThreadOrTask || !this.IsAlive)
+                        {// Not active (e.g. Root, ThreadCoreGroup) or not running.
                             return true;
                         }
                     }
@@ -388,20 +417,25 @@ namespace Arc.Threading
             }
         }
 
-        internal void Clean()
+        internal void Clean(out int numberOfActiveObjects)
         {// lock(TreeSync) required
-            CleanCore(this);
+            numberOfActiveObjects = 0;
+            CleanCore(this, ref numberOfActiveObjects);
 
-            static bool CleanCore(ThreadCoreBase c)
+            static bool CleanCore(ThreadCoreBase c, ref int numberOfActiveObjects)
             {
                 if (c.hashSet.Count > 0)
                 {
                     var array = c.hashSet.ToArray();
                     foreach (var x in array)
                     {
-                        if (!CleanCore(x))
+                        if (!CleanCore(x, ref numberOfActiveObjects))
                         {
                             x.Dispose();
+                        }
+                        else if (x.IsThreadOrTask)
+                        {// Active (associated with Thread/Task) object
+                            numberOfActiveObjects++;
                         }
                     }
                 }
