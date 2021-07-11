@@ -395,6 +395,7 @@ namespace Arc.Threading
         /// </summary>
         /// <param name="timeToWait">The TimeSpan to wait.</param>
         /// <param name="interval">The interval time to wait in milliseconds (<see cref="Thread.Sleep(int)"/>).</param>
+        /// <returns>true if the time successfully elapsed, false if the thread/task is terminated.</returns>
         public bool Wait(TimeSpan timeToWait, int interval) => this.Wait((int)timeToWait.TotalMilliseconds, interval);
 
         /// <summary>
