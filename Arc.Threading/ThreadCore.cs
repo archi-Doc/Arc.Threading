@@ -366,10 +366,10 @@ namespace Arc.Threading
         }
 
         /// <summary>
-        /// Wait for the specified time.
+        /// Wait for the specified time (<see cref="Thread.Sleep(int)"/>).
         /// </summary>
         /// <param name="millisecondsToWait">The number of milliseconds to wait.</param>
-        /// <param name="interval">The interval time to wait in milliseconds.</param>
+        /// <param name="interval">The interval time to wait in milliseconds (<see cref="Thread.Sleep(int)"/>).</param>
         /// <returns>true if the time successfully elapsed, false if the thread/task is terminated.</returns>
         public bool Wait(int millisecondsToWait, int interval)
         {
@@ -391,11 +391,11 @@ namespace Arc.Threading
         }
 
         /// <summary>
-        /// Wait for the specified time.
+        /// Wait for the specified time (<see cref="Thread.Sleep(int)"/>).
         /// </summary>
         /// <param name="timeToWait">The TimeSpan to wait.</param>
-        /// <param name="interval">The interval time to wait in milliseconds.</param>
-        public void Wait(TimeSpan timeToWait, int interval) => this.Wait((int)timeToWait.TotalMilliseconds, interval);
+        /// <param name="interval">The interval time to wait in milliseconds (<see cref="Thread.Sleep(int)"/>).</param>
+        public bool Wait(TimeSpan timeToWait, int interval) => this.Wait((int)timeToWait.TotalMilliseconds, interval);
 
         /// <summary>
         /// Sends a pause signal (sets <see cref="ThreadCoreBase.paused"/> to true) to the object and the children.
