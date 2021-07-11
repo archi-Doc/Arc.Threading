@@ -3,11 +3,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.31410.357
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Arc.Threading", "Arc.Threading\Arc.Threading.csproj", "{7329690C-2B48-4CDB-AA17-5924F1844C24}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Arc.Threading", "Arc.Threading\Arc.Threading.csproj", "{7329690C-2B48-4CDB-AA17-5924F1844C24}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConsoleApp1", "ConsoleApp1\ConsoleApp1.csproj", "{BEC4E498-F335-4CF6-8308-D7534F229D5E}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ConsoleApp1", "ConsoleApp1\ConsoleApp1.csproj", "{BEC4E498-F335-4CF6-8308-D7534F229D5E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sandbox", "Sandbox\Sandbox.csproj", "{076885F0-3596-436C-964F-DDA38C04890D}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Sandbox", "Sandbox\Sandbox.csproj", "{076885F0-3596-436C-964F-DDA38C04890D}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{0DEEC8A2-9195-4105-8182-AB59CCF7E84A}"
 	ProjectSection(SolutionItems) = preProject

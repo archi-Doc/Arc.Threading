@@ -332,9 +332,9 @@ namespace Arc.Threading
         /// Waits for the termination of the thread/task.<br/>
         /// Note that you need to call <see cref="Terminate"/> to terminate the object from outside the thread/task.
         /// </summary>
-        /// <param name="millisecondTimeout">The number of milliseconds to wait before termination, or -1 to wait indefinitely.</param>
+        /// <param name="millisecondsTimeout">The number of milliseconds to wait before termination, or -1 to wait indefinitely.</param>
         /// <returns>A task that represents waiting for termination.</returns>
-        public async Task<bool> WaitForTermination(int millisecondTimeout)
+        public async Task<bool> WaitForTermination(int millisecondsTimeout)
         {
             int interval = 5;
             var sw = new Stopwatch();
@@ -356,7 +356,7 @@ namespace Arc.Threading
                 }
 
                 await Task.Delay(interval);
-                if (millisecondTimeout >= 0 && sw.ElapsedMilliseconds >= millisecondTimeout)
+                if (millisecondsTimeout >= 0 && sw.ElapsedMilliseconds >= millisecondsTimeout)
                 {
                     return false;
                 }
@@ -364,6 +364,38 @@ namespace Arc.Threading
                 continue;
             }
         }
+
+        /// <summary>
+        /// Wait for the specified time.
+        /// </summary>
+        /// <param name="millisecondsToWait">The number of milliseconds to wait.</param>
+        /// <param name="interval">The interval time to wait in milliseconds.</param>
+        /// <returns>true if the time successfully elapsed, false if the thread/task is terminated.</returns>
+        public bool Wait(int millisecondsToWait, int interval)
+        {
+            millisecondsToWait = millisecondsToWait < 0 ? 0 : millisecondsToWait;
+            interval = interval > millisecondsToWait ? millisecondsToWait : interval;
+            var end = Stopwatch.GetTimestamp() + (long)((double)millisecondsToWait / 1000 * (double)Stopwatch.Frequency);
+
+            while (!this.IsTerminated)
+            {
+                if (Stopwatch.GetTimestamp() >= end)
+                {
+                    return true;
+                }
+
+                Thread.Sleep(interval);
+            }
+
+            return false; // terminated
+        }
+
+        /// <summary>
+        /// Wait for the specified time.
+        /// </summary>
+        /// <param name="timeToWait">The TimeSpan to wait.</param>
+        /// <param name="interval">The interval time to wait in milliseconds.</param>
+        public void Wait(TimeSpan timeToWait, int interval) => this.Wait((int)timeToWait.TotalMilliseconds, interval);
 
         /// <summary>
         /// Sends a pause signal (sets <see cref="ThreadCoreBase.paused"/> to true) to the object and the children.
