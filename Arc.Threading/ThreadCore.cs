@@ -39,10 +39,21 @@ namespace Arc.Threading
         /// </summary>
         /// <param name="parent">The parent.</param>
         /// <param name="method">The method that executes on a System.Threading.Thread.</param>
-        public ThreadCore(ThreadCoreBase parent, Action<object?> method)
+        /// <param name="startImmediately">Starts the thread immediately.<br/>
+        /// <see langword="false"/>: Manually call <see cref="Start"/> to start the thread.</param>
+        public ThreadCore(ThreadCoreBase parent, Action<object?> method, bool startImmediately = true)
             : base(parent)
         {
             this.Thread = new Thread(new ParameterizedThreadStart(method));
+            if (startImmediately)
+            {
+                this.Start();
+            }
+        }
+
+        /// <inheritdoc/>
+        public override void Start()
+        {
             this.Thread.Start(this);
         }
 
@@ -96,20 +107,26 @@ namespace Arc.Threading
         /// </summary>
         /// <param name="parent">The parent.</param>
         /// <param name="method">The method that executes on a <see cref="System.Threading.Tasks.Task"/>.</param>
-        public TaskCore(ThreadCoreBase parent, Func<object?, Task> method)
+        /// <param name="startImmediately">Starts the task immediately.<br/>
+        /// <see langword="false"/>: Manually call <see cref="Start"/> to start the task.</param>
+        public TaskCore(ThreadCoreBase parent, Func<object?, Task> method, bool startImmediately = true)
             : base(parent)
         {
             // this.Task = System.Threading.Tasks.Task.Run(async () => { await method(this); });
             // this.Task = System.Threading.Tasks.Task.Factory.StartNew(async () => { await method(this); }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
 
             this.Task = new Task(() => method(this).Wait());
-            this.Task.Start();
+            if (startImmediately)
+            {
+                this.Start();
+            }
         }
 
-        /*public override void Start()
+        /// <inheritdoc/>
+        public override void Start()
         {
             this.Task.Start();
-        }*/
+        }
 
         /// <inheritdoc/>
         public override bool IsAlive => !this.Task.IsCompleted; // this.Task.Status != TaskStatus.RanToCompletion && this.Task.Status != TaskStatus.Canceled && this.Task.Status != TaskStatus.Faulted;
@@ -163,17 +180,23 @@ namespace Arc.Threading
         /// </summary>
         /// <param name="parent">The parent.</param>
         /// <param name="method">The method that executes on a <see cref="System.Threading.Tasks.Task{TResult}"/>.</param>
-        public TaskCore(ThreadCoreBase parent, Func<object?, Task<TResult>> method)
+        /// <param name="startImmediately">Starts the task immediately.<br/>
+        /// <see langword="false"/>: Manually call <see cref="Start"/> to start the task.</param>
+        public TaskCore(ThreadCoreBase parent, Func<object?, Task<TResult>> method, bool startImmediately = true)
             : base(parent)
         {
             this.Task = new Task<TResult>(() => method(this).Result);
-            this.Task.Start();
+            if (startImmediately)
+            {
+                this.Start();
+            }
         }
 
-        /*public override void Start()
+        /// <inheritdoc/>
+        public override void Start()
         {
             this.Task.Start();
-        }*/
+        }
 
         /// <inheritdoc/>
         public override bool IsAlive => !this.Task.IsCompleted;
@@ -283,7 +306,7 @@ namespace Arc.Threading
         public CancellationToken CancellationToken { get; }
 
         /// <summary>
-        /// Gets a value indicating whether this thread/task is terminated (or under termination process).<br/>
+        /// Gets a value indicating whether this thread/task is being terminated or has been terminated.<br/>
         /// This value is identical to this.<see cref="CancellationToken.IsCancellationRequested"/>.
         /// </summary>
         public bool IsTerminated => this.CancellationToken.IsCancellationRequested; // Volatile.Read(ref this.terminated);
@@ -294,7 +317,9 @@ namespace Arc.Threading
         public bool IsPaused => Volatile.Read(ref this.paused);
 
         /// <summary>
-        /// Gets a value indicating whether the thread/task is running.
+        /// Gets a value indicating whether the thread/task is running.<br/>
+        /// <see langword="false"/>: The thread/task is completed.<br/>
+        /// Use <see cref="IsTerminated"/> property to determine if a termination signal has been send.
         /// </summary>
         public virtual bool IsAlive => true;
 
@@ -303,9 +328,12 @@ namespace Arc.Threading
         /// </summary>
         public virtual bool IsThreadOrTask => false;
 
-        /*public virtual void Start()
+        /// <summary>
+        /// Starts the thread/task.
+        /// </summary>
+        public virtual void Start()
         {
-        }*/
+        }
 
         /// <summary>
         /// Sends a termination signal (calls <see cref="CancellationTokenSource.Cancel()"/>) to the object and the children.
