@@ -501,7 +501,7 @@ namespace Arc.Threading
                     }
                 }
 
-                return c.IsAlive;
+                return c?.IsAlive == true;
             }
         }
 
