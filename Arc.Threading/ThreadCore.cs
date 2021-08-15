@@ -42,9 +42,9 @@ namespace Arc.Threading
         /// <param name="startImmediately">Starts the thread immediately.<br/>
         /// <see langword="false"/>: Manually call <see cref="Start"/> to start the thread.</param>
         public ThreadCore(ThreadCoreBase parent, Action<object?> method, bool startImmediately = true)
-            : base(parent)
         {
             this.Thread = new Thread(new ParameterizedThreadStart(method));
+            this.Prepare(parent); // this.Thread (this.IsAlive) might be referenced after this method.
             if (startImmediately)
             {
                 this.Start();
@@ -110,12 +110,12 @@ namespace Arc.Threading
         /// <param name="startImmediately">Starts the task immediately.<br/>
         /// <see langword="false"/>: Manually call <see cref="Start"/> to start the task.</param>
         public TaskCore(ThreadCoreBase parent, Func<object?, Task> method, bool startImmediately = true)
-            : base(parent)
         {
             // this.Task = System.Threading.Tasks.Task.Run(async () => { await method(this); });
             // this.Task = System.Threading.Tasks.Task.Factory.StartNew(async () => { await method(this); }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
 
             this.Task = new Task(() => method(this).Wait());
+            this.Prepare(parent); // this.Task (this.IsAlive) might be referenced after this method.
             if (startImmediately)
             {
                 this.Start();
@@ -183,9 +183,9 @@ namespace Arc.Threading
         /// <param name="startImmediately">Starts the task immediately.<br/>
         /// <see langword="false"/>: Manually call <see cref="Start"/> to start the task.</param>
         public TaskCore(ThreadCoreBase parent, Func<object?, Task<TResult>> method, bool startImmediately = true)
-            : base(parent)
         {
             this.Task = new Task<TResult>(() => method(this).Result);
+            this.Prepare(parent); // this.Task (this.IsAlive) might be referenced after this method.
             if (startImmediately)
             {
                 this.Start();
@@ -248,8 +248,8 @@ namespace Arc.Threading
         /// </summary>
         /// <param name="parent">The parent.</param>
         public ThreadCoreGroup(ThreadCoreBase parent)
-            : base(parent)
         {
+            this.Prepare(parent);
         }
 
         /// <inheritdoc/>
@@ -262,8 +262,8 @@ namespace Arc.Threading
     public class ThreadCoreRoot : ThreadCoreBase
     {
         internal ThreadCoreRoot()
-            : base(null)
         {
+            this.Prepare(null);
         }
 
         /// <summary>
@@ -278,10 +278,17 @@ namespace Arc.Threading
     public class ThreadCoreBase : IDisposable
     {
         /// <summary>
-        /// Initializes a new instance of the <see cref="ThreadCoreBase"/> class.
+        /// Initializes a new instance of the <see cref="ThreadCoreBase"/> class.<br/>
+        /// </summary>
+        protected ThreadCoreBase()
+        {
+        }
+
+        /// <summary>
+        /// Adds this object to the tree structure and notifies it's ready to use.
         /// </summary>
         /// <param name="parent">The parent.</param>
-        internal ThreadCoreBase(ThreadCoreBase? parent)
+        protected void Prepare(ThreadCoreBase? parent)
         {
             this.CancellationToken = this.cancellationTokenSource.Token;
             lock (TreeSync)
@@ -303,7 +310,7 @@ namespace Arc.Threading
         /// <summary>
         /// Gets a <see cref="System.Threading.CancellationToken"/> which is used to terminate thread/task.
         /// </summary>
-        public CancellationToken CancellationToken { get; }
+        public CancellationToken CancellationToken { get; private set; }
 
         /// <summary>
         /// Gets a value indicating whether this thread/task is being terminated or has been terminated.<br/>
@@ -501,7 +508,7 @@ namespace Arc.Threading
                     }
                 }
 
-                return c?.IsAlive == true;
+                return c.IsAlive == true;
             }
         }
 
