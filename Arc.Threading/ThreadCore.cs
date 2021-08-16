@@ -58,7 +58,7 @@ namespace Arc.Threading
         }
 
         /// <inheritdoc/>
-        public override bool IsAlive => this.Thread.IsAlive;
+        public override bool IsAlive => (this.Thread.ThreadState & System.Threading.ThreadState.Stopped) == 0; // this.Thread.IsAlive;
 
         /// <inheritdoc/>
         public override bool IsThreadOrTask => true;
