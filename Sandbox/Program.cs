@@ -7,6 +7,34 @@ using Arc.Threading;
 
 namespace ConsoleApp1
 {
+    internal class CustomCore : ThreadCore
+    {
+        public static void Process(object? parameter)
+        {
+            var core = (CustomCore)parameter!;
+            Console.WriteLine("CustomCore: Start");
+
+            while (!core.IsTerminated)
+            {
+                if (core.Count++ > 10)
+                {
+                    break;
+                }
+
+                Thread.Sleep(100);
+            }
+
+            Console.WriteLine("CustomCore: End");
+        }
+
+        public CustomCore(ThreadCoreBase parent)
+            : base(parent, Process, false)
+        {
+        }
+
+        public int Count { get; private set; }
+    }
+
     internal class Program
     {
         public static async Task Main(string[] args)
@@ -42,6 +70,9 @@ namespace ConsoleApp1
 
                 Console.WriteLine("ThreadCore 1: End");
             });
+
+            var cc = new CustomCore(ThreadCore.Root);
+            cc.Start();
 
             await ThreadCore.Root.WaitForTermination(-1); // Wait for the termination infinitely.
             ThreadCore.Root.TerminationEvent.Set(); // The termination process is complete (#1).
