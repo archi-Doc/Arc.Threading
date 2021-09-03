@@ -408,7 +408,7 @@ namespace Arc.Threading
         /// </summary>
         /// <param name="millisecondsTimeout">The number of milliseconds to wait before termination, or -1 to wait indefinitely.</param>
         /// <returns>A task that represents waiting for termination.</returns>
-        public async Task<bool> WaitAsyncForTermination(int millisecondsTimeout)
+        public async Task<bool> WaitForTerminationAsync(int millisecondsTimeout)
         {
             int interval = 5;
             var sw = new Stopwatch();
