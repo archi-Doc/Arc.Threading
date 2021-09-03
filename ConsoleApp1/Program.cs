@@ -78,7 +78,7 @@ internal class Program
         c2.Terminate(); // Send a termination signal to the TaskCore2.
         // group.Dispose(); // Same as above
 
-        await ThreadCore.Root.WaitAsyncForTermination(-1); // Wait for the termination infinitely.
+        await ThreadCore.Root.WaitForTerminationAsync(-1); // Wait for the termination infinitely.
         ThreadCore.Root.TerminationEvent.Set(); // The termination process is complete (#1).
     }
 }

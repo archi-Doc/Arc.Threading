@@ -74,7 +74,7 @@ internal class Program
         var cc = new CustomCore(ThreadCore.Root);
         cc.Start();
 
-        await ThreadCore.Root.WaitAsyncForTermination(-1); // Wait for the termination infinitely.
+        await ThreadCore.Root.WaitForTerminationAsync(-1); // Wait for the termination infinitely.
         ThreadCore.Root.TerminationEvent.Set(); // The termination process is complete (#1).
     }
 }
