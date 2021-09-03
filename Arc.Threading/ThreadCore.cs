@@ -354,12 +354,51 @@ namespace Arc.Threading
 
             static void TerminateCore(ThreadCoreBase c)
             {
-                // c.terminated = true;
-                c.cancellationTokenSource.Cancel();
-                foreach (var x in c.hashSet)
+                // c.cancellationTokenSource.Cancel(); // Moved to the end of the method due to mysterious behavior.
+                var array = c.hashSet.ToArray();
+                foreach (var x in array)
                 {
                     TerminateCore(x);
                 }
+
+                c.cancellationTokenSource.Cancel();
+            }
+        }
+
+        /// <summary>
+        /// Waits for the termination of the thread/task.<br/>
+        /// Note that you need to call <see cref="Terminate"/> to terminate the object from outside the thread/task.
+        /// </summary>
+        /// <param name="millisecondsTimeout">The number of milliseconds to wait before termination, or -1 to wait indefinitely.</param>
+        /// <returns><see langword="true"/>: The thread/task is terminated.</returns>
+        public bool WaitForTermination(int millisecondsTimeout)
+        {
+            int interval = 5;
+            var sw = new Stopwatch();
+            sw.Start();
+
+            while (true)
+            {
+                lock (TreeSync)
+                {
+                    this.Clean(out var numberOfActiveObjects);
+
+                    if (numberOfActiveObjects == 0)
+                    {
+                        if (!this.IsThreadOrTask || !this.IsAlive)
+                        {// Not active (e.g. Root, ThreadCoreGroup) or not running.
+                            return true;
+                        }
+                    }
+                }
+
+                Thread.Sleep(interval);
+                if (millisecondsTimeout >= 0 && sw.ElapsedMilliseconds >= millisecondsTimeout)
+                {
+                    return false;
+                }
+
+                continue;
             }
         }
 
@@ -369,7 +408,7 @@ namespace Arc.Threading
         /// </summary>
         /// <param name="millisecondsTimeout">The number of milliseconds to wait before termination, or -1 to wait indefinitely.</param>
         /// <returns>A task that represents waiting for termination.</returns>
-        public async Task<bool> WaitForTermination(int millisecondsTimeout)
+        public async Task<bool> WaitAsyncForTermination(int millisecondsTimeout)
         {
             int interval = 5;
             var sw = new Stopwatch();
