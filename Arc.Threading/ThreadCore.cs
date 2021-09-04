@@ -30,6 +30,11 @@ namespace Arc.Threading
     public class ThreadCore : ThreadCoreBase
     {
         /// <summary>
+        /// The default interval time in milliseconds.
+        /// </summary>
+        public const int DefaultInterval = 10;
+
+        /// <summary>
         /// Gets the root object of all ThreadCoreBase classes.
         /// </summary>
         public static ThreadCoreRoot Root { get; } = new();
@@ -373,7 +378,6 @@ namespace Arc.Threading
         /// <returns><see langword="true"/>: The thread/task is terminated.</returns>
         public bool WaitForTermination(int millisecondsTimeout)
         {
-            int interval = 5;
             var sw = new Stopwatch();
             sw.Start();
 
@@ -392,7 +396,7 @@ namespace Arc.Threading
                     }
                 }
 
-                Thread.Sleep(interval);
+                Thread.Sleep(ThreadCore.DefaultInterval);
                 if (millisecondsTimeout >= 0 && sw.ElapsedMilliseconds >= millisecondsTimeout)
                 {
                     return false;
@@ -410,7 +414,6 @@ namespace Arc.Threading
         /// <returns>A task that represents waiting for termination.</returns>
         public async Task<bool> WaitForTerminationAsync(int millisecondsTimeout)
         {
-            int interval = 5;
             var sw = new Stopwatch();
             sw.Start();
 
@@ -429,7 +432,7 @@ namespace Arc.Threading
                     }
                 }
 
-                await Task.Delay(interval);
+                await Task.Delay(ThreadCore.DefaultInterval);
                 if (millisecondsTimeout >= 0 && sw.ElapsedMilliseconds >= millisecondsTimeout)
                 {
                     return false;
@@ -445,7 +448,7 @@ namespace Arc.Threading
         /// <param name="millisecondsToWait">The number of milliseconds to wait.</param>
         /// <param name="interval">The interval time to wait in milliseconds (<see cref="Thread.Sleep(int)"/>).</param>
         /// <returns>true if the time successfully elapsed, false if the thread/task is terminated.</returns>
-        public bool Wait(int millisecondsToWait, int interval) => this.Wait(TimeSpan.FromMilliseconds(millisecondsToWait), TimeSpan.FromMilliseconds(interval));
+        public bool Wait(int millisecondsToWait, int interval = ThreadCore.DefaultInterval) => this.Wait(TimeSpan.FromMilliseconds(millisecondsToWait), TimeSpan.FromMilliseconds(interval));
 
         /// <summary>
         /// Wait for the specified time (<see cref="Thread.Sleep(TimeSpan)"/>).
