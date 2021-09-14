@@ -443,12 +443,12 @@ namespace Arc.Threading
         }
 
         /// <summary>
-        /// Wait for the specified time (<see cref="Thread.Sleep(int)"/>).
+        /// Suspends the current thread/task for the specified amount of time (<see cref="Thread.Sleep(int)"/>).
         /// </summary>
         /// <param name="millisecondsToWait">The number of milliseconds to wait.</param>
         /// <param name="interval">The interval time to wait in milliseconds (<see cref="Thread.Sleep(int)"/>).</param>
-        /// <returns>true if the time successfully elapsed, false if the thread/task is terminated.</returns>
-        public bool Wait(int millisecondsToWait, int interval = ThreadCore.DefaultInterval) => this.Wait(TimeSpan.FromMilliseconds(millisecondsToWait), TimeSpan.FromMilliseconds(interval));
+        /// <returns><see langword="true"/> if the time successfully elapsed, <see langword="false"/> if the thread/task is terminated.</returns>
+        public bool Sleep(int millisecondsToWait, int interval = ThreadCore.DefaultInterval) => this.Sleep(TimeSpan.FromMilliseconds(millisecondsToWait), TimeSpan.FromMilliseconds(interval));
 
         /// <summary>
         /// Wait for the specified time (<see cref="Thread.Sleep(TimeSpan)"/>).
@@ -456,7 +456,7 @@ namespace Arc.Threading
         /// <param name="timeToWait">The TimeSpan to wait.</param>
         /// <param name="interval">The interval time to wait (<see cref="Thread.Sleep(TimeSpan)"/>).</param>
         /// <returns>true if the time successfully elapsed, false if the thread/task is terminated.</returns>
-        public bool Wait(TimeSpan timeToWait, TimeSpan interval)
+        public bool Sleep(TimeSpan timeToWait, TimeSpan interval)
         {
             timeToWait = timeToWait < TimeSpan.Zero ? TimeSpan.Zero : timeToWait;
             interval = interval > timeToWait ? timeToWait : interval;

@@ -114,3 +114,52 @@ internal class Program
 }
 ```
 
+
+
+## ThreadWorker
+
+`ThreadWorker` is a `ThreadCore` class which receives and processes a work.
+
+```csharp
+private static void TestThreadWorker()
+{
+    // Create ThreadWorker by specifying a type of work and delegate.
+    var worker = new ThreadWorker<TestWork>(ThreadCore.Root, (worker, work) =>
+    {
+        if (!worker.Sleep(100))
+        {
+            return false; // Aborted
+        }
+
+        Console.WriteLine($"Complete: {work.Id}, {work.Name}");
+        return true; // Complete
+    });
+
+    var c = new TestWork(1, "A"); // New work
+    worker.Add(c); // Add a work to the worker.
+    Console.WriteLine(c); // Added work is on standby.
+
+    worker.Add(new(2, "B"));
+
+    worker.WaitForWork(c, 200);
+    Console.WriteLine(c); // Work is complete.
+
+    worker.Terminate();
+}
+
+internal class TestWork : ThreadWork
+{
+    public int Id { get; }
+
+    public string Name { get; } = string.Empty;
+
+    public TestWork(int id, string name)
+    {
+        this.Id = id;
+        this.Name = name;
+    }
+
+    public override string ToString() => $"Id: {this.Id}, Name: {this.Name}, State: {this.State}";
+}
+```
+

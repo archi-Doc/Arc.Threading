@@ -35,19 +35,6 @@ internal class CustomCore : ThreadCore
     public int Count { get; private set; }
 }
 
-internal class TestWork : ThreadWork
-{
-    public int Id { get; }
-
-    public string Name { get; } = string.Empty;
-
-    public TestWork(int id, string name)
-    {
-        this.Id = id;
-        this.Name = name;
-    }
-}
-
 internal class Program
 {
     public static async Task Main(string[] args)
@@ -66,6 +53,15 @@ internal class Program
 
         Console.WriteLine("Sandbox.");
 
+        // TestThreadCore();
+        TestThreadWorker();
+
+        await ThreadCore.Root.WaitForTerminationAsync(-1); // Wait for the termination infinitely.
+        ThreadCore.Root.TerminationEvent.Set(); // The termination process is complete (#1).
+    }
+
+    private static void TestThreadCore()
+    {
         var c1 = new ThreadCore(ThreadCore.Root, parameter =>
         {
             var core = (ThreadCore)parameter!; // Get ThreadCore from the parameter.
@@ -86,28 +82,46 @@ internal class Program
 
         var cc = new CustomCore(ThreadCore.Root);
         cc.Start();
-
-        Test_ThreadWork();
-
-        await ThreadCore.Root.WaitForTerminationAsync(-1); // Wait for the termination infinitely.
-        ThreadCore.Root.TerminationEvent.Set(); // The termination process is complete (#1).
     }
 
-    private static void Test_ThreadWork()
+    internal class TestWork : ThreadWork
     {
-        var w = new ThreadWorker<TestWork>(ThreadCore.Root, x =>
+        public int Id { get; }
+
+        public string Name { get; } = string.Empty;
+
+        public TestWork(int id, string name)
         {
-            Console.WriteLine($"Work: {x.Id}, {x.Name}");
+            this.Id = id;
+            this.Name = name;
+        }
+
+        public override string ToString() => $"Id: {this.Id}, Name: {this.Name}, State: {this.State}";
+    }
+
+    private static void TestThreadWorker()
+    {
+        // Create ThreadWorker by specifying a type of work and delegate.
+        var worker = new ThreadWorker<TestWork>(ThreadCore.Root, (worker, work) =>
+        {
+            if (!worker.Sleep(100))
+            {
+                return false;
+            }
+
+            Console.WriteLine($"Complete: {work.Id}, {work.Name}");
+            return true;
         });
 
-        var c = new TestWork(1, "A");
-        w.Add(c);
-        Console.WriteLine(c.State);
-        w.Add(new(2, "B"));
+        var c = new TestWork(1, "A"); // New work
+        worker.Add(c); // Add a work to the worker.
+        Console.WriteLine(c); // Added work is on standby.
 
-        Thread.Sleep(100);
-        Console.WriteLine(c.State);
+        worker.Add(new(2, "B"));
 
-        w.Terminate();
+        worker.WaitForWork(c, 200);
+        Console.WriteLine(c); // Work is complete.
+
+        worker.Terminate();
     }
 }
