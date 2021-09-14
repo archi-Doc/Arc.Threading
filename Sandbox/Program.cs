@@ -35,6 +35,19 @@ internal class CustomCore : ThreadCore
     public int Count { get; private set; }
 }
 
+internal class TestWork : ThreadWork
+{
+    public int Id { get; }
+
+    public string Name { get; } = string.Empty;
+
+    public TestWork(int id, string name)
+    {
+        this.Id = id;
+        this.Name = name;
+    }
+}
+
 internal class Program
 {
     public static async Task Main(string[] args)
@@ -74,7 +87,27 @@ internal class Program
         var cc = new CustomCore(ThreadCore.Root);
         cc.Start();
 
+        Test_ThreadWork();
+
         await ThreadCore.Root.WaitForTerminationAsync(-1); // Wait for the termination infinitely.
         ThreadCore.Root.TerminationEvent.Set(); // The termination process is complete (#1).
+    }
+
+    private static void Test_ThreadWork()
+    {
+        var w = new ThreadWorker<TestWork>(ThreadCore.Root, x =>
+        {
+            Console.WriteLine($"Work: {x.Id}, {x.Name}");
+        });
+
+        var c = new TestWork(1, "A");
+        w.Add(c);
+        Console.WriteLine(c.State);
+        w.Add(new(2, "B"));
+
+        Thread.Sleep(100);
+        Console.WriteLine(c.State);
+
+        w.Terminate();
     }
 }
