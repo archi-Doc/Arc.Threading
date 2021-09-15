@@ -1,5 +1,8 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
+using System;
+using System.Threading;
+using System.Threading.Tasks;
 using Arc.Threading;
 
 namespace QuickStart;
@@ -90,20 +93,20 @@ internal class Program
             if (!worker.Sleep(100))
             {
                 return false; // Aborted
-            }
+        }
 
             Console.WriteLine($"Complete: {work.Id}, {work.Name}");
             return true; // Complete
-        });
+    });
 
-        var c = new TestWork(1, "A"); // New work
-        worker.Add(c); // Add a work to the worker.
-        Console.WriteLine(c); // Added work is on standby.
+        var w = new TestWork(1, "A"); // New work
+        worker.Add(w); // Add a work to the worker.
+        Console.WriteLine(w); // Added work is on standby.
 
         worker.Add(new(2, "B"));
 
-        worker.WaitForWork(c, 200);
-        Console.WriteLine(c); // Work is complete.
+        w.Wait(200);
+        Console.WriteLine(w); // Work is complete.
 
         worker.Terminate();
     }

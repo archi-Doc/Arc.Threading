@@ -30,9 +30,12 @@ The main purpose of `ThreadCore` is
 `ThreadCore` is intended for long-running processes such as `Thread`, but it can also be used for `Task`.
 
 ```csharp
+using System;
+using System.Threading;
+using System.Threading.Tasks;
 using Arc.Threading;
 
-namespace ConsoleApp1;
+namespace QuickStart;
 
 internal class Program
 {
@@ -135,14 +138,14 @@ private static void TestThreadWorker()
         return true; // Complete
     });
 
-    var c = new TestWork(1, "A"); // New work
-    worker.Add(c); // Add a work to the worker.
-    Console.WriteLine(c); // Added work is on standby.
+    var w = new TestWork(1, "A"); // New work
+    worker.Add(w); // Add a work to the worker.
+    Console.WriteLine(w); // Added work is on standby.
 
     worker.Add(new(2, "B"));
 
-    worker.WaitForWork(c, 200);
-    Console.WriteLine(c); // Work is complete.
+    w.Wait(200);
+    Console.WriteLine(w); // Work is complete.
 
     worker.Terminate();
 }
