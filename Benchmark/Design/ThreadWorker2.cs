@@ -101,6 +101,7 @@ public class ThreadWork2
                     }
                     else if (intState == ThreadWork2.StateToInt(ThreadWorkState.Complete))
                     {// Complete
+                        this.completeEvent.Dispose();
                         return true;
                     }
                     else
@@ -222,72 +223,6 @@ public class ThreadWorker2<T> : ThreadWorkerBase2
         work.state = ThreadWork2.StateToInt(ThreadWorkState.Standby);
         this.workQueue.Enqueue(work);
         this.addedEvent.Set();
-    }
-
-    /// <summary>
-    /// Wait for the specified time until the work is completed.
-    /// </summary>
-    /// <param name="work">A work to wait for.</param>
-    /// <param name="millisecondsToWait">The number of milliseconds to wait.</param>
-    /// <param name="abortIfTimeout">Abort the work if the specified time is elapsed [the default is true].</param>
-    /// <returns><see langword="true"/> if the work is complete, <see langword="false"/> if the work is not complete.</returns>
-    public bool WaitForWork(T work, int millisecondsToWait, bool abortIfTimeout = true) => this.WaitForWork(work, TimeSpan.FromMilliseconds(millisecondsToWait), abortIfTimeout);
-
-    /// <summary>
-    /// Wait for the specified time until the work is completed.
-    /// </summary>
-    /// <param name="work">A work to wait for.</param>
-    /// <param name="timeToWait">The TimeSpan to wait.</param>
-    /// <param name="abortIfTimeout">Abort the work if the specified time is elapsed [the default is true].</param>
-    /// <returns><see langword="true"/> if the work is complete, <see langword="false"/> if the work is not complete.</returns>
-    public bool WaitForWork(T work, TimeSpan timeToWait, bool abortIfTimeout = true)
-    {
-        timeToWait = timeToWait < TimeSpan.Zero ? TimeSpan.Zero : timeToWait;
-        var end = Stopwatch.GetTimestamp() + (long)(timeToWait.TotalSeconds * (double)Stopwatch.Frequency);
-        var stateStandby = ThreadWork2.StateToInt(ThreadWorkState.Standby);
-        var stateAborted = ThreadWork2.StateToInt(ThreadWorkState.Aborted);
-
-        while (!this.IsTerminated)
-        {
-            var state = work.State;
-            if (state != ThreadWorkState.Standby && state != ThreadWorkState.Working)
-            {
-                return true;
-            }
-
-            if (Stopwatch.GetTimestamp() >= end)
-            {// Timeout
-                if (abortIfTimeout)
-                {// State is Standby or Working or Complete or Aborted.
-                    int intState = Interlocked.CompareExchange(ref work.state, stateAborted, stateStandby);
-                    if (intState == stateStandby)
-                    {// Standby -> Aborted
-                        return false;
-                    }
-                    else if (intState == ThreadWork2.StateToInt(ThreadWorkState.Complete))
-                    {// Complete
-                        return true;
-                    }
-                    else
-                    {// Working or Aborted
-                        return false;
-                    }
-                }
-
-                return false;
-            }
-
-            try
-            {
-                work.completeEvent.Wait(5, this.CancellationToken);
-            }
-            catch
-            {
-                break;
-            }
-        }
-
-        return false;
     }
 
     /// <summary>
