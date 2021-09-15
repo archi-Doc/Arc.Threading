@@ -24,7 +24,6 @@ namespace Benchmark
         public static async Task Main(string[] args)
         {
             Test.ThreadWorkerBenchmark.Benchmark();
-            Test.ThreadWorkerBenchmark.Benchmark();
             return;
 
             DebugRun<Test.TemplateBenchmark>();

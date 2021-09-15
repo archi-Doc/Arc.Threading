@@ -114,10 +114,7 @@ public class ThreadWork2
 
             try
             {
-                if (this.threadWorkerBase.processedEvent.Wait(5))
-                {
-                    this.threadWorkerBase.processedEvent.Reset();
-                }
+                this.completeEvent.Wait(5, this.threadWorkerBase.CancellationToken);
             }
             catch
             {
@@ -130,6 +127,7 @@ public class ThreadWork2
 
     internal ThreadWorkerBase2? threadWorkerBase;
     internal int state;
+    internal ManualResetEventSlim completeEvent = new(false);
 
     public ThreadWorkState State => IntToState(this.state);
 
@@ -186,7 +184,7 @@ public class ThreadWorker2<T> : ThreadWorkerBase2
                         work.state = ThreadWork2.StateToInt(ThreadWorkState.Aborted);
                     }
 
-                    worker.processedEvent.Set();
+                    work.completeEvent.Set();
                 }
             }
         }
@@ -281,10 +279,7 @@ public class ThreadWorker2<T> : ThreadWorkerBase2
 
             try
             {
-                if (this.processedEvent.Wait(5))
-                {
-                    this.processedEvent.Reset();
-                }
+                work.completeEvent.Wait(5, this.CancellationToken);
             }
             catch
             {
@@ -346,5 +341,4 @@ public class ThreadWorkerBase2 : ThreadCore
     }
 
     internal ManualResetEventSlim addedEvent = new(false);
-    internal ManualResetEventSlim processedEvent = new(false);
 }

@@ -19,6 +19,8 @@ namespace Benchmark.Test
         }
 
         public int Id { get; }
+
+        public long Result { get; set; }
     }
 
     internal class TestWork2 : ThreadWork2
@@ -29,168 +31,197 @@ namespace Benchmark.Test
         }
 
         public int Id { get; }
+
+        public long Result { get; set; }
     }
 
     internal class ThreadWorkerBenchmark
     {
+        internal const int Repeat = 5;
         internal const int N = 1000_000;
-        internal const int N2 = 100;
+        internal const int N2 = 100_000;
 
         internal static void Benchmark()
         {
-            /*Console.WriteLine($"ThreadWorker");
+            Console.WriteLine($"ThreadWorker");
             var worker = new ThreadWorker<TestWork>(ThreadCore.Root, EmptyMethod);
             BenchWorker(N, worker);
+            worker.Dispose();
+            Console.WriteLine();
 
             Console.WriteLine($"ThreadWorker heavy");
             var heavyWorker = new ThreadWorker<TestWork>(ThreadCore.Root, HeavyMethod);
-            BenchWorker(N2, heavyWorker);*/
+            BenchWorker(N2, heavyWorker);
+            heavyWorker.Dispose();
+            Console.WriteLine();
 
             Console.WriteLine($"ThreadWorker2");
-            var worker = new ThreadWorker2<TestWork2>(ThreadCore.Root, EmptyMethod2);
-            BenchWorker2(N, worker);
+            var worker2 = new ThreadWorker2<TestWork2>(ThreadCore.Root, EmptyMethod2);
+            BenchWorker2(N, worker2);
+            worker2.Dispose();
+            Console.WriteLine();
 
-            Console.WriteLine($"ThreadWorker heavy2");
-            var heavyWorker = new ThreadWorker2<TestWork2>(ThreadCore.Root, HeavyMethod2);
-            BenchWorker2(N2, heavyWorker);
-
-            worker.Dispose();
+            Console.WriteLine($"ThreadWorker2 heavy");
+            var heavyWorker2 = new ThreadWorker2<TestWork2>(ThreadCore.Root, HeavyMethod2);
+            BenchWorker2(N2, heavyWorker2);
+            heavyWorker2.Dispose();
+            Console.WriteLine();
         }
 
         private static void BenchWorker(int count, ThreadWorker<TestWork> worker)
         {
-            Start();
-            for (var n = 0; n < count; n++)
+            for (var repeat = 0; repeat < Repeat; repeat++)
             {
-                worker.Add(new(n));
-            }
-
-            worker.WaitForCompletion(-1);
-            Stop("Sequence Add");
-            Thread.Sleep(100);
-
-            Start();
-            for (var n = 0; n < count; n++)
-            {
-                var w = new TestWork(n);
-                worker.Add(w);
-                w.Wait(-1);
-            }
-
-            worker.WaitForCompletion(-1);
-            Stop("Sequence Add and Wait");
-            Thread.Sleep(100);
-
-            Start();
-            Parallel.For(0, 10, x =>
-            {
-                for (var n = 0; n < (count / 10); n++)
+                Start();
+                for (var n = 0; n < count; n++)
                 {
                     worker.Add(new(n));
                 }
-            });
 
-            worker.WaitForCompletion(-1);
-            Stop("Parallel 10 Add");
-            Thread.Sleep(100);
+                Stop("Sequence Add");
+                worker.WaitForCompletion(-1);
+            }
 
-            Start();
-            Parallel.For(0, 10, x =>
+            for (var repeat = 0; repeat < Repeat; repeat++)
             {
-                for (var n = 0; n < (count / 10); n++)
+                Start();
+                for (var n = 0; n < count; n++)
                 {
                     var w = new TestWork(n);
                     worker.Add(w);
                     w.Wait(-1);
                 }
-            });
 
-            worker.WaitForCompletion(-1);
-            Stop("Parallel 10 Add and Wait");
-            Thread.Sleep(100);
+                worker.WaitForCompletion(-1);
+                Stop("Sequence Add and Wait");
+            }
 
-            Start();
-            Parallel.For(0, 100, x =>
+            for (var repeat = 0; repeat < Repeat; repeat++)
             {
-                for (var n = 0; n < (count / 100); n++)
+                Start();
+                Parallel.For(0, 10, x =>
                 {
-                    var w = new TestWork(n);
-                    worker.Add(w);
-                    w.Wait(-1);
-                }
-            });
+                    for (var n = 0; n < (count / 10); n++)
+                    {
+                        worker.Add(new(n));
+                    }
+                });
 
-            worker.WaitForCompletion(-1);
-            Stop("Parallel 100 Add and Wait");
-            Thread.Sleep(100);
+                worker.WaitForCompletion(-1);
+                Stop("Parallel 10 Add");
+            }
+
+            for (var repeat = 0; repeat < Repeat; repeat++)
+            {
+                Start();
+                Parallel.For(0, 10, x =>
+                {
+                    for (var n = 0; n < (count / 10); n++)
+                    {
+                        var w = new TestWork(n);
+                        worker.Add(w);
+                        w.Wait(-1);
+                    }
+                });
+
+                worker.WaitForCompletion(-1);
+                Stop("Parallel 10 Add and Wait");
+            }
+
+            for (var repeat = 0; repeat < Repeat; repeat++)
+            {
+                Start();
+                Parallel.For(0, 100, x =>
+                {
+                    for (var n = 0; n < (count / 100); n++)
+                    {
+                        var w = new TestWork(n);
+                        worker.Add(w);
+                        w.Wait(-1);
+                    }
+                });
+
+                worker.WaitForCompletion(-1);
+                Stop("Parallel 100 Add and Wait");
+            }
         }
 
         private static void BenchWorker2(int count, ThreadWorker2<TestWork2> worker)
         {
-            Start();
-            for (var n = 0; n < count; n++)
+            for (var repeat = 0; repeat < Repeat; repeat++)
             {
-                worker.Add(new(n));
-            }
-
-            worker.WaitForCompletion(-1);
-            Stop("Sequence Add");
-            Thread.Sleep(100);
-
-            Start();
-            for (var n = 0; n < count; n++)
-            {
-                var w = new TestWork2(n);
-                worker.Add(w);
-                w.Wait(-1);
-            }
-
-            worker.WaitForCompletion(-1);
-            Stop("Sequence Add and Wait");
-            Thread.Sleep(100);
-
-            Start();
-            Parallel.For(0, 10, x =>
-            {
-                for (var n = 0; n < (count / 10); n++)
+                Start();
+                for (var n = 0; n < count; n++)
                 {
                     worker.Add(new(n));
                 }
-            });
 
-            worker.WaitForCompletion(-1);
-            Stop("Parallel 10 Add");
-            Thread.Sleep(100);
+                Stop("Sequence Add");
+                worker.WaitForCompletion(-1);
+            }
 
-            Start();
-            Parallel.For(0, 10, x =>
+            for (var repeat = 0; repeat < Repeat; repeat++)
             {
-                for (var n = 0; n < (count / 10); n++)
+                Start();
+                for (var n = 0; n < count; n++)
                 {
                     var w = new TestWork2(n);
                     worker.Add(w);
                     w.Wait(-1);
                 }
-            });
 
-            worker.WaitForCompletion(-1);
-            Stop("Parallel 10 Add and Wait");
-            Thread.Sleep(100);
+                worker.WaitForCompletion(-1);
+                Stop("Sequence Add and Wait");
+            }
 
-            Start();
-            Parallel.For(0, 100, x =>
+            for (var repeat = 0; repeat < Repeat; repeat++)
             {
-                for (var n = 0; n < (count / 100); n++)
+                Start();
+                Parallel.For(0, 10, x =>
                 {
-                    var w = new TestWork2(n);
-                    worker.Add(w);
-                    w.Wait(-1);
-                }
-            });
+                    for (var n = 0; n < (count / 10); n++)
+                    {
+                        worker.Add(new(n));
+                    }
+                });
 
-            worker.WaitForCompletion(-1);
-            Stop("Parallel 100 Add and Wait");
-            Thread.Sleep(100);
+                worker.WaitForCompletion(-1);
+                Stop("Parallel 10 Add");
+            }
+
+            for (var repeat = 0; repeat < Repeat; repeat++)
+            {
+                Start();
+                Parallel.For(0, 10, x =>
+                {
+                    for (var n = 0; n < (count / 10); n++)
+                    {
+                        var w = new TestWork2(n);
+                        worker.Add(w);
+                        w.Wait(-1);
+                    }
+                });
+
+                worker.WaitForCompletion(-1);
+                Stop("Parallel 10 Add and Wait");
+            }
+
+            for (var repeat = 0; repeat < Repeat; repeat++)
+            {
+                Start();
+                Parallel.For(0, 100, x =>
+                {
+                    for (var n = 0; n < (count / 100); n++)
+                    {
+                        var w = new TestWork2(n);
+                        worker.Add(w);
+                        w.Wait(-1);
+                    }
+                });
+
+                worker.WaitForCompletion(-1);
+                Stop("Parallel 100 Add and Wait");
+            }
         }
 
         private static bool EmptyMethod(ThreadWorker<TestWork> worker, TestWork work)
@@ -200,7 +231,17 @@ namespace Benchmark.Test
 
         private static bool HeavyMethod(ThreadWorker<TestWork> worker, TestWork work)
         {
-            Thread.Sleep(15 + (work.Id % 10));
+            unchecked
+            {
+                long x = 0;
+                for (var i = 0; i < (work.Id & 0xFFFF); i++)
+                {
+                    x += i;
+                }
+
+                work.Result = x;
+            }
+
             return true;
         }
 
@@ -211,7 +252,17 @@ namespace Benchmark.Test
 
         private static bool HeavyMethod2(ThreadWorker2<TestWork2> worker, TestWork2 work)
         {
-            Thread.Sleep(15 + (work.Id % 10));
+            unchecked
+            {
+                long x = 0;
+                for (var i = 0; i < (work.Id & 0xFFFF); i++)
+                {
+                    x += i;
+                }
+
+                work.Result = x;
+            }
+
             return true;
         }
 
