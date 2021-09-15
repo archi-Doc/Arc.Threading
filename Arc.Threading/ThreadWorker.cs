@@ -10,6 +10,9 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
+#pragma warning disable SA1401 // Fields should be private
+#pragma warning disable SA1307 // Accessible fields should begin with upper-case letter
+
 namespace Arc.Threading;
 
 /// <summary>
@@ -49,11 +52,83 @@ public enum ThreadWorkState : int
 /// </summary>
 public class ThreadWork
 {
-#pragma warning disable SA1401 // Fields should be private
-#pragma warning disable SA1307 // Accessible fields should begin with upper-case letter
+    /// <summary>
+    /// Wait for the specified time until the work is completed.
+    /// </summary>
+    /// <param name="millisecondsToWait">The number of milliseconds to wait, or -1 to wait indefinitely.</param>
+    /// <param name="abortIfTimeout">Abort the work if the specified time is elapsed.</param>
+    /// <returns><see langword="true"/>: The work is complete<br/><see langword="false"/>: Not complete.</returns>
+    public bool Wait(int millisecondsToWait, bool abortIfTimeout = true) => this.Wait(TimeSpan.FromMilliseconds(millisecondsToWait), abortIfTimeout);
+
+    /// <summary>
+    /// Wait for the specified time until the work is completed.
+    /// </summary>
+    /// <param name="timeToWait">The TimeSpan to wait, or negative value (e.g TimeSpan.MinValue) to wait indefinitely.</param>
+    /// <param name="abortIfTimeout">Abort the work if the specified time is elapsed.</param>
+    /// <returns><see langword="true"/>: The work is complete<br/><see langword="false"/>: Not complete.</returns>
+    public bool Wait(TimeSpan timeToWait, bool abortIfTimeout = true)
+    {
+        if (this.threadWorkerBase == null)
+        {
+            throw new InvalidOperationException("ThreadWorker is not assigned.");
+        }
+
+        var end = Stopwatch.GetTimestamp() + (long)(timeToWait.TotalSeconds * (double)Stopwatch.Frequency);
+        if (timeToWait < TimeSpan.Zero)
+        {// Wait infinitely.
+            end = long.MaxValue;
+        }
+
+        var stateStandby = ThreadWork.StateToInt(ThreadWorkState.Standby);
+        var stateAborted = ThreadWork.StateToInt(ThreadWorkState.Aborted);
+        while (!this.threadWorkerBase.IsTerminated)
+        {
+            var state = this.State;
+            if (state != ThreadWorkState.Standby && state != ThreadWorkState.Working)
+            {
+                return true;
+            }
+
+            if (Stopwatch.GetTimestamp() >= end)
+            {// Timeout
+                if (abortIfTimeout)
+                {// State is Standby or Working or Complete or Aborted.
+                    int intState = Interlocked.CompareExchange(ref this.state, stateAborted, stateStandby);
+                    if (intState == stateStandby)
+                    {// Standby -> Aborted
+                        return false;
+                    }
+                    else if (intState == ThreadWork.StateToInt(ThreadWorkState.Complete))
+                    {// Complete
+                        return true;
+                    }
+                    else
+                    {// Working or Aborted
+                        return false;
+                    }
+                }
+
+                return false;
+            }
+
+            try
+            {
+                if (this.threadWorkerBase.processedEvent.Wait(5))
+                {
+                    this.threadWorkerBase.processedEvent.Reset();
+                }
+            }
+            catch
+            {
+                break;
+            }
+        }
+
+        return false;
+    }
+
+    internal ThreadWorkerBase? threadWorkerBase;
     internal int state;
-#pragma warning restore SA1307 // Accessible fields should begin with upper-case letter
-#pragma warning restore SA1401 // Fields should be private
 
     public ThreadWorkState State => IntToState(this.state);
 
@@ -63,10 +138,10 @@ public class ThreadWork
 }
 
 /// <summary>
-/// Represents a worker.
+/// Represents a worker class.
 /// </summary>
 /// <typeparam name="T">The type of a work.</typeparam>
-public class ThreadWorker<T> : ThreadCore
+public class ThreadWorker<T> : ThreadWorkerBase
     where T : ThreadWork
 {
     /// <summary>
@@ -124,7 +199,7 @@ public class ThreadWorker<T> : ThreadCore
     /// <param name="startImmediately">Starts the worker immediately.<br/>
     /// <see langword="false"/>: Manually call <see cref="ThreadCore.Start" /> to start the worker.</param>
     public ThreadWorker(ThreadCoreBase parent, WorkDelegate method, bool startImmediately = true)
-        : base(parent, Process, false)
+        : base(parent, Process)
     {
         this.method = method;
         if (startImmediately)
@@ -144,6 +219,7 @@ public class ThreadWorker<T> : ThreadCore
             throw new InvalidOperationException("Only newly created work can be added to a worker.");
         }
 
+        work.threadWorkerBase = this;
         work.state = ThreadWork.StateToInt(ThreadWorkState.Standby);
         this.workQueue.Enqueue(work);
         this.addedEvent.Set();
@@ -181,9 +257,9 @@ public class ThreadWorker<T> : ThreadCore
             }
 
             if (Stopwatch.GetTimestamp() >= end)
-            {
+            {// Timeout
                 if (abortIfTimeout)
-                {// Timeout. State is Standby or Working or Complete or Aborted.
+                {// State is Standby or Working or Complete or Aborted.
                     int intState = Interlocked.CompareExchange(ref work.state, stateAborted, stateStandby);
                     if (intState == stateStandby)
                     {// Standby -> Aborted
@@ -218,8 +294,56 @@ public class ThreadWorker<T> : ThreadCore
         return false;
     }
 
+    /// <summary>
+    /// Waits for the completion of all works.
+    /// </summary>
+    /// <param name="millisecondsTimeout">The number of milliseconds to wait, or -1 to wait indefinitely.</param>
+    /// <returns><see langword="true"/>: All works are complete.<br/><see langword="false"/>: Timeout or cancelled.</returns>
+    public bool WaitForCompletion(int millisecondsTimeout)
+    {
+        var end = Stopwatch.GetTimestamp() + (long)(millisecondsTimeout * (double)Stopwatch.Frequency / 1000);
+        while (!this.IsTerminated)
+        {
+            if (this.workQueue.Count == 0)
+            {// Complete
+                return true;
+            }
+            else if (millisecondsTimeout >= 0 && Stopwatch.GetTimestamp() >= end)
+            {// Timeout
+                return false;
+            }
+            else
+            {// Wait
+                var cancelled = this.CancellationToken.WaitHandle.WaitOne(ThreadWorker<T>.DefaultInterval);
+                if (cancelled)
+                {
+                    return false;
+                }
+            }
+        }
+
+        return false;
+    }
+
     private WorkDelegate method;
     private ConcurrentQueue<T> workQueue = new();
-    private ManualResetEventSlim addedEvent = new(false);
-    private ManualResetEventSlim processedEvent = new(false);
+}
+
+/// <summary>
+/// Represents a base worker class.
+/// </summary>
+public class ThreadWorkerBase : ThreadCore
+{
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ThreadWorkerBase"/> class.
+    /// </summary>
+    /// <param name="parent">The parent.</param>
+    /// <param name="method">The method that executes on a System.Threading.Thread.</param>
+    internal ThreadWorkerBase(ThreadCoreBase parent, Action<object?> method)
+        : base(parent, method, false)
+    {
+    }
+
+    internal ManualResetEventSlim addedEvent = new(false);
+    internal ManualResetEventSlim processedEvent = new(false);
 }
