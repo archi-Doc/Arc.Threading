@@ -119,7 +119,7 @@ internal class Program
 
         worker.Add(new(2, "B"));
 
-        worker.WaitForWork(c, 200);
+        c.Wait(-1);
         Console.WriteLine(c); // Work is complete.
 
         worker.Terminate();

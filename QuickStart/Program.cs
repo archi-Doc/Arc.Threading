@@ -99,14 +99,14 @@ internal class Program
             return true; // Complete
         });
 
-        var c = new TestWork(1, "A"); // New work
-        worker.Add(c); // Add a work to the worker.
-        Console.WriteLine(c); // Added work is on standby.
+        var w = new TestWork(1, "A"); // New work
+        worker.Add(w); // Add a work to the worker.
+        Console.WriteLine(w); // Added work is on standby.
 
         worker.Add(new(2, "B"));
 
-        worker.WaitForWork(c, 200);
-        Console.WriteLine(c); // Work is complete.
+        w.Wait(200);
+        Console.WriteLine(w); // Work is complete.
 
         worker.Terminate();
     }

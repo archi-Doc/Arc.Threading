@@ -17,7 +17,7 @@ namespace Arc.Threading;
 
 /// <summary>
 /// Represents a state of a thread work.<br/>
-/// Created -> Standby -> Abort/Working -> Completed.
+/// Created -> Standby -> Abort / Working -> Completed.
 /// </summary>
 public enum ThreadWorkState : int
 {
@@ -48,7 +48,7 @@ public enum ThreadWorkState : int
 }
 
 /// <summary>
-/// Represents a work to be passed to <see cref="ThreadWorker{T}"/>.
+/// Represents a work to be processed by <see cref="ThreadWorker{T}"/>.
 /// </summary>
 public class ThreadWork
 {
@@ -75,12 +75,10 @@ public class ThreadWork
 
         var end = Stopwatch.GetTimestamp() + (long)(timeToWait.TotalSeconds * (double)Stopwatch.Frequency);
         if (timeToWait < TimeSpan.Zero)
-        {// Wait infinitely.
+        {// Wait indefinitely.
             end = long.MaxValue;
         }
 
-        var stateStandby = ThreadWork.StateToInt(ThreadWorkState.Standby);
-        var stateAborted = ThreadWork.StateToInt(ThreadWorkState.Aborted);
         while (!this.threadWorkerBase.IsTerminated)
         {
             var state = this.State;
@@ -91,32 +89,29 @@ public class ThreadWork
 
             if (Stopwatch.GetTimestamp() >= end)
             {// Timeout
+                int intState; // State is Standby or Working or Complete or Aborted.
                 if (abortIfTimeout)
-                {// State is Standby or Working or Complete or Aborted.
-                    int intState = Interlocked.CompareExchange(ref this.state, stateAborted, stateStandby);
-                    if (intState == stateStandby)
-                    {// Standby -> Aborted
-                        return false;
-                    }
-                    else if (intState == ThreadWork.StateToInt(ThreadWorkState.Complete))
-                    {// Complete
-                        return true;
-                    }
-                    else
-                    {// Working or Aborted
-                        return false;
-                    }
+                {// Abort
+                    intState = Interlocked.CompareExchange(ref this.state, ThreadWork.StateToInt(ThreadWorkState.Aborted), ThreadWork.StateToInt(ThreadWorkState.Standby));
+                }
+                else
+                {
+                    intState = this.state;
                 }
 
-                return false;
+                if(intState == ThreadWork.StateToInt(ThreadWorkState.Complete))
+                {// Complete
+                    return true;
+                }
+                else
+                {// Standby or Working or Aborted
+                    return false;
+                }
             }
 
             try
             {
-                if (this.threadWorkerBase.processedEvent.Wait(5))
-                {
-                    this.threadWorkerBase.processedEvent.Reset();
-                }
+                this.completeEvent?.Wait(ThreadCore.DefaultInterval, this.threadWorkerBase.CancellationToken);
             }
             catch
             {
@@ -129,6 +124,7 @@ public class ThreadWork
 
     internal ThreadWorkerBase? threadWorkerBase;
     internal int state;
+    internal ManualResetEventSlim? completeEvent = new(false);
 
     public ThreadWorkState State => IntToState(this.state);
 
@@ -145,11 +141,11 @@ public class ThreadWorker<T> : ThreadWorkerBase
     where T : ThreadWork
 {
     /// <summary>
-    /// Defines the type of delegate used to process a work.
+    /// Defines the type of delegate to process a work.
     /// </summary>
     /// <param name="worker">Worker instance.</param>
     /// <param name="work">Work instance.</param>
-    /// <returns><see langword="true"/>: Complete, <see langword="false"/>: Abort.</returns>
+    /// <returns><see langword="true"/>: Complete, <see langword="false"/>: Abort(Error).</returns>
     public delegate bool WorkDelegate(ThreadWorker<T> worker, T work);
 
     public static void Process(object? parameter)
@@ -162,9 +158,9 @@ public class ThreadWorker<T> : ThreadWorkerBase
         {
             try
             {
-                if (worker.addedEvent.Wait(5, worker.CancellationToken))
+                if (worker.addedEvent?.Wait(ThreadCore.DefaultInterval, worker.CancellationToken) == true)
                 {
-                    worker.addedEvent.Reset();
+                    worker.addedEvent?.Reset();
                 }
             }
             catch
@@ -185,7 +181,12 @@ public class ThreadWorker<T> : ThreadWorkerBase
                         work.state = ThreadWork.StateToInt(ThreadWorkState.Aborted);
                     }
 
-                    worker.processedEvent.Set();
+                    if (work.completeEvent is { } e)
+                    {
+                        e.Set();
+                        e.Dispose(); // A little bit slow
+                        work.completeEvent = null;
+                    }
                 }
             }
         }
@@ -214,6 +215,11 @@ public class ThreadWorker<T> : ThreadWorkerBase
     /// <param name="work">A work.<br/>work.State is set to <see cref="ThreadWorkState.Standby"/>.</param>
     public void Add(T work)
     {
+        if (this.disposed)
+        {
+            throw new ObjectDisposedException(null);
+        }
+
         if (work.State != ThreadWorkState.Created)
         {
             throw new InvalidOperationException("Only newly created work can be added to a worker.");
@@ -222,76 +228,7 @@ public class ThreadWorker<T> : ThreadWorkerBase
         work.threadWorkerBase = this;
         work.state = ThreadWork.StateToInt(ThreadWorkState.Standby);
         this.workQueue.Enqueue(work);
-        this.addedEvent.Set();
-    }
-
-    /// <summary>
-    /// Wait for the specified time until the work is completed.
-    /// </summary>
-    /// <param name="work">A work to wait for.</param>
-    /// <param name="millisecondsToWait">The number of milliseconds to wait.</param>
-    /// <param name="abortIfTimeout">Abort the work if the specified time is elapsed [the default is true].</param>
-    /// <returns><see langword="true"/> if the work is complete, <see langword="false"/> if the work is not complete.</returns>
-    public bool WaitForWork(T work, int millisecondsToWait, bool abortIfTimeout = true) => this.WaitForWork(work, TimeSpan.FromMilliseconds(millisecondsToWait), abortIfTimeout);
-
-    /// <summary>
-    /// Wait for the specified time until the work is completed.
-    /// </summary>
-    /// <param name="work">A work to wait for.</param>
-    /// <param name="timeToWait">The TimeSpan to wait.</param>
-    /// <param name="abortIfTimeout">Abort the work if the specified time is elapsed [the default is true].</param>
-    /// <returns><see langword="true"/> if the work is complete, <see langword="false"/> if the work is not complete.</returns>
-    public bool WaitForWork(T work, TimeSpan timeToWait, bool abortIfTimeout = true)
-    {
-        timeToWait = timeToWait < TimeSpan.Zero ? TimeSpan.Zero : timeToWait;
-        var end = Stopwatch.GetTimestamp() + (long)(timeToWait.TotalSeconds * (double)Stopwatch.Frequency);
-        var stateStandby = ThreadWork.StateToInt(ThreadWorkState.Standby);
-        var stateAborted = ThreadWork.StateToInt(ThreadWorkState.Aborted);
-
-        while (!this.IsTerminated)
-        {
-            var state = work.State;
-            if (state != ThreadWorkState.Standby && state != ThreadWorkState.Working)
-            {
-                return true;
-            }
-
-            if (Stopwatch.GetTimestamp() >= end)
-            {// Timeout
-                if (abortIfTimeout)
-                {// State is Standby or Working or Complete or Aborted.
-                    int intState = Interlocked.CompareExchange(ref work.state, stateAborted, stateStandby);
-                    if (intState == stateStandby)
-                    {// Standby -> Aborted
-                        return false;
-                    }
-                    else if (intState == ThreadWork.StateToInt(ThreadWorkState.Complete))
-                    {// Complete
-                        return true;
-                    }
-                    else
-                    {// Working or Aborted
-                        return false;
-                    }
-                }
-
-                return false;
-            }
-
-            try
-            {
-                if (this.processedEvent.Wait(5))
-                {
-                    this.processedEvent.Reset();
-                }
-            }
-            catch
-            {
-                break;
-            }
-        }
-
-        return false;
+        this.addedEvent?.Set();
     }
 
     /// <summary>
@@ -301,6 +238,11 @@ public class ThreadWorker<T> : ThreadWorkerBase
     /// <returns><see langword="true"/>: All works are complete.<br/><see langword="false"/>: Timeout or cancelled.</returns>
     public bool WaitForCompletion(int millisecondsTimeout)
     {
+        if (this.disposed)
+        {
+            throw new ObjectDisposedException(null);
+        }
+
         var end = Stopwatch.GetTimestamp() + (long)(millisecondsTimeout * (double)Stopwatch.Frequency / 1000);
         while (!this.IsTerminated)
         {
@@ -325,6 +267,21 @@ public class ThreadWorker<T> : ThreadWorkerBase
         return false;
     }
 
+    /// <inheritdoc/>
+    protected override void Dispose(bool disposing)
+    {
+        if (!this.disposed)
+        {
+            if (disposing)
+            {
+                this.addedEvent?.Dispose();
+                this.addedEvent = null;
+            }
+
+            base.Dispose(disposing);
+        }
+    }
+
     private WorkDelegate method;
     private ConcurrentQueue<T> workQueue = new();
 }
@@ -344,6 +301,5 @@ public class ThreadWorkerBase : ThreadCore
     {
     }
 
-    internal ManualResetEventSlim addedEvent = new(false);
-    internal ManualResetEventSlim processedEvent = new(false);
+    internal ManualResetEventSlim? addedEvent = new(false);
 }
