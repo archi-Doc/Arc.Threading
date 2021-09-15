@@ -93,11 +93,11 @@ internal class Program
             if (!worker.Sleep(100))
             {
                 return false; // Aborted
-            }
+        }
 
             Console.WriteLine($"Complete: {work.Id}, {work.Name}");
             return true; // Complete
-        });
+    });
 
         var w = new TestWork(1, "A"); // New work
         worker.Add(w); // Add a work to the worker.

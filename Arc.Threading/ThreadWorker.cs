@@ -184,7 +184,7 @@ public class ThreadWorker<T> : ThreadWorkerBase
                     if (work.completeEvent is { } e)
                     {
                         e.Set();
-                        e.Dispose(); // A little bit slow
+                        e.Dispose();
                         work.completeEvent = null;
                     }
                 }

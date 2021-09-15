@@ -469,7 +469,18 @@ namespace Arc.Threading
                     return true;
                 }
 
-                Thread.Sleep(interval);
+                try
+                {
+                    var cancelled = this.CancellationToken.WaitHandle.WaitOne(ThreadCore.DefaultInterval);
+                    if (cancelled)
+                    {
+                        return false;
+                    }
+                }
+                catch
+                {
+                    return false;
+                }
             }
 
             return false; // terminated
