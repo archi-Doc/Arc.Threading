@@ -30,9 +30,12 @@ The main purpose of `ThreadCore` is
 `ThreadCore` is intended for long-running processes such as `Thread`, but it can also be used for `Task`.
 
 ```csharp
+using System;
+using System.Threading;
+using System.Threading.Tasks;
 using Arc.Threading;
 
-namespace ConsoleApp1;
+namespace QuickStart;
 
 internal class Program
 {
