@@ -53,8 +53,8 @@ internal class Program
 
         Console.WriteLine("Sandbox.");
 
-        // TestThreadCore();
-        TestThreadWorker();
+        TestThreadCore();
+        // TestThreadWorker();
 
         await ThreadCore.Root.WaitForTerminationAsync(-1); // Wait for the termination infinitely.
         ThreadCore.Root.TerminationEvent.Set(); // The termination process is complete (#1).
@@ -79,6 +79,11 @@ internal class Program
 
             Console.WriteLine("ThreadCore 1: End");
         });
+
+        var c2 = new ThreadCoreGroup(ThreadCore.Root);
+
+        c1.ChangeParent(c2);
+        c2.Terminate();
 
         var cc = new CustomCore(ThreadCore.Root);
         cc.Start();

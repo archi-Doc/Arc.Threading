@@ -48,6 +48,11 @@ namespace Arc.Threading
         /// <see langword="false"/>: Manually call <see cref="Start"/> to start the thread.</param>
         public ThreadCore(ThreadCoreBase parent, Action<object?> method, bool startImmediately = true)
         {
+            if (parent == null)
+            {
+                throw new ArgumentNullException(nameof(parent));
+            }
+
             this.Thread = new Thread(new ParameterizedThreadStart(method));
             this.Prepare(parent); // this.Thread (this.IsAlive) might be referenced after this method.
             if (startImmediately)
@@ -116,6 +121,11 @@ namespace Arc.Threading
         /// <see langword="false"/>: Manually call <see cref="Start"/> to start the task.</param>
         public TaskCore(ThreadCoreBase parent, Func<object?, Task> method, bool startImmediately = true)
         {
+            if (parent == null)
+            {
+                throw new ArgumentNullException(nameof(parent));
+            }
+
             // this.Task = System.Threading.Tasks.Task.Run(async () => { await method(this); });
             // this.Task = System.Threading.Tasks.Task.Factory.StartNew(async () => { await method(this); }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
 
@@ -189,6 +199,11 @@ namespace Arc.Threading
         /// <see langword="false"/>: Manually call <see cref="Start"/> to start the task.</param>
         public TaskCore(ThreadCoreBase parent, Func<object?, Task<TResult>> method, bool startImmediately = true)
         {
+            if (parent == null)
+            {
+                throw new ArgumentNullException(nameof(parent));
+            }
+
             this.Task = new Task<TResult>(() => method(this).Result);
             this.Prepare(parent); // this.Task (this.IsAlive) might be referenced after this method.
             if (startImmediately)
@@ -254,6 +269,11 @@ namespace Arc.Threading
         /// <param name="parent">The parent.</param>
         public ThreadCoreGroup(ThreadCoreBase parent)
         {
+            if (parent == null)
+            {
+                throw new ArgumentNullException(nameof(parent));
+            }
+
             this.Prepare(parent);
         }
 
@@ -339,6 +359,30 @@ namespace Arc.Threading
         /// Gets a value indicating whether the object is associated with Thread/Task.
         /// </summary>
         public virtual bool IsThreadOrTask => false;
+
+        /// <summary>
+        /// Change the parent <see cref="ThreadCoreBase"/>.
+        /// </summary>
+        /// <param name="newParent">The new parent.</param>
+        /// <returns><see langword="true"/>: The parent is successfully changed.</returns>
+        public bool ChangeParent(ThreadCoreBase newParent)
+        {
+            lock (TreeSync)
+            {
+                if (this.parent != null && newParent != null && !newParent.IsTerminated)
+                {
+                    this.parent.hashSet.Remove(this);
+
+                    this.parent = newParent;
+                    newParent.hashSet.Add(this);
+                    return true;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+        }
 
         /// <summary>
         /// Starts the thread/task.
