@@ -369,7 +369,7 @@ namespace Arc.Threading
 
         /// <summary>
         /// Gets a value indicating whether this thread/task is being terminated or has been terminated.<br/>
-        /// This value is identical to this.<see cref="CancellationToken.IsCancellationRequested"/>.
+        /// This value is identical to <see cref="ThreadCoreBase.CancellationToken"/>.IsCancellationRequested.
         /// </summary>
         public bool IsTerminated => this.CancellationToken.IsCancellationRequested; // Volatile.Read(ref this.terminated);
 
