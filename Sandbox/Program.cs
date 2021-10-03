@@ -78,12 +78,13 @@ internal class Program
             }
 
             Console.WriteLine("ThreadCore 1: End");
-        });
+        }, false);
 
         var c2 = new ThreadCoreGroup(ThreadCore.Root);
 
         c1.ChangeParent(c2);
-        c2.Terminate();
+        c2.Start(true);
+        c2.Start(true);
 
         var cc = new CustomCore(ThreadCore.Root);
         cc.Start();
