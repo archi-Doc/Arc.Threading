@@ -57,14 +57,22 @@ namespace Arc.Threading
             this.Prepare(parent); // this.Thread (this.IsAlive) might be referenced after this method.
             if (startImmediately)
             {
-                this.Start();
+                this.Start(false);
             }
         }
 
         /// <inheritdoc/>
-        public override void Start()
+        public override void Start(bool includeChildren = false)
         {
-            this.Thread.Start(this);
+            if (Interlocked.CompareExchange(ref this.started, 1, 0) == 0)
+            {
+                this.Thread.Start(this);
+            }
+
+            if (includeChildren)
+            {
+                this.StartChildren();
+            }
         }
 
         /// <inheritdoc/>
@@ -77,6 +85,8 @@ namespace Arc.Threading
         /// Gets an instance of <see cref="System.Threading.Thread"/>.
         /// </summary>
         public Thread Thread { get; }
+
+        private int started;
 
         #region IDisposable Support
 
@@ -133,14 +143,22 @@ namespace Arc.Threading
             this.Prepare(parent); // this.Task (this.IsAlive) might be referenced after this method.
             if (startImmediately)
             {
-                this.Start();
+                this.Start(false);
             }
         }
 
         /// <inheritdoc/>
-        public override void Start()
+        public override void Start(bool includeChildren = false)
         {
-            this.Task.Start();
+            if (Interlocked.CompareExchange(ref this.started, 1, 0) == 0)
+            {
+                this.Task.Start();
+            }
+
+            if (includeChildren)
+            {
+                this.StartChildren();
+            }
         }
 
         /// <inheritdoc/>
@@ -153,6 +171,8 @@ namespace Arc.Threading
         /// Gets an instance of <see cref="System.Threading.Tasks.Task"/>.
         /// </summary>
         public Task Task { get; }
+
+        private int started;
 
         #region IDisposable Support
 
@@ -208,14 +228,22 @@ namespace Arc.Threading
             this.Prepare(parent); // this.Task (this.IsAlive) might be referenced after this method.
             if (startImmediately)
             {
-                this.Start();
+                this.Start(false);
             }
         }
 
         /// <inheritdoc/>
-        public override void Start()
+        public override void Start(bool includeChildren = false)
         {
-            this.Task.Start();
+            if (Interlocked.CompareExchange(ref this.started, 1, 0) == 0)
+            {
+                this.Task.Start();
+            }
+
+            if (includeChildren)
+            {
+                this.StartChildren();
+            }
         }
 
         /// <inheritdoc/>
@@ -228,6 +256,8 @@ namespace Arc.Threading
         /// Gets an instance of <see cref="System.Threading.Tasks.Task{TResult}"/>.
         /// </summary>
         public Task<TResult> Task { get; }
+
+        private int started;
 
         #region IDisposable Support
 
@@ -387,8 +417,13 @@ namespace Arc.Threading
         /// <summary>
         /// Starts the thread/task.
         /// </summary>
-        public virtual void Start()
+        /// <param name="includeChildren"><see langword="true" />: Start the child objects [the default is <see langword="false"/>].</param>
+        public virtual void Start(bool includeChildren = false)
         {
+            if (includeChildren)
+            {
+                this.StartChildren();
+            }
         }
 
         /// <summary>
@@ -582,6 +617,12 @@ namespace Arc.Threading
             }
         }
 
+        /// <summary>
+        /// Gets the parent object of this thread/task.
+        /// </summary>
+        /// <returns>The parent object.</returns>
+        public ThreadCoreBase? GetParent() => this.parent;
+
         internal void Clean(out int numberOfActiveObjects)
         {// lock(TreeSync) required
             numberOfActiveObjects = 0;
@@ -606,6 +647,14 @@ namespace Arc.Threading
                 }
 
                 return c.IsAlive == true;
+            }
+        }
+
+        protected void StartChildren()
+        {
+            foreach (var x in this.GetChildren())
+            {
+                x.Start(true);
             }
         }
 
