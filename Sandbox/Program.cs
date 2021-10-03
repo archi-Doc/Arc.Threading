@@ -69,7 +69,8 @@ internal class Program
 
             try
             {
-                Task.Delay(3000, core.CancellationToken).Wait();
+                Task.Delay(3000).Wait(); // No CancellationToken
+                // Task.Delay(3000, core.CancellationToken).Wait();
             }
             catch
             {
@@ -83,7 +84,8 @@ internal class Program
         var c2 = new ThreadCoreGroup(ThreadCore.Root);
 
         c1.ChangeParent(c2);
-        // c2.Start(true);
+        c2.Start(true);
+        c2.Terminate();
         // c2.Start(true);
 
         var cc = new CustomCore(ThreadCore.Root);
