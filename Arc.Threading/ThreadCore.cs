@@ -54,7 +54,7 @@ namespace Arc.Threading
             }
 
             this.Thread = new Thread(new ParameterizedThreadStart(method));
-            this.Prepare(parent); // this.Thread (this.IsAlive) might be referenced after this method.
+            this.Prepare(parent); // this.Thread (this.IsRunning) might be referenced after this method.
             if (startImmediately)
             {
                 this.Start(false);
@@ -76,7 +76,7 @@ namespace Arc.Threading
         }
 
         /// <inheritdoc/>
-        public override bool IsAlive => (this.Thread.ThreadState & System.Threading.ThreadState.Stopped) == 0; // this.Thread.IsAlive;
+        public override bool IsRunning => (this.started != 0) && (this.Thread.ThreadState & System.Threading.ThreadState.Stopped) == 0; // this.Thread.IsRunning;
 
         /// <inheritdoc/>
         public override bool IsThreadOrTask => true;
@@ -140,7 +140,7 @@ namespace Arc.Threading
             // this.Task = System.Threading.Tasks.Task.Factory.StartNew(async () => { await method(this); }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
 
             this.Task = new Task(() => method(this).Wait());
-            this.Prepare(parent); // this.Task (this.IsAlive) might be referenced after this method.
+            this.Prepare(parent); // this.Task (this.IsRunning) might be referenced after this method.
             if (startImmediately)
             {
                 this.Start(false);
@@ -162,7 +162,7 @@ namespace Arc.Threading
         }
 
         /// <inheritdoc/>
-        public override bool IsAlive => !this.Task.IsCompleted; // this.Task.Status != TaskStatus.RanToCompletion && this.Task.Status != TaskStatus.Canceled && this.Task.Status != TaskStatus.Faulted;
+        public override bool IsRunning => (this.started != 0) && !this.Task.IsCompleted; // this.Task.Status != TaskStatus.RanToCompletion && this.Task.Status != TaskStatus.Canceled && this.Task.Status != TaskStatus.Faulted;
 
         /// <inheritdoc/>
         public override bool IsThreadOrTask => true;
@@ -225,7 +225,7 @@ namespace Arc.Threading
             }
 
             this.Task = new Task<TResult>(() => method(this).Result);
-            this.Prepare(parent); // this.Task (this.IsAlive) might be referenced after this method.
+            this.Prepare(parent); // this.Task (this.IsRunning) might be referenced after this method.
             if (startImmediately)
             {
                 this.Start(false);
@@ -247,7 +247,7 @@ namespace Arc.Threading
         }
 
         /// <inheritdoc/>
-        public override bool IsAlive => !this.Task.IsCompleted;
+        public override bool IsRunning => (this.started != 0) && !this.Task.IsCompleted;
 
         /// <inheritdoc/>
         public override bool IsThreadOrTask => true;
@@ -308,7 +308,7 @@ namespace Arc.Threading
         }
 
         /// <inheritdoc/>
-        public override bool IsAlive => !this.IsTerminated;
+        public override bool IsRunning => !this.IsTerminated;
     }
 
     /// <summary>
@@ -380,10 +380,10 @@ namespace Arc.Threading
 
         /// <summary>
         /// Gets a value indicating whether the thread/task is running.<br/>
-        /// <see langword="false"/>: The thread/task is completed.<br/>
+        /// <see langword="false"/>: The thread/task is either not started or is complete.<br/>
         /// Use <see cref="IsTerminated"/> property to determine if a termination signal has been send.
         /// </summary>
-        public virtual bool IsAlive => true;
+        public virtual bool IsRunning => true;
 
         /// <summary>
         /// Gets a value indicating whether the object is associated with Thread/Task.
@@ -468,7 +468,7 @@ namespace Arc.Threading
 
                     if (numberOfActiveObjects == 0)
                     {
-                        if (!this.IsThreadOrTask || !this.IsAlive)
+                        if (!this.IsThreadOrTask || !this.IsRunning)
                         {// Not active (e.g. Root, ThreadCoreGroup) or not running.
                             return true;
                         }
@@ -504,7 +504,7 @@ namespace Arc.Threading
 
                     if (numberOfActiveObjects == 0)
                     {
-                        if (!this.IsThreadOrTask || !this.IsAlive)
+                        if (!this.IsThreadOrTask || !this.IsRunning)
                         {// Not active (e.g. Root, ThreadCoreGroup) or not running.
                             return true;
                         }
@@ -646,7 +646,7 @@ namespace Arc.Threading
                     }
                 }
 
-                return c.IsAlive == true;
+                return c.IsRunning == true;
             }
         }
 

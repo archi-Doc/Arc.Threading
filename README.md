@@ -121,7 +121,7 @@ internal class Program
 
 ## ThreadWorker
 
-`ThreadWorker` is a `ThreadCore` class which receives and processes a work.
+`ThreadWorker` is a `ThreadCore` class which receives and processes `ThreadWork`.
 
 ```csharp
 private static void TestThreadWorker()

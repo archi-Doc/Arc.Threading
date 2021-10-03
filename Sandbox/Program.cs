@@ -83,8 +83,8 @@ internal class Program
         var c2 = new ThreadCoreGroup(ThreadCore.Root);
 
         c1.ChangeParent(c2);
-        c2.Start(true);
-        c2.Start(true);
+        // c2.Start(true);
+        // c2.Start(true);
 
         var cc = new CustomCore(ThreadCore.Root);
         cc.Start();
