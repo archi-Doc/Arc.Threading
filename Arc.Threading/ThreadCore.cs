@@ -19,7 +19,7 @@ public class ThreadCore : ThreadCoreBase
     /// <summary>
     /// The default interval time in milliseconds.
     /// </summary>
-    public const int DefaultInterval = 10;
+    public const int DefaultInterval = 15;
 
     /// <summary>
     /// Gets the root object of all ThreadCoreBase classes.
@@ -537,7 +537,7 @@ public class ThreadCoreBase : IDisposable
 
             try
             {
-                var cancelled = this.CancellationToken.WaitHandle.WaitOne(ThreadCore.DefaultInterval);
+                var cancelled = this.CancellationToken.WaitHandle.WaitOne(interval);
                 if (cancelled)
                 {
                     return false;
