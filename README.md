@@ -119,6 +119,28 @@ internal class Program
 
 
 
+```csharp
+/// <summary>
+/// Customized thread core class.
+/// </summary>
+internal class CustomCore : ThreadCore
+{
+    public static void Process(object? parameter)
+    {
+        var core = (CustomCore)parameter!;
+    }
+
+    public CustomCore(ThreadCoreBase parent)
+            : base(parent, Process, false)
+    {
+    }
+
+    public int CustomPropertyIfYouNeed { get; set; }
+}
+```
+
+
+
 ## ThreadWorker
 
 `ThreadWorker` is a `ThreadCore` class which receives and processes `ThreadWork`.

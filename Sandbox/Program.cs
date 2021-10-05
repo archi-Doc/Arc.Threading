@@ -5,7 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Arc.Threading;
 
-namespace ConsoleApp1;
+namespace Sandbox;
 
 internal class CustomCore : ThreadCore
 {
@@ -53,11 +53,33 @@ internal class Program
 
         Console.WriteLine("Sandbox.");
 
-        TestThreadCore();
+        // TestThreadCore();
         // TestThreadWorker();
+        TestBlastCore();
 
         await ThreadCore.Root.WaitForTerminationAsync(-1); // Wait for the termination infinitely.
         ThreadCore.Root.TerminationEvent.Set(); // The termination process is complete (#1).
+    }
+
+    private static void TestBlastCore()
+    {
+        var group = new ThreadCoreGroup(ThreadCore.Root);
+        new BlastCore(group, 0);
+        new BlastCore(group, 1);
+        new BlastCore(group, 2);
+        new BlastCore(group, 3);
+        new BlastCore(group, 4);
+        new BlastCore(group, 5);
+        /*new BlastTask(group, 0);
+        new BlastTask(group, 1);
+        new BlastTask(group, 2);
+        new BlastTask(group, 3);
+        new BlastTask(group, 4);*/
+
+        group.Start(true);
+        group.Terminate();
+        group.WaitForTermination(-1);
+        BlastLogger.WriteFile();
     }
 
     private static void TestThreadCore()

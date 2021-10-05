@@ -6,6 +6,7 @@
 # Customized
 Generated/
 .app/
+.ps/
 
 # User-specific files
 *.rsuser
