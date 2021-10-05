@@ -5,7 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Arc.Threading;
 
-namespace ConsoleApp1;
+namespace Sandbox;
 
 internal class CustomCore : ThreadCore
 {

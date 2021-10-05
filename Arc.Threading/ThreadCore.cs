@@ -11,15 +11,15 @@ using System.Threading.Tasks;
 
 namespace Arc.Threading;
 
-/// <summary>
-/// Support class for <see cref="System.Threading.Thread"/>.
-/// </summary>
-public class ThreadCore : ThreadCoreBase
-{
     /// <summary>
-    /// The default interval time in milliseconds.
+    /// Support class for <see cref="System.Threading.Thread"/>.
     /// </summary>
-    public const int DefaultInterval = 10;
+    public class ThreadCore : ThreadCoreBase
+    {
+        /// <summary>
+        /// The default interval time in milliseconds.
+        /// </summary>
+        public const int DefaultInterval = 10;
 
     /// <summary>
     /// Gets the root object of all ThreadCoreBase classes.
@@ -537,7 +537,7 @@ public class ThreadCoreBase : IDisposable
 
             try
             {
-                var cancelled = this.CancellationToken.WaitHandle.WaitOne(ThreadCore.DefaultInterval);
+                var cancelled = this.CancellationToken.WaitHandle.WaitOne(interval);
                 if (cancelled)
                 {
                     return false;
