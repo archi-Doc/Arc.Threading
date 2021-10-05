@@ -11,15 +11,15 @@ using System.Threading.Tasks;
 
 namespace Arc.Threading;
 
-/// <summary>
-/// Support class for <see cref="System.Threading.Thread"/>.
-/// </summary>
-public class ThreadCore : ThreadCoreBase
-{
     /// <summary>
-    /// The default interval time in milliseconds.
+    /// Support class for <see cref="System.Threading.Thread"/>.
     /// </summary>
-    public const int DefaultInterval = 15;
+    public class ThreadCore : ThreadCoreBase
+    {
+        /// <summary>
+        /// The default interval time in milliseconds.
+        /// </summary>
+        public const int DefaultInterval = 10;
 
     /// <summary>
     /// Gets the root object of all ThreadCoreBase classes.
