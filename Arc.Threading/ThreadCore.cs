@@ -75,6 +75,75 @@ public class ThreadCore : ThreadCoreBase
 
     private int started;
 
+    #region NanoSleep
+
+    internal struct Timespec
+    {
+        internal Timespec(long seconds, long nanoseconds)
+        {
+            this.tv_sec = seconds;
+            this.tv_nsec = nanoseconds;
+        }
+
+        internal Timespec(TimeSpan timeSpan)
+        {
+            this.tv_sec = (long)timeSpan.Seconds;
+            this.tv_nsec = (long)((timeSpan.TotalSeconds - this.tv_sec) * 1000000000d);
+        }
+
+#pragma warning disable SA1307 // Accessible fields should begin with upper-case letter
+#pragma warning disable SA1310 // Field names should not contain underscore
+        internal long tv_sec; // Seconds.
+        internal long tv_nsec; // Nanoseconds.
+#pragma warning restore SA1307 // Accessible fields should begin with upper-case letter
+#pragma warning restore SA1310 // Field names should not contain underscore
+
+    }
+
+    [System.Runtime.InteropServices.DllImport("libc")]
+#pragma warning disable SA1300 // Element should begin with upper-case letter
+    private static extern int nanosleep(ref Timespec req, ref Timespec rem);
+#pragma warning restore SA1300 // Element should begin with upper-case letter
+
+    static ThreadCore()
+    {
+        try
+        {
+            var request = default(Timespec);
+            var remaining = default(Timespec);
+            nanosleep(ref request, ref remaining);
+            isNanoSleepAvailable = true;
+        }
+        catch
+        {
+        }
+    }
+
+    private static bool isNanoSleepAvailable = false;
+
+    public static void TryNanoSleep(long nanoSeconds)
+    {
+        if (isNanoSleepAvailable)
+        {
+            var seconds = nanoSeconds / 1_000_000_000;
+            var request = new Timespec(seconds, nanoSeconds % 1_000_000_000);
+            var remaining = default(Timespec);
+            nanosleep(ref request, ref remaining);
+        }
+        else
+        {
+            var milliseconds = nanoSeconds / 1_000_000;
+            if (milliseconds == 0 && nanoSeconds != 0)
+            {
+                milliseconds = 1;
+            }
+
+            Thread.Sleep((int)milliseconds);
+        }
+    }
+
+    #endregion
+
     #region IDisposable Support
 
     /// <summary>
