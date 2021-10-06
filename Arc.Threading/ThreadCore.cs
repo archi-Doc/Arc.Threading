@@ -112,18 +112,18 @@ public class ThreadCore : ThreadCoreBase
             var request = default(Timespec);
             var remaining = default(Timespec);
             nanosleep(ref request, ref remaining);
-            isNanoSleepAvailable = true;
+            IsNanoSleepAvailable = true;
         }
         catch
         {
         }
     }
 
-    private static bool isNanoSleepAvailable = false;
+    public static bool IsNanoSleepAvailable { get; } = false;
 
     public static void TryNanoSleep(long nanoSeconds)
     {
-        if (isNanoSleepAvailable)
+        if (IsNanoSleepAvailable)
         {
             var seconds = nanoSeconds / 1_000_000_000;
             var request = new Timespec(seconds, nanoSeconds % 1_000_000_000);
