@@ -112,18 +112,18 @@ public class ThreadCore : ThreadCoreBase
             var request = default(Timespec);
             var remaining = default(Timespec);
             nanosleep(ref request, ref remaining);
-            IsNanoSleepAvailable = true;
+            isNanoSleepAvailable = true;
         }
         catch
         {
         }
     }
 
-    public static bool IsNanoSleepAvailable { get; } = false;
+    private static bool isNanoSleepAvailable = false;
 
-    public static void TryNanoSleep(long nanoSeconds)
+    public void TryNanoSleep(long nanoSeconds)
     {
-        if (IsNanoSleepAvailable)
+        if (isNanoSleepAvailable)
         {
             var seconds = nanoSeconds / 1_000_000_000;
             var request = new Timespec(seconds, nanoSeconds % 1_000_000_000);
@@ -138,7 +138,7 @@ public class ThreadCore : ThreadCoreBase
                 milliseconds = 1;
             }
 
-            Thread.Sleep((int)milliseconds);
+            this.Sleep((int)milliseconds);
         }
     }
 
