@@ -121,7 +121,7 @@ public class ThreadCore : ThreadCoreBase
 
     private static bool isNanoSleepAvailable = false;
 
-    public static void TryNanoSleep(long nanoSeconds)
+    public void TryNanoSleep(long nanoSeconds)
     {
         if (isNanoSleepAvailable)
         {
@@ -138,7 +138,7 @@ public class ThreadCore : ThreadCoreBase
                 milliseconds = 1;
             }
 
-            Thread.Sleep((int)milliseconds);
+            this.Sleep((int)milliseconds);
         }
     }
 

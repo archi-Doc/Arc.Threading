@@ -53,7 +53,6 @@ internal class Program
 
         Console.WriteLine("Sandbox.");
 
-        ThreadCore.TryNanoSleep(1_000_000);
         TestThreadCore();
         // TestThreadWorker();
 
