@@ -114,11 +114,11 @@ internal class Program
         {
             if (!worker.Sleep(100))
             {
-                return false;
+                return AbortOrComplete.Abort;
             }
 
             Console.WriteLine($"Complete: {work.Id}, {work.Name}");
-            return true;
+            return AbortOrComplete.Complete;
         });
 
         var c = new TestWork(1, "A"); // New work

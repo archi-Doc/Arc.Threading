@@ -245,12 +245,12 @@ namespace Benchmark.Test
             return true;
         }
 
-        private static bool EmptyMethod2(ThreadWorker<TestWork> worker, TestWork work)
+        private static AbortOrComplete EmptyMethod2(ThreadWorker<TestWork> worker, TestWork work)
         {
-            return true;
+            return AbortOrComplete.Complete;
         }
 
-        private static bool HeavyMethod2(ThreadWorker<TestWork> worker, TestWork work)
+        private static AbortOrComplete HeavyMethod2(ThreadWorker<TestWork> worker, TestWork work)
         {
             unchecked
             {
@@ -263,7 +263,7 @@ namespace Benchmark.Test
                 work.Result = x;
             }
 
-            return true;
+            return AbortOrComplete.Complete;
         }
 
         private static void Start(string? text = null)
