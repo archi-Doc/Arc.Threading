@@ -145,8 +145,9 @@ public class ThreadWorker<T> : ThreadWorkerBase
     /// </summary>
     /// <param name="worker">Worker instance.</param>
     /// <param name="work">Work instance.</param>
-    /// <returns><see langword="true"/>: Complete, <see langword="false"/>: Abort(Error).</returns>
-    public delegate bool WorkDelegate(ThreadWorker<T> worker, T work);
+    /// <returns><see cref="AbortOrComplete.Complete"/>: Complete.<br/>
+    /// <see cref="AbortOrComplete.Abort"/>: Abort or Error.</returns>
+    public delegate AbortOrComplete WorkDelegate(ThreadWorker<T> worker, T work);
 
     public static void Process(object? parameter)
     {
@@ -172,7 +173,7 @@ public class ThreadWorker<T> : ThreadWorkerBase
             {// Standby or Aborted
                 if (Interlocked.CompareExchange(ref work.state, stateWorking, stateStandby) == stateStandby)
                 {// Standby -> Working
-                    if (worker.method(worker, work))
+                    if (worker.method(worker, work) == AbortOrComplete.Complete)
                     {// Copmplete
                         work.state = ThreadWork.StateToInt(ThreadWorkState.Complete);
                     }
