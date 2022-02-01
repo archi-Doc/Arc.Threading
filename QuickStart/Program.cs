@@ -26,7 +26,8 @@ internal class Program
         Console.WriteLine("ThreadCore Sample.");
 
         // await TestThreadCore();
-        TestThreadWorker();
+        // TestThreadWorker();
+        await TestTaskWorker();
 
         await ThreadCore.Root.WaitForTerminationAsync(-1); // Wait for the termination infinitely.
         ThreadCore.Root.TerminationEvent.Set(); // The termination process is complete (#1).
@@ -94,7 +95,7 @@ internal class Program
     private static void TestThreadWorker()
     {
         // Create ThreadWorker by specifying a type of work and delegate.
-        var worker = new ThreadWorker<TestWork>(ThreadCore.Root, (worker, work) =>
+        var worker = new ThreadWorker<TestThreadWork>(ThreadCore.Root, (worker, work) =>
         {
             if (!worker.Sleep(100))
             {
@@ -105,7 +106,7 @@ internal class Program
             return AbortOrComplete.Complete;
         });
 
-        var w = new TestWork(1, "A"); // New work
+        var w = new TestThreadWork(1, "A"); // New work
         worker.Add(w); // Add a work to the worker.
         Console.WriteLine(w); // Added work is on standby.
 
@@ -117,13 +118,13 @@ internal class Program
         worker.Terminate();
     }
 
-    internal class TestWork : ThreadWork
+    internal class TestThreadWork : ThreadWork
     {
         public int Id { get; }
 
         public string Name { get; } = string.Empty;
 
-        public TestWork(int id, string name)
+        public TestThreadWork(int id, string name)
         {
             this.Id = id;
             this.Name = name;

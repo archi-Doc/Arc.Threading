@@ -16,10 +16,10 @@ using System.Threading.Tasks;
 namespace Arc.Threading;
 
 /// <summary>
-/// Represents a state of a thread work.<br/>
+/// Represents a state of a task work.<br/>
 /// Created -> Standby -> Abort / Working -> Completed.
 /// </summary>
-public enum ThreadWorkState : int
+public enum TaskWorkState : int
 {
     /// <summary>
     /// Work is created.
@@ -48,9 +48,9 @@ public enum ThreadWorkState : int
 }
 
 /// <summary>
-/// Represents a work to be processed by <see cref="ThreadWorker{T}"/>.
+/// Represents a work to be processed by <see cref="TaskWorker{T}"/>.
 /// </summary>
-public class ThreadWork
+public class TaskWork
 {
     /// <summary>
     /// Wait for the specified time until the work is completed.
@@ -70,7 +70,7 @@ public class ThreadWork
     {
         if (this.threadWorkerBase == null)
         {
-            throw new InvalidOperationException("ThreadWorker is not assigned.");
+            throw new InvalidOperationException("TaskWorker is not assigned.");
         }
 
         var end = Stopwatch.GetTimestamp() + (long)(timeToWait.TotalSeconds * (double)Stopwatch.Frequency);
@@ -82,7 +82,7 @@ public class ThreadWork
         while (!this.threadWorkerBase.IsTerminated)
         {
             var state = this.State;
-            if (state != ThreadWorkState.Standby && state != ThreadWorkState.Working)
+            if (state != TaskWorkState.Standby && state != TaskWorkState.Working)
             {
                 return true;
             }
@@ -92,14 +92,14 @@ public class ThreadWork
                 int intState; // State is Standby or Working or Complete or Aborted.
                 if (abortIfTimeout)
                 {// Abort
-                    intState = Interlocked.CompareExchange(ref this.state, ThreadWork.StateToInt(ThreadWorkState.Aborted), ThreadWork.StateToInt(ThreadWorkState.Standby));
+                    intState = Interlocked.CompareExchange(ref this.state, TaskWork.StateToInt(TaskWorkState.Aborted), TaskWork.StateToInt(TaskWorkState.Standby));
                 }
                 else
                 {
                     intState = this.state;
                 }
 
-                if(intState == ThreadWork.StateToInt(ThreadWorkState.Complete))
+                if(intState == TaskWork.StateToInt(TaskWorkState.Complete))
                 {// Complete
                     return true;
                 }
@@ -126,19 +126,19 @@ public class ThreadWork
     internal int state;
     internal ManualResetEventSlim? completeEvent = new(false);
 
-    public ThreadWorkState State => IntToState(this.state);
+    public TaskWorkState State => IntToState(this.state);
 
-    internal static ThreadWorkState IntToState(int state) => Unsafe.As<int, ThreadWorkState>(ref state);
+    internal static TaskWorkState IntToState(int state) => Unsafe.As<int, TaskWorkState>(ref state);
 
-    internal static int StateToInt(ThreadWorkState state) => Unsafe.As<ThreadWorkState, int>(ref state);
+    internal static int StateToInt(TaskWorkState state) => Unsafe.As<TaskWorkState, int>(ref state);
 }
 
 /// <summary>
 /// Represents a worker class.
 /// </summary>
 /// <typeparam name="T">The type of a work.</typeparam>
-public class ThreadWorker<T> : ThreadWorkerBase
-    where T : ThreadWork
+public class TaskWorker<T> : TaskWorkerBase
+    where T : TaskWork
 {
     /// <summary>
     /// Defines the type of delegate to process a work.
@@ -147,13 +147,13 @@ public class ThreadWorker<T> : ThreadWorkerBase
     /// <param name="work">Work instance.</param>
     /// <returns><see cref="AbortOrComplete.Complete"/>: Complete.<br/>
     /// <see cref="AbortOrComplete.Abort"/>: Abort or Error.</returns>
-    public delegate AbortOrComplete WorkDelegate(ThreadWorker<T> worker, T work);
+    public delegate Task<AbortOrComplete> WorkDelegate(TaskWorker<T> worker, T work);
 
-    private static void Process(object? parameter)
+    private static async Task Process(object? parameter)
     {
-        var worker = (ThreadWorker<T>)parameter!;
-        var stateStandby = ThreadWork.StateToInt(ThreadWorkState.Standby);
-        var stateWorking = ThreadWork.StateToInt(ThreadWorkState.Working);
+        var worker = (TaskWorker<T>)parameter!;
+        var stateStandby = TaskWork.StateToInt(TaskWorkState.Standby);
+        var stateWorking = TaskWork.StateToInt(TaskWorkState.Working);
 
         while (!worker.IsTerminated)
         {
@@ -175,11 +175,11 @@ public class ThreadWorker<T> : ThreadWorkerBase
                 {// Standby -> Working
                     if (worker.method(worker, work) == AbortOrComplete.Complete)
                     {// Copmplete
-                        work.state = ThreadWork.StateToInt(ThreadWorkState.Complete);
+                        work.state = TaskWork.StateToInt(TaskWorkState.Complete);
                     }
                     else
                     {// Aborted
-                        work.state = ThreadWork.StateToInt(ThreadWorkState.Aborted);
+                        work.state = TaskWork.StateToInt(TaskWorkState.Aborted);
                     }
 
                     if (work.completeEvent is { } e)
@@ -194,13 +194,13 @@ public class ThreadWorker<T> : ThreadWorkerBase
     }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="ThreadWorker{T}"/> class.
+    /// Initializes a new instance of the <see cref="TaskWorker{T}"/> class.
     /// </summary>
     /// <param name="parent">The parent.</param>
     /// <param name="method">The method that receives and processes a work.</param>
     /// <param name="startImmediately">Starts the worker immediately.<br/>
     /// <see langword="false"/>: Manually call <see cref="ThreadCore.Start" /> to start the worker.</param>
-    public ThreadWorker(ThreadCoreBase parent, WorkDelegate method, bool startImmediately = true)
+    public TaskWorker(ThreadCoreBase parent, WorkDelegate method, bool startImmediately = true)
         : base(parent, Process)
     {
         this.method = method;
@@ -213,7 +213,7 @@ public class ThreadWorker<T> : ThreadWorkerBase
     /// <summary>
     /// Add a work to the worker.
     /// </summary>
-    /// <param name="work">A work.<br/>work.State is set to <see cref="ThreadWorkState.Standby"/>.</param>
+    /// <param name="work">A work.<br/>work.State is set to <see cref="TaskWorkState.Standby"/>.</param>
     public void Add(T work)
     {
         if (this.disposed)
@@ -221,13 +221,13 @@ public class ThreadWorker<T> : ThreadWorkerBase
             throw new ObjectDisposedException(null);
         }
 
-        if (work.State != ThreadWorkState.Created)
+        if (work.State != TaskWorkState.Created)
         {
             throw new InvalidOperationException("Only newly created work can be added to a worker.");
         }
 
         work.threadWorkerBase = this;
-        work.state = ThreadWork.StateToInt(ThreadWorkState.Standby);
+        work.state = TaskWork.StateToInt(TaskWorkState.Standby);
         this.workQueue.Enqueue(work);
         this.addedEvent?.Set();
     }
@@ -257,7 +257,7 @@ public class ThreadWorker<T> : ThreadWorkerBase
             }
             else
             {// Wait
-                var cancelled = this.CancellationToken.WaitHandle.WaitOne(ThreadWorker<T>.DefaultInterval);
+                var cancelled = this.CancellationToken.WaitHandle.WaitOne(TaskWorker<T>.DefaultInterval);
                 if (cancelled)
                 {
                     return false;
@@ -290,17 +290,17 @@ public class ThreadWorker<T> : ThreadWorkerBase
 /// <summary>
 /// Represents a base worker class.
 /// </summary>
-public class ThreadWorkerBase : ThreadCore
+public class TaskWorkerBase : TaskCore
 {
     /// <summary>
-    /// Initializes a new instance of the <see cref="ThreadWorkerBase"/> class.
+    /// Initializes a new instance of the <see cref="TaskWorkerBase"/> class.
     /// </summary>
     /// <param name="parent">The parent.</param>
-    /// <param name="method">The method that executes on a System.Threading.Thread.</param>
-    internal ThreadWorkerBase(ThreadCoreBase parent, Action<object?> method)
-        : base(parent, method, false)
+    /// <param name="processWork">The method invoked to process a work.</param>
+    internal TaskWorkerBase(ThreadCoreBase parent, Func<object?, Task> processWork)
+        : base(parent, processWork, false)
     {
     }
 
-    internal ManualResetEventSlim? addedEvent = new(false);
+    internal AsyncManualResetEvent? addedEvent = new();
 }
