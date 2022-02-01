@@ -92,6 +92,48 @@ internal class Program
         // group.Dispose(); // Same as above
     }
 
+    private static async Task TestTaskWorker()
+    {
+        // Create ThreadWorker by specifying a type of work and delegate.
+        var worker = new TaskWorker<TestTaskWork>(ThreadCore.Root, async (worker, work) =>
+        {
+            if (!worker.Sleep(100))
+            {
+                return AbortOrComplete.Abort;
+            }
+
+            Console.WriteLine($"Complete: {work.Id}, {work.Name}");
+            return AbortOrComplete.Complete;
+        });
+
+        var w = new TestTaskWork(1, "A"); // New work
+        // worker.Add(w); // Add a work to the worker.
+        Console.WriteLine(w); // Added work is on standby.
+
+        // worker.Add(new(2, "B"));
+
+        await worker.Delay();
+        await worker.WaitForCompletionAsync();
+        Console.WriteLine(w); // Complete
+
+        worker.Terminate();
+    }
+
+    internal class TestTaskWork : TaskWork
+    {
+        public int Id { get; }
+
+        public string Name { get; } = string.Empty;
+
+        public TestTaskWork(int id, string name)
+        {
+            this.Id = id;
+            this.Name = name;
+        }
+
+        public override string ToString() => $"Id: {this.Id}, Name: {this.Name}, State: {this.State}";
+    }
+
     private static void TestThreadWorker()
     {
         // Create ThreadWorker by specifying a type of work and delegate.

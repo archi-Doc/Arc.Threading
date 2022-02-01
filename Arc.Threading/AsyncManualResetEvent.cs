@@ -7,7 +7,7 @@ namespace Arc.Threading;
 
 public class AsyncManualResetEvent
 {
-    private volatile TaskCompletionSource tcs = new TaskCompletionSource();
+    private volatile TaskCompletionSource tcs = new();
 
     public Task AsTask => this.tcs.Task;
 

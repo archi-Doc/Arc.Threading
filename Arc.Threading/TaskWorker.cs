@@ -53,12 +53,18 @@ public enum TaskWorkState : int
 public class TaskWork
 {
     /// <summary>
+    /// Wait until the work is completed.
+    /// </summary>
+    /// <returns><see langword="true"/>: The work is complete<br/><see langword="false"/>: Not complete.</returns>
+    public Task<bool> WaitForCompletionAsync() => this.WaitForCompletionAsync(TimeSpan.MinValue, false);
+
+    /// <summary>
     /// Wait for the specified time until the work is completed.
     /// </summary>
     /// <param name="millisecondsToWait">The number of milliseconds to wait, or -1 to wait indefinitely.</param>
     /// <param name="abortIfTimeout">Abort the work if the specified time is elapsed.</param>
     /// <returns><see langword="true"/>: The work is complete<br/><see langword="false"/>: Not complete.</returns>
-    public bool Wait(int millisecondsToWait, bool abortIfTimeout = true) => this.Wait(TimeSpan.FromMilliseconds(millisecondsToWait), abortIfTimeout);
+    public Task<bool> WaitForCompletionAsync(int millisecondsToWait, bool abortIfTimeout = true) => this.WaitForCompletionAsync(TimeSpan.FromMilliseconds(millisecondsToWait), abortIfTimeout);
 
     /// <summary>
     /// Wait for the specified time until the work is completed.
@@ -66,65 +72,65 @@ public class TaskWork
     /// <param name="timeToWait">The TimeSpan to wait, or negative value (e.g TimeSpan.MinValue) to wait indefinitely.</param>
     /// <param name="abortIfTimeout">Abort the work if the specified time is elapsed.</param>
     /// <returns><see langword="true"/>: The work is complete<br/><see langword="false"/>: Not complete.</returns>
-    public bool Wait(TimeSpan timeToWait, bool abortIfTimeout = true)
+    public async Task<bool> WaitForCompletionAsync(TimeSpan timeToWait, bool abortIfTimeout = true)
     {
-        if (this.threadWorkerBase == null)
+        if (this.taskWorkerBase == null)
         {
             throw new InvalidOperationException("TaskWorker is not assigned.");
         }
 
-        var end = Stopwatch.GetTimestamp() + (long)(timeToWait.TotalSeconds * (double)Stopwatch.Frequency);
-        if (timeToWait < TimeSpan.Zero)
-        {// Wait indefinitely.
-            end = long.MaxValue;
+        var state = this.State;
+        if (state != TaskWorkState.Standby && state != TaskWorkState.Working)
+        {
+            return state == TaskWorkState.Complete;
+        }
+        else if (this.taskWorkerBase.IsTerminated)
+        {// Terminated
+            return false;
         }
 
-        while (!this.threadWorkerBase.IsTerminated)
+        int intState; // State is Standby or Working or Complete or Aborted.
+        try
         {
-            var state = this.State;
-            if (state != TaskWorkState.Standby && state != TaskWorkState.Working)
+            if (this.completeEvent is { } ev)
             {
-                return true;
-            }
-
-            if (Stopwatch.GetTimestamp() >= end)
-            {// Timeout
-                int intState; // State is Standby or Working or Complete or Aborted.
-                if (abortIfTimeout)
-                {// Abort
-                    intState = Interlocked.CompareExchange(ref this.state, TaskWork.StateToInt(TaskWorkState.Aborted), TaskWork.StateToInt(TaskWorkState.Standby));
+                if (timeToWait < TimeSpan.Zero)
+                {
+                    await this.completeEvent.AsTask.WaitAsync(this.taskWorkerBase.CancellationToken).ConfigureAwait(false);
                 }
                 else
                 {
-                    intState = this.state;
-                }
-
-                if(intState == TaskWork.StateToInt(TaskWorkState.Complete))
-                {// Complete
-                    return true;
-                }
-                else
-                {// Standby or Working or Aborted
-                    return false;
+                    await this.completeEvent.AsTask.WaitAsync(timeToWait, this.taskWorkerBase.CancellationToken).ConfigureAwait(false);
                 }
             }
 
-            try
-            {
-                this.completeEvent?.Wait(ThreadCore.DefaultInterval, this.threadWorkerBase.CancellationToken);
+            intState = this.state;
+        }
+        catch
+        {// Timeout or cancelled
+            if (abortIfTimeout)
+            {// Abort
+                intState = Interlocked.CompareExchange(ref this.state, TaskWork.StateToInt(TaskWorkState.Aborted), TaskWork.StateToInt(TaskWorkState.Standby));
             }
-            catch
+            else
             {
-                break;
+                intState = this.state;
             }
         }
 
-        return false;
+        if (intState == TaskWork.StateToInt(TaskWorkState.Complete))
+        {// Complete
+            return true;
+        }
+        else
+        {// Standby or Working or Aborted
+            return false;
+        }
     }
 
-    internal ThreadWorkerBase? threadWorkerBase;
+    internal TaskWorkerBase? taskWorkerBase;
     internal int state;
-    internal ManualResetEventSlim? completeEvent = new(false);
+    internal AsyncManualResetEvent? completeEvent = new();
 
     public TaskWorkState State => IntToState(this.state);
 
@@ -159,9 +165,15 @@ public class TaskWorker<T> : TaskWorkerBase
         {
             try
             {
-                if (worker.addedEvent?.Wait(ThreadCore.DefaultInterval, worker.CancellationToken) == true)
+                if (worker.addedEvent is { } ev)
                 {
-                    worker.addedEvent?.Reset();
+                    await ev.AsTask.WaitAsync(worker.CancellationToken).ConfigureAwait(false);
+                    ev.Reset();
+                    Console.WriteLine("addedEvent - Reset"); // tempcode
+                }
+                else
+                {
+                    await Task.Delay(ThreadCore.DefaultInterval, worker.CancellationToken).ConfigureAwait(false);
                 }
             }
             catch
@@ -173,7 +185,7 @@ public class TaskWorker<T> : TaskWorkerBase
             {// Standby or Aborted
                 if (Interlocked.CompareExchange(ref work.state, stateWorking, stateStandby) == stateStandby)
                 {// Standby -> Working
-                    if (worker.method(worker, work) == AbortOrComplete.Complete)
+                    if (await worker.method(worker, work).ConfigureAwait(false) == AbortOrComplete.Complete)
                     {// Copmplete
                         work.state = TaskWork.StateToInt(TaskWorkState.Complete);
                     }
@@ -182,10 +194,9 @@ public class TaskWorker<T> : TaskWorkerBase
                         work.state = TaskWork.StateToInt(TaskWorkState.Aborted);
                     }
 
-                    if (work.completeEvent is { } e)
+                    if (work.completeEvent is { } ev)
                     {
-                        e.Set();
-                        e.Dispose();
+                        ev.Set();
                         work.completeEvent = null;
                     }
                 }
@@ -213,7 +224,7 @@ public class TaskWorker<T> : TaskWorkerBase
     /// <summary>
     /// Add a work to the worker.
     /// </summary>
-    /// <param name="work">A work.<br/>work.State is set to <see cref="TaskWorkState.Standby"/>.</param>
+    /// <param name="work">A work.<br/>work.State will be set to <see cref="TaskWorkState.Standby"/>.</param>
     public void Add(T work)
     {
         if (this.disposed)
@@ -226,7 +237,7 @@ public class TaskWorker<T> : TaskWorkerBase
             throw new InvalidOperationException("Only newly created work can be added to a worker.");
         }
 
-        work.threadWorkerBase = this;
+        work.taskWorkerBase = this;
         work.state = TaskWork.StateToInt(TaskWorkState.Standby);
         this.workQueue.Enqueue(work);
         this.addedEvent?.Set();
@@ -235,53 +246,67 @@ public class TaskWorker<T> : TaskWorkerBase
     /// <summary>
     /// Waits for the completion of all works.
     /// </summary>
-    /// <param name="millisecondsTimeout">The number of milliseconds to wait, or -1 to wait indefinitely.</param>
     /// <returns><see langword="true"/>: All works are complete.<br/><see langword="false"/>: Timeout or cancelled.</returns>
-    public bool WaitForCompletion(int millisecondsTimeout)
+    public Task<bool> WaitForCompletionAsync() => this.WaitForCompletionAsync(TimeSpan.MinValue);
+
+    /// <summary>
+    /// Waits for the completion of all works.
+    /// </summary>
+    /// <param name="millisecondsToWait">The number of milliseconds to wait, or -1 to wait indefinitely.</param>
+    /// <returns><see langword="true"/>: All works are complete.<br/><see langword="false"/>: Timeout or cancelled.</returns>
+    public Task<bool> WaitForCompletionAsync(int millisecondsToWait) => this.WaitForCompletionAsync(TimeSpan.FromMilliseconds(millisecondsToWait));
+
+    /// <summary>
+    /// Waits for the completion of all works.
+    /// </summary>
+    /// /// <param name="timeToWait">The TimeSpan to wait, or negative value (e.g TimeSpan.MinValue) to wait indefinitely.</param>
+    /// <returns><see langword="true"/>: All works are complete.<br/><see langword="false"/>: Timeout or cancelled.</returns>
+    public async Task<bool> WaitForCompletionAsync(TimeSpan timeToWait)
     {
         if (this.disposed)
         {
             throw new ObjectDisposedException(null);
         }
 
-        var end = Stopwatch.GetTimestamp() + (long)(millisecondsTimeout * (double)Stopwatch.Frequency / 1000);
         while (!this.IsTerminated)
         {
-            if (this.workQueue.Count == 0)
+            if (!this.workQueue.TryPeek(out var work))
             {// Complete
                 return true;
             }
-            else if (millisecondsTimeout >= 0 && Stopwatch.GetTimestamp() >= end)
-            {// Timeout
-                return false;
-            }
-            else
-            {// Wait
-                var cancelled = this.CancellationToken.WaitHandle.WaitOne(TaskWorker<T>.DefaultInterval);
-                if (cancelled)
+
+            try
+            {
+                var ev = work.completeEvent;
+                if (ev != null)
                 {
-                    return false;
+                    if (timeToWait < TimeSpan.Zero)
+                    {
+                        await ev.AsTask.WaitAsync(this.CancellationToken).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await ev.AsTask.WaitAsync(timeToWait, this.CancellationToken).ConfigureAwait(false);
+                    }
                 }
+                else
+                {
+                    await Task.Delay(ThreadCore.DefaultInterval).ConfigureAwait(false);
+                }
+            }
+            catch
+            {// Timeout or cancelled
+                return false;
             }
         }
 
         return false;
     }
 
-    /// <inheritdoc/>
-    protected override void Dispose(bool disposing)
-    {
-        if (!this.disposed)
-        {
-            if (disposing)
-            {
-                this.addedEvent?.Dispose();
-                this.addedEvent = null;
-            }
-
-            base.Dispose(disposing);
-        }
-    }
+    /// <summary>
+    /// Gets the number of works in the queue.
+    /// </summary>
+    public int Count => this.workQueue.Count;
 
     private WorkDelegate method;
     private ConcurrentQueue<T> workQueue = new();
@@ -303,4 +328,18 @@ public class TaskWorkerBase : TaskCore
     }
 
     internal AsyncManualResetEvent? addedEvent = new();
+
+    /// <inheritdoc/>
+    protected override void Dispose(bool disposing)
+    {
+        if (!this.disposed)
+        {
+            if (disposing)
+            {
+                this.addedEvent = null;
+            }
+
+            base.Dispose(disposing);
+        }
+    }
 }

@@ -194,8 +194,9 @@ public class TaskCore : ThreadCoreBase
 
         // this.Task = System.Threading.Tasks.Task.Run(async () => { await method(this); });
         // this.Task = System.Threading.Tasks.Task.Factory.StartNew(async () => { await method(this); }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
+        // this.Task = new Task(() => method(this).Wait()); // prev
 
-        this.Task = new Task(() => method(this).Wait());
+        this.Task = new Task(async () => await method(this).ConfigureAwait(false)); // tempcode
         this.Prepare(parent); // this.Task (this.IsRunning) might be referenced after this method.
         if (startImmediately)
         {

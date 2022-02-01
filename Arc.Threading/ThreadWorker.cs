@@ -99,7 +99,7 @@ public class ThreadWork
                     intState = this.state;
                 }
 
-                if(intState == ThreadWork.StateToInt(ThreadWorkState.Complete))
+                if (intState == ThreadWork.StateToInt(ThreadWorkState.Complete))
                 {// Complete
                     return true;
                 }
@@ -267,6 +267,11 @@ public class ThreadWorker<T> : ThreadWorkerBase
 
         return false;
     }
+
+    /// <summary>
+    /// Gets the number of works in the queue.
+    /// </summary>
+    public int Count => this.workQueue.Count;
 
     /// <inheritdoc/>
     protected override void Dispose(bool disposing)
