@@ -98,6 +98,7 @@ internal class Program
         var worker = new TaskWorker<TestTaskWork>(ThreadCore.Root, async (worker, work) =>
         {
             if (!worker.Sleep(1000))
+            // if (!await worker.Delay(1000))
             {
                 return AbortOrComplete.Abort;
             }
@@ -117,7 +118,7 @@ internal class Program
         Console.WriteLine(w); // Added work is on standby.
         Console.WriteLine("5");
 
-        // worker.Add(new(2, "B"));
+        worker.Add(new(2, "B"));
 
         await worker.WaitForCompletionAsync();
         Console.WriteLine(w); // Complete

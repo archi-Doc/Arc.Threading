@@ -155,7 +155,13 @@ public class TaskWorker<T> : TaskWorkerBase
     /// <see cref="AbortOrComplete.Abort"/>: Abort or Error.</returns>
     public delegate Task<AbortOrComplete> WorkDelegate(TaskWorker<T> worker, T work);
 
-    private static async Task Process(object? parameter)
+    private static void Process(object? parameter)
+    {
+        var worker = (TaskWorker<T>)parameter!;
+        Process2(parameter).Wait(worker.CancellationToken);
+    }
+
+    private static async Task Process2(object? parameter)
     {
         var worker = (TaskWorker<T>)parameter!;
         var stateStandby = TaskWork.StateToInt(TaskWorkState.Standby);
@@ -318,15 +324,17 @@ public class TaskWorker<T> : TaskWorkerBase
 /// <summary>
 /// Represents a base worker class.
 /// </summary>
-public class TaskWorkerBase : TaskCore
+public class TaskWorkerBase : ThreadCore
 {
     /// <summary>
     /// Initializes a new instance of the <see cref="TaskWorkerBase"/> class.
     /// </summary>
     /// <param name="parent">The parent.</param>
     /// <param name="processWork">The method invoked to process a work.</param>
-    internal TaskWorkerBase(ThreadCoreBase parent, Func<object?, Task> processWork)
-        : base(parent, processWork, false)
+    /*internal TaskWorkerBase(ThreadCoreBase parent, Func<object?, Task> processWork)
+        : base(parent, processWork, false)*/
+    internal TaskWorkerBase(ThreadCoreBase parent, Action<object?> processWork)
+    : base(parent, processWork, false)
     {
     }
 
