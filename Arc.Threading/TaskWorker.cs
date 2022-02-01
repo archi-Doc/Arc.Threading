@@ -170,6 +170,7 @@ public class TaskWorker<T> : TaskWorkerBase
                     await ev.AsTask.WaitAsync(worker.CancellationToken).ConfigureAwait(false);
                     ev.Reset();
                     Console.WriteLine("addedEvent - Reset"); // tempcode
+                    // await Task.Yield();
                 }
                 else
                 {
@@ -240,7 +241,9 @@ public class TaskWorker<T> : TaskWorkerBase
         work.taskWorkerBase = this;
         work.state = TaskWork.StateToInt(TaskWorkState.Standby);
         this.workQueue.Enqueue(work);
+        Console.WriteLine("addedEvent - Set before"); // tempcode
         this.addedEvent?.Set();
+        Console.WriteLine("addedEvent - Set after"); // tempcode
     }
 
     /// <summary>

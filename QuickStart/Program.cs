@@ -97,7 +97,7 @@ internal class Program
         // Create ThreadWorker by specifying a type of work and delegate.
         var worker = new TaskWorker<TestTaskWork>(ThreadCore.Root, async (worker, work) =>
         {
-            if (!worker.Sleep(100))
+            if (!worker.Sleep(1000))
             {
                 return AbortOrComplete.Abort;
             }
@@ -107,12 +107,18 @@ internal class Program
         });
 
         var w = new TestTaskWork(1, "A"); // New work
-        // worker.Add(w); // Add a work to the worker.
+        Console.WriteLine("1");
         Console.WriteLine(w); // Added work is on standby.
+        Console.WriteLine("2");
+        Console.WriteLine(w); // Added work is on standby.
+        Console.WriteLine("3");
+        worker.Add(w); // Add a work to the worker.
+        Console.WriteLine("4");
+        Console.WriteLine(w); // Added work is on standby.
+        Console.WriteLine("5");
 
         // worker.Add(new(2, "B"));
 
-        await worker.Delay();
         await worker.WaitForCompletionAsync();
         Console.WriteLine(w); // Complete
 
@@ -139,7 +145,7 @@ internal class Program
         // Create ThreadWorker by specifying a type of work and delegate.
         var worker = new ThreadWorker<TestThreadWork>(ThreadCore.Root, (worker, work) =>
         {
-            if (!worker.Sleep(100))
+            if (!worker.Sleep(1000))
             {
                 return AbortOrComplete.Abort;
             }
@@ -149,12 +155,13 @@ internal class Program
         });
 
         var w = new TestThreadWork(1, "A"); // New work
+        Console.WriteLine(w); // Added work is on standby.
         worker.Add(w); // Add a work to the worker.
         Console.WriteLine(w); // Added work is on standby.
 
         worker.Add(new(2, "B"));
 
-        w.Wait(200);
+        w.Wait(-1);
         Console.WriteLine(w); // Work is complete.
 
         worker.Terminate();

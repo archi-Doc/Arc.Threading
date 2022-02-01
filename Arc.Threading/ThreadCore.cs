@@ -195,8 +195,11 @@ public class TaskCore : ThreadCoreBase
         // this.Task = System.Threading.Tasks.Task.Run(async () => { await method(this); });
         // this.Task = System.Threading.Tasks.Task.Factory.StartNew(async () => { await method(this); }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
         // this.Task = new Task(() => method(this).Wait()); // prev
+        this.Task = new Task(async () => await method(this).ConfigureAwait(false), CancellationToken.None, TaskCreationOptions.RunContinuationsAsynchronously); // prev
+        // this.Task = System.Threading.Tasks.Task.Factory.StartNew(async () => { await method(this); }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
 
-        this.Task = new Task(async () => await method(this).ConfigureAwait(false)); // tempcode
+        // this.Task = new Task(async () => await method(this).ConfigureAwait(false)); // tempcode
+        // this.Task = System.Threading.Tasks.Task.Run(async () => await method(this).ConfigureAwait(false));
         this.Prepare(parent); // this.Task (this.IsRunning) might be referenced after this method.
         if (startImmediately)
         {
@@ -281,7 +284,12 @@ public class TaskCore<TResult> : ThreadCoreBase
             throw new ArgumentNullException(nameof(parent));
         }
 
-        this.Task = new Task<TResult>(() => method(this).Result);
+        // this.Task = new Task<TResult>(() => method(this).Result);
+        this.Task = System.Threading.Tasks.Task.Run(async () => await method(this));
+        /*this.Task = new Task<TResult>(async () =>
+        {
+            return await method(this);
+        });*/
         this.Prepare(parent); // this.Task (this.IsRunning) might be referenced after this method.
         if (startImmediately)
         {
@@ -575,6 +583,31 @@ public class ThreadCoreBase : IDisposable
             }
 
             continue;
+        }
+    }
+
+    /// <summary>
+    /// Suspends the current thread/task for the specified amount of time (<see cref="Task.Delay(int)"/>).
+    /// </summary>
+    /// <param name="millisecondsToWait">The number of milliseconds to wait.</param>
+    /// <returns><see langword="true"/> if the time successfully elapsed, <see langword="false"/> if the thread/task is terminated.</returns>
+    public Task<bool> Delay(int millisecondsToWait) => this.Delay(TimeSpan.FromMilliseconds(millisecondsToWait));
+
+    /// <summary>
+    /// Wait for the specified time (<see cref="Task.Delay(TimeSpan)"/>).
+    /// </summary>
+    /// <param name="timeToWait">The TimeSpan to wait.</param>
+    /// <returns><see langword="true"/> if the time successfully elapsed, <see langword="false"/> if the thread/task is terminated.</returns>
+    public async Task<bool> Delay(TimeSpan timeToWait)
+    {
+        try
+        {
+            await Task.Delay(timeToWait).WaitAsync(this.CancellationToken);
+            return true;
+        }
+        catch
+        {
+            return false;
         }
     }
 
