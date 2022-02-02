@@ -173,6 +173,7 @@ public class ThreadWorker<T> : ThreadWorkerBase
             {// Standby or Aborted
                 if (Interlocked.CompareExchange(ref work.state, stateWorking, stateStandby) == stateStandby)
                 {// Standby -> Working
+                    worker.workInProgress = work;
                     if (worker.method(worker, work) == AbortOrComplete.Complete)
                     {// Copmplete
                         work.state = ThreadWork.StateToInt(ThreadWorkState.Complete);
@@ -182,6 +183,7 @@ public class ThreadWorker<T> : ThreadWorkerBase
                         work.state = ThreadWork.StateToInt(ThreadWorkState.Aborted);
                     }
 
+                    worker.workInProgress = null;
                     if (work.completeEvent is { } e)
                     {
                         e.Set();
@@ -247,7 +249,7 @@ public class ThreadWorker<T> : ThreadWorkerBase
         var end = Stopwatch.GetTimestamp() + (long)(millisecondsTimeout * (double)Stopwatch.Frequency / 1000);
         while (!this.IsTerminated)
         {
-            if (this.workQueue.Count == 0)
+            if (this.workQueue.Count == 0 && this.workInProgress == null)
             {// Complete
                 return true;
             }
@@ -290,6 +292,7 @@ public class ThreadWorker<T> : ThreadWorkerBase
 
     private WorkDelegate method;
     private ConcurrentQueue<T> workQueue = new();
+    private volatile T? workInProgress;
 }
 
 /// <summary>

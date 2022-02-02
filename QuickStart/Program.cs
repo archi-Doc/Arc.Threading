@@ -114,6 +114,7 @@ internal class Program
         Console.WriteLine(w); // Added work is 'Standby'.
 
         worker.Add(new(2, "B"));
+        worker.Add(new(3, "C"));
 
         await worker.WaitForCompletionAsync();
         Console.WriteLine(w); // Complete

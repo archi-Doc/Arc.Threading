@@ -172,7 +172,7 @@ public class TaskWorker<T> : TaskWorkerBase
             try
             {
                 await pulseEvent.WaitAsync(worker.CancellationToken).ConfigureAwait(false);
-                Console.WriteLine("addedEvent - Set"); // tempcode
+                // Console.WriteLine("addedEvent - Wait -> Start"); // tempcode
             }
             catch
             {
@@ -183,6 +183,7 @@ public class TaskWorker<T> : TaskWorkerBase
             {// Standby or Aborted
                 if (Interlocked.CompareExchange(ref work.state, stateWorking, stateStandby) == stateStandby)
                 {// Standby -> Working
+                    worker.workInProgress = work;
                     if (await worker.method(worker, work).ConfigureAwait(false) == AbortOrComplete.Complete)
                     {// Copmplete
                         work.state = TaskWork.StateToInt(TaskWorkState.Complete);
@@ -192,6 +193,7 @@ public class TaskWorker<T> : TaskWorkerBase
                         work.state = TaskWork.StateToInt(TaskWorkState.Aborted);
                     }
 
+                    worker.workInProgress = null;
                     work.completeEvent?.Pulse();
                     work.completeEvent = null;
                 }
@@ -235,9 +237,8 @@ public class TaskWorker<T> : TaskWorkerBase
         work.taskWorkerBase = this;
         work.state = TaskWork.StateToInt(TaskWorkState.Standby);
         this.workQueue.Enqueue(work);
-        Console.WriteLine("addedEvent - Set before"); // tempcode
+        // Console.WriteLine("addedEvent - Pulse"); // tempcode
         this.addedEvent?.Pulse();
-        Console.WriteLine("addedEvent - Set after"); // tempcode
     }
 
     /// <summary>
@@ -268,8 +269,12 @@ public class TaskWorker<T> : TaskWorkerBase
         while (!this.IsTerminated)
         {
             if (!this.workQueue.TryPeek(out var work))
-            {// Complete
-                return true;
+            {// No work
+                work = this.workInProgress;
+                if (work == null)
+                {
+                    return true;
+                }
             }
 
             try
@@ -307,6 +312,7 @@ public class TaskWorker<T> : TaskWorkerBase
 
     private WorkDelegate method;
     private ConcurrentQueue<T> workQueue = new();
+    private volatile T? workInProgress;
 }
 
 /// <summary>
