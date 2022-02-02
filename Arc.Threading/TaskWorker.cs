@@ -92,15 +92,15 @@ public class TaskWork
         int intState; // State is Standby or Working or Complete or Aborted.
         try
         {
-            if (this.completeEvent is { } ev)
+            if (this.completeEvent is { } pulseEvent)
             {
                 if (timeToWait < TimeSpan.Zero)
                 {
-                    await this.completeEvent.AsTask.WaitAsync(this.taskWorkerBase.CancellationToken).ConfigureAwait(false);
+                    await pulseEvent.WaitAsync(this.taskWorkerBase.CancellationToken).ConfigureAwait(false);
                 }
                 else
                 {
-                    await this.completeEvent.AsTask.WaitAsync(timeToWait, this.taskWorkerBase.CancellationToken).ConfigureAwait(false);
+                    await pulseEvent.WaitAsync(timeToWait, this.taskWorkerBase.CancellationToken).ConfigureAwait(false);
                 }
             }
 
@@ -130,7 +130,7 @@ public class TaskWork
 
     internal TaskWorkerBase? taskWorkerBase;
     internal int state;
-    internal AsyncManualResetEvent? completeEvent = new();
+    internal AsyncPulseEvent? completeEvent = new();
 
     public TaskWorkState State => IntToState(this.state);
 
@@ -163,20 +163,16 @@ public class TaskWorker<T> : TaskWorkerBase
 
         while (!worker.IsTerminated)
         {
+            var pulseEvent = worker.addedEvent;
+            if (pulseEvent == null)
+            {
+                break;
+            }
+
             try
             {
-                if (worker.addedEvent is { } ev)
-                {
-                    // await ss.WaitAsync(worker.CancellationToken).ConfigureAwait(false);
-                    await ev.AsTask.WaitAsync(worker.CancellationToken).ConfigureAwait(false);
-                    ev.Reset();
-                    Console.WriteLine("addedEvent - Reset"); // tempcode
-                    // await Task.Yield();
-                }
-                else
-                {
-                    await Task.Delay(ThreadCore.DefaultInterval, worker.CancellationToken).ConfigureAwait(false);
-                }
+                await pulseEvent.WaitAsync(worker.CancellationToken).ConfigureAwait(false);
+                Console.WriteLine("addedEvent - Set"); // tempcode
             }
             catch
             {
@@ -196,11 +192,8 @@ public class TaskWorker<T> : TaskWorkerBase
                         work.state = TaskWork.StateToInt(TaskWorkState.Aborted);
                     }
 
-                    if (work.completeEvent is { } ev)
-                    {
-                        ev.Set();
-                        work.completeEvent = null;
-                    }
+                    work.completeEvent?.Pulse();
+                    work.completeEvent = null;
                 }
             }
         }
@@ -243,7 +236,7 @@ public class TaskWorker<T> : TaskWorkerBase
         work.state = TaskWork.StateToInt(TaskWorkState.Standby);
         this.workQueue.Enqueue(work);
         Console.WriteLine("addedEvent - Set before"); // tempcode
-        this.addedEvent?.Set();
+        this.addedEvent?.Pulse();
         Console.WriteLine("addedEvent - Set after"); // tempcode
     }
 
@@ -281,16 +274,16 @@ public class TaskWorker<T> : TaskWorkerBase
 
             try
             {
-                var ev = work.completeEvent;
-                if (ev != null)
+                var pulseEvent = work.completeEvent;
+                if (pulseEvent != null)
                 {
                     if (timeToWait < TimeSpan.Zero)
                     {
-                        await ev.AsTask.WaitAsync(this.CancellationToken).ConfigureAwait(false);
+                        await pulseEvent.WaitAsync(this.CancellationToken).ConfigureAwait(false);
                     }
                     else
                     {
-                        await ev.AsTask.WaitAsync(timeToWait, this.CancellationToken).ConfigureAwait(false);
+                        await pulseEvent.WaitAsync(timeToWait, this.CancellationToken).ConfigureAwait(false);
                     }
                 }
                 else
@@ -326,15 +319,13 @@ public class TaskWorkerBase : TaskCore
     /// </summary>
     /// <param name="parent">The parent.</param>
     /// <param name="processWork">The method invoked to process a work.</param>
-    /*internal TaskWorkerBase(ThreadCoreBase parent, Func<object?, Task> processWork)
-        : base(parent, processWork, false)*/
     internal TaskWorkerBase(ThreadCoreBase parent, Func<object?, Task> processWork)
     : base(parent, processWork, false)
     {
     }
 
     // internal SemaphoreSlim? addedSemaphore = new(0, 1);
-    internal AsyncManualResetEvent? addedEvent = new();
+    internal AsyncPulseEvent? addedEvent = new();
 
     /// <inheritdoc/>
     protected override void Dispose(bool disposing)
