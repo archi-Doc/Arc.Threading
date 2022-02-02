@@ -25,9 +25,9 @@ internal class Program
 
         Console.WriteLine("ThreadCore Sample.");
 
-        await TestThreadCore();
+        // await TestThreadCore();
         // TestThreadWorker();
-        // await TestTaskWorker();
+        await TestTaskWorker();
 
         await ThreadCore.Root.WaitForTerminationAsync(-1); // Wait for the termination infinitely.
         ThreadCore.Root.TerminationEvent.Set(); // The termination process is complete (#1).
@@ -98,8 +98,8 @@ internal class Program
         // Create ThreadWorker by specifying a type of work and delegate.
         var worker = new TaskWorker<TestTaskWork>(ThreadCore.Root, async (worker, work) =>
         {
-            if (!worker.Sleep(1000))
             // if (!await worker.Delay(1000))
+            if (!worker.Sleep(1000))
             {
                 return AbortOrComplete.Abort;
             }
