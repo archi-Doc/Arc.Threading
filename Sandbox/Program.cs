@@ -62,6 +62,8 @@ internal class Program
 
     private static void TestThreadCore()
     {
+        // ThreadPool.SetMaxThreads(20, 20);
+
         var c1 = new ThreadCore(ThreadCore.Root, parameter =>
         {
             var core = (ThreadCore)parameter!; // Get ThreadCore from the parameter.

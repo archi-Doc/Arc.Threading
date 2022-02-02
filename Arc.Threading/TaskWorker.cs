@@ -155,13 +155,7 @@ public class TaskWorker<T> : TaskWorkerBase
     /// <see cref="AbortOrComplete.Abort"/>: Abort or Error.</returns>
     public delegate Task<AbortOrComplete> WorkDelegate(TaskWorker<T> worker, T work);
 
-    private static void Process(object? parameter)
-    {
-        var worker = (TaskWorker<T>)parameter!;
-        Process2(parameter).Wait(worker.CancellationToken);
-    }
-
-    private static async Task Process2(object? parameter)
+    private static async Task Process(object? parameter)
     {
         var worker = (TaskWorker<T>)parameter!;
         var stateStandby = TaskWork.StateToInt(TaskWorkState.Standby);
@@ -171,10 +165,11 @@ public class TaskWorker<T> : TaskWorkerBase
         {
             try
             {
-                if (worker.addedEvent is { } ev)
+                if (worker.addedSemaphore is { } ss)
                 {
-                    await ev.AsTask.WaitAsync(worker.CancellationToken).ConfigureAwait(false);
-                    ev.Reset();
+                    await ss.WaitAsync(worker.CancellationToken).ConfigureAwait(false);
+                    // await ev.AsTask.WaitAsync(worker.CancellationToken).ConfigureAwait(false);
+                    // ev.Reset();
                     Console.WriteLine("addedEvent - Reset"); // tempcode
                     // await Task.Yield();
                 }
@@ -248,7 +243,7 @@ public class TaskWorker<T> : TaskWorkerBase
         work.state = TaskWork.StateToInt(TaskWorkState.Standby);
         this.workQueue.Enqueue(work);
         Console.WriteLine("addedEvent - Set before"); // tempcode
-        this.addedEvent?.Set();
+        this.addedSemaphore?.Release();
         Console.WriteLine("addedEvent - Set after"); // tempcode
     }
 
@@ -324,7 +319,7 @@ public class TaskWorker<T> : TaskWorkerBase
 /// <summary>
 /// Represents a base worker class.
 /// </summary>
-public class TaskWorkerBase : ThreadCore
+public class TaskWorkerBase : TaskCore
 {
     /// <summary>
     /// Initializes a new instance of the <see cref="TaskWorkerBase"/> class.
@@ -333,12 +328,13 @@ public class TaskWorkerBase : ThreadCore
     /// <param name="processWork">The method invoked to process a work.</param>
     /*internal TaskWorkerBase(ThreadCoreBase parent, Func<object?, Task> processWork)
         : base(parent, processWork, false)*/
-    internal TaskWorkerBase(ThreadCoreBase parent, Action<object?> processWork)
+    internal TaskWorkerBase(ThreadCoreBase parent, Func<object?, Task> processWork)
     : base(parent, processWork, false)
     {
     }
 
-    internal AsyncManualResetEvent? addedEvent = new();
+    internal SemaphoreSlim? addedSemaphore = new(0, 1);
+    // internal AsyncManualResetEvent? addedEvent = new();
 
     /// <inheritdoc/>
     protected override void Dispose(bool disposing)
@@ -347,7 +343,13 @@ public class TaskWorkerBase : ThreadCore
         {
             if (disposing)
             {
-                this.addedEvent = null;
+                if (this.addedSemaphore != null)
+                {
+                    this.addedSemaphore.Dispose();
+                    this.addedSemaphore = null;
+                }
+
+                // this.addedEvent = null;
             }
 
             base.Dispose(disposing);
