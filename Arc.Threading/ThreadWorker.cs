@@ -99,7 +99,7 @@ public class ThreadWork
                     intState = this.state;
                 }
 
-                if(intState == ThreadWork.StateToInt(ThreadWorkState.Complete))
+                if (intState == ThreadWork.StateToInt(ThreadWorkState.Complete))
                 {// Complete
                     return true;
                 }
@@ -149,7 +149,7 @@ public class ThreadWorker<T> : ThreadWorkerBase
     /// <see cref="AbortOrComplete.Abort"/>: Abort or Error.</returns>
     public delegate AbortOrComplete WorkDelegate(ThreadWorker<T> worker, T work);
 
-    public static void Process(object? parameter)
+    private static void Process(object? parameter)
     {
         var worker = (ThreadWorker<T>)parameter!;
         var stateStandby = ThreadWork.StateToInt(ThreadWorkState.Standby);
@@ -173,6 +173,7 @@ public class ThreadWorker<T> : ThreadWorkerBase
             {// Standby or Aborted
                 if (Interlocked.CompareExchange(ref work.state, stateWorking, stateStandby) == stateStandby)
                 {// Standby -> Working
+                    worker.workInProgress = work;
                     if (worker.method(worker, work) == AbortOrComplete.Complete)
                     {// Copmplete
                         work.state = ThreadWork.StateToInt(ThreadWorkState.Complete);
@@ -182,6 +183,7 @@ public class ThreadWorker<T> : ThreadWorkerBase
                         work.state = ThreadWork.StateToInt(ThreadWorkState.Aborted);
                     }
 
+                    worker.workInProgress = null;
                     if (work.completeEvent is { } e)
                     {
                         e.Set();
@@ -247,7 +249,7 @@ public class ThreadWorker<T> : ThreadWorkerBase
         var end = Stopwatch.GetTimestamp() + (long)(millisecondsTimeout * (double)Stopwatch.Frequency / 1000);
         while (!this.IsTerminated)
         {
-            if (this.workQueue.Count == 0)
+            if (this.workQueue.Count == 0 && this.workInProgress == null)
             {// Complete
                 return true;
             }
@@ -268,6 +270,11 @@ public class ThreadWorker<T> : ThreadWorkerBase
         return false;
     }
 
+    /// <summary>
+    /// Gets the number of works in the queue.
+    /// </summary>
+    public int Count => this.workQueue.Count;
+
     /// <inheritdoc/>
     protected override void Dispose(bool disposing)
     {
@@ -285,6 +292,7 @@ public class ThreadWorker<T> : ThreadWorkerBase
 
     private WorkDelegate method;
     private ConcurrentQueue<T> workQueue = new();
+    private volatile T? workInProgress;
 }
 
 /// <summary>
