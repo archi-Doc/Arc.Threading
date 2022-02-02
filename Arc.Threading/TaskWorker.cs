@@ -165,11 +165,11 @@ public class TaskWorker<T> : TaskWorkerBase
         {
             try
             {
-                if (worker.addedSemaphore is { } ss)
+                if (worker.addedEvent is { } ev)
                 {
-                    await ss.WaitAsync(worker.CancellationToken).ConfigureAwait(false);
-                    // await ev.AsTask.WaitAsync(worker.CancellationToken).ConfigureAwait(false);
-                    // ev.Reset();
+                    // await ss.WaitAsync(worker.CancellationToken).ConfigureAwait(false);
+                    await ev.AsTask.WaitAsync(worker.CancellationToken).ConfigureAwait(false);
+                    ev.Reset();
                     Console.WriteLine("addedEvent - Reset"); // tempcode
                     // await Task.Yield();
                 }
@@ -243,7 +243,7 @@ public class TaskWorker<T> : TaskWorkerBase
         work.state = TaskWork.StateToInt(TaskWorkState.Standby);
         this.workQueue.Enqueue(work);
         Console.WriteLine("addedEvent - Set before"); // tempcode
-        this.addedSemaphore?.Release();
+        this.addedEvent?.Set();
         Console.WriteLine("addedEvent - Set after"); // tempcode
     }
 
@@ -333,8 +333,8 @@ public class TaskWorkerBase : TaskCore
     {
     }
 
-    internal SemaphoreSlim? addedSemaphore = new(0, 1);
-    // internal AsyncManualResetEvent? addedEvent = new();
+    // internal SemaphoreSlim? addedSemaphore = new(0, 1);
+    internal AsyncManualResetEvent? addedEvent = new();
 
     /// <inheritdoc/>
     protected override void Dispose(bool disposing)
@@ -343,13 +343,13 @@ public class TaskWorkerBase : TaskCore
         {
             if (disposing)
             {
-                if (this.addedSemaphore != null)
+                /*if (this.addedSemaphore != null)
                 {
                     this.addedSemaphore.Dispose();
                     this.addedSemaphore = null;
-                }
+                }*/
 
-                // this.addedEvent = null;
+                this.addedEvent = null;
             }
 
             base.Dispose(disposing);
