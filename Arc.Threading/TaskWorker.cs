@@ -172,7 +172,6 @@ public class TaskWorker<T> : TaskWorkerBase
             try
             {
                 await pulseEvent.WaitAsync(worker.CancellationToken).ConfigureAwait(false);
-                // Console.WriteLine("addedEvent - Wait -> Start"); // tempcode
             }
             catch
             {
@@ -237,7 +236,6 @@ public class TaskWorker<T> : TaskWorkerBase
         work.taskWorkerBase = this;
         work.state = TaskWork.StateToInt(TaskWorkState.Standby);
         this.workQueue.Enqueue(work);
-        // Console.WriteLine("addedEvent - Pulse"); // tempcode
         this.addedEvent?.Pulse();
     }
 
@@ -330,7 +328,6 @@ public class TaskWorkerBase : TaskCore
     {
     }
 
-    // internal SemaphoreSlim? addedSemaphore = new(0, 1);
     internal AsyncPulseEvent? addedEvent = new();
 
     /// <inheritdoc/>
@@ -340,12 +337,6 @@ public class TaskWorkerBase : TaskCore
         {
             if (disposing)
             {
-                /*if (this.addedSemaphore != null)
-                {
-                    this.addedSemaphore.Dispose();
-                    this.addedSemaphore = null;
-                }*/
-
                 this.addedEvent = null;
             }
 

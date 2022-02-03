@@ -27,7 +27,8 @@ internal class Program
 
         // await TestThreadCore();
         // TestThreadWorker();
-        await TestTaskWorker();
+        // await TestTaskWorker();
+        await TestAsyncPulseEvent();
 
         await ThreadCore.Root.WaitForTerminationAsync(-1); // Wait for the termination infinitely.
         ThreadCore.Root.TerminationEvent.Set(); // The termination process is complete (#1).
@@ -177,5 +178,47 @@ internal class Program
         }
 
         public override string ToString() => $"Id: {this.Id}, Name: {this.Name}, State: {this.State}";
+    }
+
+    private static async Task TestAsyncPulseEvent()
+    {
+        Console.WriteLine("AsyncPulseEvent.");
+
+        var pulseEvent = new AsyncPulseEvent(); // Create AsyncPulseEvent.
+        var c = new TaskCore(ThreadCore.Root, async parameter =>
+        { // Create TaskCore that will send a pulse after 1 second.
+        var core = (TaskCore)parameter!; // Get TaskCore from the parameter.
+
+        await Task.Delay(1000);
+            Console.WriteLine("Pulse");
+            pulseEvent.Pulse();
+        });
+
+        for (var i = 0; i < 4; i++)
+        {// Create TaskCore that will wait until a pulse is received.
+            new WaitPulseCore(ThreadCore.Root, pulseEvent, i);
+        }
+    }
+
+    private class WaitPulseCore : TaskCore
+    {
+        public WaitPulseCore(ThreadCoreBase parent, AsyncPulseEvent pulseEvent, int index)
+            : base(parent, Process)
+        {
+            this.pulseEvent = pulseEvent;
+            this.index = index;
+        }
+
+        private static async Task Process(object? parameter)
+        {
+            var core = (WaitPulseCore)parameter!;
+
+            Console.WriteLine($"Wait start {core.index}");
+            await core.pulseEvent.WaitAsync();
+            Console.WriteLine($"Wait end {core.index}");
+        }
+
+        private AsyncPulseEvent pulseEvent;
+        private int index;
     }
 }
