@@ -187,9 +187,9 @@ internal class Program
         var pulseEvent = new AsyncPulseEvent(); // Create AsyncPulseEvent.
         var c = new TaskCore(ThreadCore.Root, async parameter =>
         { // Create TaskCore that will send a pulse after 1 second.
-        var core = (TaskCore)parameter!; // Get TaskCore from the parameter.
+            var core = (TaskCore)parameter!; // Get TaskCore from the parameter.
 
-        await Task.Delay(1000);
+            await Task.Delay(1000);
             Console.WriteLine("Pulse");
             pulseEvent.Pulse();
         });
