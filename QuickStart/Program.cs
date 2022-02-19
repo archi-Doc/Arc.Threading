@@ -28,7 +28,8 @@ internal class Program
         // await TestThreadCore();
         // TestThreadWorker();
         // await TestTaskWorker();
-        await TestAsyncPulseEvent();
+        await TestTaskWorker2();
+        // await TestAsyncPulseEvent();
 
         await ThreadCore.Root.WaitForTerminationAsync(-1); // Wait for the termination infinitely.
         ThreadCore.Root.TerminationEvent.Set(); // The termination process is complete (#1).
@@ -92,6 +93,66 @@ internal class Program
 
         c2.Terminate(); // Send a termination signal to the TaskCore2.
         // group.Dispose(); // Same as above
+    }
+
+    private static async Task TestTaskWorker2()
+    {
+        // Create ThreadWorker by specifying a type of work and delegate.
+        var worker = new TaskWorker2<TestTaskWork2>(ThreadCore.Root, async (worker, work) =>
+        {
+            // if (!await worker.Delay(1000))
+            if (!worker.Sleep(1000))
+            {
+                return AbortOrComplete.Abort;
+            }
+
+            Console.WriteLine($"Complete: {work.Id}, {work.Name}");
+            return AbortOrComplete.Complete;
+        });
+
+        var w = new TestTaskWork2(1, "A"); // New work
+        Console.WriteLine(w); // Added work is 'Created'.
+        worker.AddLast(ref w); // Add a work to the worker.
+        Console.WriteLine(w); // Added work is 'Standby'.
+
+        var w2 = new TestTaskWork2(2, "B");
+        worker.AddLast(w2);
+        var w3 = new TestTaskWork2(2, "B");
+        worker.AddLast(ref w3);
+        worker.AddFirst(new(3, "C"));
+
+        await worker.WaitForCompletionAsync();
+        Console.WriteLine(w); // Complete
+        await w3.WaitForCompletionAsync();
+
+        worker.Terminate();
+    }
+
+    internal class TestTaskWork2 : TaskWork2, IEquatable<TestTaskWork2>
+    {
+        public int Id { get; }
+
+        public string Name { get; } = string.Empty;
+
+        public TestTaskWork2(int id, string name)
+        {
+            this.Id = id;
+            this.Name = name;
+        }
+
+        public override string ToString() => $"Id: {this.Id}, Name: {this.Name}, State: {this.State}";
+
+        public override int GetHashCode() => HashCode.Combine(this.Id, this.Name);
+
+        public bool Equals(TestTaskWork2? other)
+        {
+            if (other == null)
+            {
+                return false;
+            }
+
+            return this.Id == other.Id && this.Name == other.Name;
+        }
     }
 
     private static async Task TestTaskWorker()
