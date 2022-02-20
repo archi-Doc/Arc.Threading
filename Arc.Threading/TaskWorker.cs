@@ -124,6 +124,10 @@ public class TaskWork
         }
     }
 
+    public TaskWorkState State => TaskWork.IntToState(this.state);
+
+    public object? Result { get; set; }
+
     internal static TaskWorkState IntToState(int state) => Unsafe.As<int, TaskWorkState>(ref state);
 
     internal static int StateToInt(TaskWorkState state) => Unsafe.As<TaskWorkState, int>(ref state);
@@ -133,8 +137,6 @@ public class TaskWork
     internal int state;
     internal AsyncPulseEvent? completeEvent = new();
     internal TaskWork? identicalChain;
-
-    public TaskWorkState State => TaskWork.IntToState(this.state);
 }
 
 /// <summary>
@@ -214,6 +216,7 @@ public class TaskWorker<T> : TaskWorkerBase
                     while (identicalChain != null)
                     {
                         identicalChain.state = work.state;
+                        identicalChain.Result = work.Result;
                         identicalChain = identicalChain.identicalChain;
                     }
 
