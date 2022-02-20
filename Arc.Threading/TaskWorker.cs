@@ -1,12 +1,8 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -128,19 +124,22 @@ public class TaskWork
         }
     }
 
-    internal TaskWorkerBase? taskWorkerBase;
-    internal int state;
-    internal AsyncPulseEvent? completeEvent = new();
-
-    public TaskWorkState State => IntToState(this.state);
-
     internal static TaskWorkState IntToState(int state) => Unsafe.As<int, TaskWorkState>(ref state);
 
     internal static int StateToInt(TaskWorkState state) => Unsafe.As<TaskWorkState, int>(ref state);
+
+    internal TaskWorkerBase? taskWorkerBase;
+    // internal object? node;
+    internal int state;
+    internal AsyncPulseEvent? completeEvent = new();
+    internal TaskWork? identicalChain;
+
+    public TaskWorkState State => TaskWork.IntToState(this.state);
 }
 
 /// <summary>
-/// Represents a worker class.
+/// Represents a worker class.<br/>
+/// <see cref="TaskWorker{T}"/> uses <see cref="HashSet{T}"/> and <see cref="LinkedList{T}"/> to manage <see cref="TaskWork"/>.
 /// </summary>
 /// <typeparam name="T">The type of a work.</typeparam>
 public class TaskWorker<T> : TaskWorkerBase
@@ -178,11 +177,25 @@ public class TaskWorker<T> : TaskWorkerBase
                 return;
             }
 
-            while (worker.workQueue.TryDequeue(out var work))
-            {// Standby or Aborted
+            while (true)
+            {
+                T? work;
+                lock (worker.linkedList)
+                {
+                    if (worker.linkedList.First == null)
+                    {// No work left.
+                        break;
+                    }
+
+                    work = worker.linkedList.First.Value;
+                    worker.linkedList.RemoveFirst();
+                    worker.hashSet.Remove(work);
+                    worker.workInProgress = work;
+                }
+
+                // Standby or Aborted
                 if (Interlocked.CompareExchange(ref work.state, stateWorking, stateStandby) == stateStandby)
                 {// Standby -> Working
-                    worker.workInProgress = work;
                     if (await worker.method(worker, work).ConfigureAwait(false) == AbortOrComplete.Complete)
                     {// Copmplete
                         work.state = TaskWork.StateToInt(TaskWorkState.Complete);
@@ -191,8 +204,19 @@ public class TaskWorker<T> : TaskWorkerBase
                     {// Aborted
                         work.state = TaskWork.StateToInt(TaskWorkState.Aborted);
                     }
+                }
 
+                lock (worker.linkedList)
+                {
                     worker.workInProgress = null;
+
+                    var identicalChain = work.identicalChain;
+                    while (identicalChain != null)
+                    {
+                        identicalChain.state = work.state;
+                        identicalChain = identicalChain.identicalChain;
+                    }
+
                     work.completeEvent?.Pulse();
                     work.completeEvent = null;
                 }
@@ -201,7 +225,8 @@ public class TaskWorker<T> : TaskWorkerBase
     }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="TaskWorker{T}"/> class.
+    /// Initializes a new instance of the <see cref="TaskWorker{T}"/> class.<br/>
+    /// <see cref="TaskWorker{T}"/> uses <see cref="HashSet{T}"/> and <see cref="LinkedList{T}"/> to manage <see cref="TaskWork"/>.
     /// </summary>
     /// <param name="parent">The parent.</param>
     /// <param name="method">The method that receives and processes a work.</param>
@@ -218,10 +243,11 @@ public class TaskWorker<T> : TaskWorkerBase
     }
 
     /// <summary>
-    /// Add a work to the worker.
+    /// Add a work at the start of the work queue.
     /// </summary>
-    /// <param name="work">A work.<br/>work.State will be set to <see cref="TaskWorkState.Standby"/>.</param>
-    public void Add(T work)
+    /// <param name="work">A work to be added.</param>
+    /// <returns><see langword="true"/>: Success, <see langword="false"/>: The work already exists.</returns>
+    public bool AddFirst(T work)
     {
         if (this.disposed)
         {
@@ -233,10 +259,63 @@ public class TaskWorker<T> : TaskWorkerBase
             throw new InvalidOperationException("Only newly created work can be added to a worker.");
         }
 
-        work.taskWorkerBase = this;
-        work.state = TaskWork.StateToInt(TaskWorkState.Standby);
-        this.workQueue.Enqueue(work);
+        lock (this.linkedList)
+        {
+            work.taskWorkerBase = this;
+            work.state = TaskWork.StateToInt(TaskWorkState.Standby);
+
+            if (this.hashSet.TryGetValue(work, out var work2))
+            {// Identical work found.
+                work.identicalChain = work2.identicalChain;
+                work2.identicalChain = work;
+                work.completeEvent = work2.completeEvent;
+                return false;
+            }
+
+            this.linkedList.AddFirst(work);
+            this.hashSet.Add(work);
+        }
+
         this.addedEvent?.Pulse();
+        return true;
+    }
+
+    /// <summary>
+    /// Add a work at the end of the work queue.
+    /// </summary>
+    /// <param name="work">A work to be added..</param>
+    /// <returns><see langword="true"/>: Success, <see langword="false"/>: The work already exists.</returns>
+    public bool AddLast(T work)
+    {
+        if (this.disposed)
+        {
+            throw new ObjectDisposedException(null);
+        }
+
+        if (work.State != TaskWorkState.Created)
+        {
+            throw new InvalidOperationException("Only newly created work can be added to a worker.");
+        }
+
+        lock (this.linkedList)
+        {
+            work.taskWorkerBase = this;
+            work.state = TaskWork.StateToInt(TaskWorkState.Standby);
+
+            if (this.hashSet.TryGetValue(work, out var work2))
+            {// Identical work found.
+                work.identicalChain = work2.identicalChain;
+                work2.identicalChain = work;
+                work.completeEvent = work2.completeEvent;
+                return false;
+            }
+
+            this.linkedList.AddLast(work);
+            this.hashSet.Add(work);
+        }
+
+        this.addedEvent?.Pulse();
+        return true;
     }
 
     /// <summary>
@@ -266,12 +345,20 @@ public class TaskWorker<T> : TaskWorkerBase
 
         while (!this.IsTerminated)
         {
-            if (!this.workQueue.TryPeek(out var work))
-            {// No work
-                work = this.workInProgress;
-                if (work == null)
+            T? work;
+            lock (this.linkedList)
+            {
+                if (this.linkedList.Last != null)
                 {
-                    return true;
+                    work = this.linkedList.Last.Value;
+                }
+                else
+                {
+                    work = this.workInProgress;
+                    if (work == null)
+                    {
+                        return true;
+                    }
                 }
             }
 
@@ -306,11 +393,13 @@ public class TaskWorker<T> : TaskWorkerBase
     /// <summary>
     /// Gets the number of works in the queue.
     /// </summary>
-    public int Count => this.workQueue.Count;
+    public int Count => this.linkedList.Count;
 
     private WorkDelegate method;
-    private ConcurrentQueue<T> workQueue = new();
-    private volatile T? workInProgress;
+
+    private LinkedList<T> linkedList = new(); // syncObject
+    private HashSet<T> hashSet = new();
+    private T? workInProgress;
 }
 
 /// <summary>
