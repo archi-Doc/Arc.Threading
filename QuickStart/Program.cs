@@ -112,18 +112,18 @@ internal class Program
 
         var w = new TestTaskWork2(1, "A"); // New work
         Console.WriteLine(w); // Added work is 'Created'.
-        worker.AddLast(ref w); // Add a work to the worker.
+        worker.AddLast(w); // Add a work to the worker.
         Console.WriteLine(w); // Added work is 'Standby'.
 
         var w2 = new TestTaskWork2(2, "B");
         worker.AddLast(w2);
         var w3 = new TestTaskWork2(2, "B");
-        worker.AddLast(ref w3);
+        worker.AddLast(w3);
         worker.AddFirst(new(3, "C"));
 
+        await w3.WaitForCompletionAsync();
         await worker.WaitForCompletionAsync();
         Console.WriteLine(w); // Complete
-        await w3.WaitForCompletionAsync();
 
         worker.Terminate();
     }

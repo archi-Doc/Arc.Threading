@@ -95,12 +95,14 @@ public class TaskWork2
     // internal object? node;
     internal int state;
     internal AsyncPulseEvent? completeEvent = new();
+    internal TaskWork2? identicalChain;
 
     public TaskWorkState State => TaskWork.IntToState(this.state);
 }
 
 /// <summary>
-/// Represents a worker class.
+/// Represents a worker class.<br/>
+/// <see cref="TaskWorker2{T}"/> uses <see cref="HashSet{T}"/> and <see cref="LinkedList{T}"/> to manage <see cref="TaskWork2"/>.
 /// </summary>
 /// <typeparam name="T">The type of a work.</typeparam>
 public class TaskWorker2<T> : TaskWorker2Base
@@ -170,6 +172,14 @@ public class TaskWorker2<T> : TaskWorker2Base
                 lock (worker.linkedList)
                 {
                     worker.workInProgress = null;
+
+                    var identicalChain = work.identicalChain;
+                    while (identicalChain != null)
+                    {
+                        identicalChain.state = work.state;
+                        identicalChain = identicalChain.identicalChain;
+                    }
+
                     work.completeEvent?.Pulse();
                     work.completeEvent = null;
                 }
@@ -198,42 +208,6 @@ public class TaskWorker2<T> : TaskWorker2Base
     /// <summary>
     /// Add a work at the start of the work queue.
     /// </summary>
-    /// <param name="work">A work to be added.<br/>
-    /// If the work already exists in the queue, it will be updated to the existing work.</param>
-    /// <returns><see langword="true"/>: Success, <see langword="false"/>: The work already exists.</returns>
-    public bool AddFirst(ref T work)
-    {
-        if (this.disposed)
-        {
-            throw new ObjectDisposedException(null);
-        }
-
-        if (work.State != TaskWorkState.Created)
-        {
-            throw new InvalidOperationException("Only newly created work can be added to a worker.");
-        }
-
-        lock (this.linkedList)
-        {
-            if (this.hashSet.TryGetValue(work, out var work2))
-            {
-                work = work2;
-                return false;
-            }
-
-            work.taskWorkerBase = this;
-            work.state = TaskWork.StateToInt(TaskWorkState.Standby);
-            this.linkedList.AddFirst(work);
-            this.hashSet.Add(work);
-        }
-
-        this.addedEvent?.Pulse();
-        return true;
-    }
-
-    /// <summary>
-    /// Add a work at the start of the work queue.
-    /// </summary>
     /// <param name="work">A work to be added.</param>
     /// <returns><see langword="true"/>: Success, <see langword="false"/>: The work already exists.</returns>
     public bool AddFirst(T work)
@@ -250,50 +224,18 @@ public class TaskWorker2<T> : TaskWorker2Base
 
         lock (this.linkedList)
         {
+            work.taskWorkerBase = this;
+            work.state = TaskWork.StateToInt(TaskWorkState.Standby);
+
             if (this.hashSet.TryGetValue(work, out var work2))
-            {
+            {// Identical work found.
+                work.identicalChain = work2.identicalChain;
+                work2.identicalChain = work;
+                work.completeEvent = work2.completeEvent;
                 return false;
             }
 
-            work.taskWorkerBase = this;
-            work.state = TaskWork.StateToInt(TaskWorkState.Standby);
             this.linkedList.AddFirst(work);
-            this.hashSet.Add(work);
-        }
-
-        this.addedEvent?.Pulse();
-        return true;
-    }
-
-    /// <summary>
-    /// Add a work at the end of the work queue.
-    /// </summary>
-    /// <param name="work">A work to be added.<br/>
-    /// If the work already exists in the queue, it will be updated to the existing work.</param>
-    /// <returns><see langword="true"/>: Success, <see langword="false"/>: The work already exists.</returns>
-    public bool AddLast(ref T work)
-    {
-        if (this.disposed)
-        {
-            throw new ObjectDisposedException(null);
-        }
-
-        if (work.State != TaskWorkState.Created)
-        {
-            throw new InvalidOperationException("Only newly created work can be added to a worker.");
-        }
-
-        lock (this.linkedList)
-        {
-            if (this.hashSet.TryGetValue(work, out var work2))
-            {
-                work = work2;
-                return false;
-            }
-
-            work.taskWorkerBase = this;
-            work.state = TaskWork.StateToInt(TaskWorkState.Standby);
-            this.linkedList.AddLast(work);
             this.hashSet.Add(work);
         }
 
@@ -320,13 +262,17 @@ public class TaskWorker2<T> : TaskWorker2Base
 
         lock (this.linkedList)
         {
+            work.taskWorkerBase = this;
+            work.state = TaskWork.StateToInt(TaskWorkState.Standby);
+
             if (this.hashSet.TryGetValue(work, out var work2))
-            {
+            {// Identical work found.
+                work.identicalChain = work2.identicalChain;
+                work2.identicalChain = work;
+                work.completeEvent = work2.completeEvent;
                 return false;
             }
 
-            work.taskWorkerBase = this;
-            work.state = TaskWork.StateToInt(TaskWorkState.Standby);
             this.linkedList.AddLast(work);
             this.hashSet.Add(work);
         }
