@@ -128,7 +128,7 @@ internal class Program
         worker.Terminate();
     }
 
-    internal class TestTaskWork : TaskWork, IEquatable<TestTaskWork>
+    internal class TestTaskWork : IEquatable<TestTaskWork>
     {
         public int Id { get; }
 

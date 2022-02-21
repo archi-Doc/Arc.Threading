@@ -73,7 +73,7 @@ public class TaskWorkSlim
         {// Timeout or cancelled
             if (abortIfTimeout)
             {// Abort
-                intState = Interlocked.CompareExchange(ref this.state, TaskWork.StateToInt(TaskWorkState.Aborted), TaskWork.StateToInt(TaskWorkState.Standby));
+                intState = Interlocked.CompareExchange(ref this.state, TaskWorkInterface.StateToInt(TaskWorkState.Aborted), TaskWorkInterface.StateToInt(TaskWorkState.Standby));
             }
             else
             {
@@ -81,7 +81,7 @@ public class TaskWorkSlim
             }
         }
 
-        if (intState == TaskWork.StateToInt(TaskWorkState.Complete))
+        if (intState == TaskWorkInterface.StateToInt(TaskWorkState.Complete))
         {// Complete
             return true;
         }
@@ -95,7 +95,7 @@ public class TaskWorkSlim
     internal int state;
     internal AsyncPulseEvent? completeEvent = new();
 
-    public TaskWorkState State => TaskWork.IntToState(this.state);
+    public TaskWorkState State => TaskWorkInterface.IntToState(this.state);
 }
 
 /// <summary>
@@ -117,8 +117,8 @@ public class TaskWorkerSlim<T> : TaskWorkerSlimBase
     private static async Task Process(object? parameter)
     {
         var worker = (TaskWorkerSlim<T>)parameter!;
-        var stateStandby = TaskWork.StateToInt(TaskWorkState.Standby);
-        var stateWorking = TaskWork.StateToInt(TaskWorkState.Working);
+        var stateStandby = TaskWorkInterface.StateToInt(TaskWorkState.Standby);
+        var stateWorking = TaskWorkInterface.StateToInt(TaskWorkState.Working);
 
         while (!worker.IsTerminated)
         {
@@ -144,11 +144,11 @@ public class TaskWorkerSlim<T> : TaskWorkerSlimBase
                     worker.workInProgress = work;
                     if (await worker.method(worker, work).ConfigureAwait(false) == AbortOrComplete.Complete)
                     {// Copmplete
-                        work.state = TaskWork.StateToInt(TaskWorkState.Complete);
+                        work.state = TaskWorkInterface.StateToInt(TaskWorkState.Complete);
                     }
                     else
                     {// Aborted
-                        work.state = TaskWork.StateToInt(TaskWorkState.Aborted);
+                        work.state = TaskWorkInterface.StateToInt(TaskWorkState.Aborted);
                     }
 
                     worker.workInProgress = null;
@@ -193,7 +193,7 @@ public class TaskWorkerSlim<T> : TaskWorkerSlimBase
         }
 
         work.taskWorkerBase = this;
-        work.state = TaskWork.StateToInt(TaskWorkState.Standby);
+        work.state = TaskWorkInterface.StateToInt(TaskWorkState.Standby);
         this.workQueue.Enqueue(work);
         this.addedEvent?.Pulse();
     }
