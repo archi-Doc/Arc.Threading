@@ -190,6 +190,16 @@ internal class TestWork : ThreadWork
 
 
 
+## TaskWorker
+
+`TaskWorker` is a `TaskCore` class which receives and processes `TWork`.
+
+```csharp
+
+```
+
+
+
 ## AsyncPulseEvent
 
 `AsyncPulseEvent` is a thread synchronization event that other threads wait until a pulse (signal) is received.
