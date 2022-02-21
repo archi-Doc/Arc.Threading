@@ -43,11 +43,27 @@ public enum TaskWorkState : int
     Aborted,
 }
 
-/// <summary>
-/// Represents a work to be processed by <see cref="TaskWorker{T}"/>.
-/// </summary>
-public class TaskWork
+internal static class TaskWorkHelper
 {
+    internal static TaskWorkState IntToState(int state) => Unsafe.As<int, TaskWorkState>(ref state);
+
+    internal static int StateToInt(TaskWorkState state) => Unsafe.As<TaskWorkState, int>(ref state);
+}
+
+/// <summary>
+/// Represents a interface for processing <typeparamref name="TWork"/>.
+/// </summary>
+/// <typeparam name="TWork">The type of the work.</typeparam>
+public sealed class TaskWorkInterface<TWork>
+    where TWork : notnull
+{
+    public TaskWorkInterface(TaskWorker<TWork> taskWorker, TWork work)
+    {
+        this.TaskWorker = taskWorker;
+        this.Work = work;
+        this.state = TaskWorkHelper.StateToInt(TaskWorkState.Standby);
+    }
+
     /// <summary>
     /// Wait until the work is completed.
     /// </summary>
@@ -70,51 +86,51 @@ public class TaskWork
     /// <returns><see langword="true"/>: The work is complete<br/><see langword="false"/>: Not complete.</returns>
     public async Task<bool> WaitForCompletionAsync(TimeSpan timeToWait, bool abortIfTimeout = true)
     {
-        if (this.taskWorkerBase == null)
-        {
-            throw new InvalidOperationException("TaskWorker is not assigned.");
-        }
-
         var state = this.State;
         if (state != TaskWorkState.Standby && state != TaskWorkState.Working)
         {
             return state == TaskWorkState.Complete;
         }
-        else if (this.taskWorkerBase.IsTerminated)
+        else if (this.TaskWorker.IsTerminated)
         {// Terminated
             return false;
         }
 
-        int intState; // State is Standby or Working or Complete or Aborted.
+        var stateComplete = TaskWorkHelper.StateToInt(TaskWorkState.Complete);
+        var stateAborted = TaskWorkHelper.StateToInt(TaskWorkState.Aborted);
         try
         {
             if (this.completeEvent is { } pulseEvent)
             {
                 if (timeToWait < TimeSpan.Zero)
                 {
-                    await pulseEvent.WaitAsync(this.taskWorkerBase.CancellationToken).ConfigureAwait(false);
+                    await pulseEvent.WaitAsync(this.TaskWorker.CancellationToken).ConfigureAwait(false);
                 }
                 else
                 {
-                    await pulseEvent.WaitAsync(timeToWait, this.taskWorkerBase.CancellationToken).ConfigureAwait(false);
+                    await pulseEvent.WaitAsync(timeToWait, this.TaskWorker.CancellationToken).ConfigureAwait(false);
                 }
             }
-
-            intState = this.state;
+        }
+        catch (TimeoutException)
+        {// Timeout
+            if (abortIfTimeout)
+            {// Abort (Standby->Abort, Working->Abort)
+                if (this.state != stateComplete)
+                {
+                    this.state = stateAborted;
+                }
+            }
         }
         catch
-        {// Timeout or cancelled
-            if (abortIfTimeout)
-            {// Abort
-                intState = Interlocked.CompareExchange(ref this.state, TaskWork.StateToInt(TaskWorkState.Aborted), TaskWork.StateToInt(TaskWorkState.Standby));
-            }
-            else
+        {// Cancellation
+            if (this.state != stateComplete)
             {
-                intState = this.state;
+                this.state = stateAborted;
             }
         }
 
-        if (intState == TaskWork.StateToInt(TaskWorkState.Complete))
+        if (this.state == stateComplete)
         {// Complete
             return true;
         }
@@ -124,28 +140,34 @@ public class TaskWork
         }
     }
 
-    public TaskWorkState State => TaskWork.IntToState(this.state);
+    /// <summary>
+    /// Gets an instance of <see cref="TaskWorker{TWork}"/>.
+    /// </summary>
+    public TaskWorker<TWork> TaskWorker { get; }
 
-    public object? Result { get; set; }
+    /// <summary>
+    /// Gets an instance of <typeparamref name="TWork"/>.
+    /// </summary>
+    public TWork Work { get; }
 
-    internal static TaskWorkState IntToState(int state) => Unsafe.As<int, TaskWorkState>(ref state);
+    /// <summary>
+    /// Gets a state of the work.
+    /// </summary>
+    public TaskWorkState State => TaskWorkHelper.IntToState(this.state);
 
-    internal static int StateToInt(TaskWorkState state) => Unsafe.As<TaskWorkState, int>(ref state);
+    public override string ToString() => $"State: {this.State}, Work: {this.Work}";
 
-    internal TaskWorkerBase? taskWorkerBase;
-    // internal object? node;
     internal int state;
     internal AsyncPulseEvent? completeEvent = new();
-    internal TaskWork? identicalChain;
 }
 
 /// <summary>
 /// Represents a worker class.<br/>
-/// <see cref="TaskWorker{T}"/> uses <see cref="HashSet{T}"/> and <see cref="LinkedList{T}"/> to manage <see cref="TaskWork"/>.
+/// <see cref="TaskWorker{TWork}"/> uses <see cref="HashSet{TWork}"/> and <see cref="LinkedList{TWork}"/> to manage works.
 /// </summary>
-/// <typeparam name="T">The type of a work.</typeparam>
-public class TaskWorker<T> : TaskWorkerBase
-    where T : TaskWork
+/// <typeparam name="TWork">The type of the work.</typeparam>
+public class TaskWorker<TWork> : TaskCore
+    where TWork : notnull
 {
     /// <summary>
     /// Defines the type of delegate to process a work.
@@ -154,13 +176,13 @@ public class TaskWorker<T> : TaskWorkerBase
     /// <param name="work">Work instance.</param>
     /// <returns><see cref="AbortOrComplete.Complete"/>: Complete.<br/>
     /// <see cref="AbortOrComplete.Abort"/>: Abort or Error.</returns>
-    public delegate Task<AbortOrComplete> WorkDelegate(TaskWorker<T> worker, T work);
+    public delegate Task<AbortOrComplete> WorkDelegate(TaskWorker<TWork> worker, TWork work);
 
     private static async Task Process(object? parameter)
     {
-        var worker = (TaskWorker<T>)parameter!;
-        var stateStandby = TaskWork.StateToInt(TaskWorkState.Standby);
-        var stateWorking = TaskWork.StateToInt(TaskWorkState.Working);
+        var worker = (TaskWorker<TWork>)parameter!;
+        var stateStandby = TaskWorkHelper.StateToInt(TaskWorkState.Standby);
+        var stateWorking = TaskWorkHelper.StateToInt(TaskWorkState.Working);
 
         while (!worker.IsTerminated)
         {
@@ -181,7 +203,7 @@ public class TaskWorker<T> : TaskWorkerBase
 
             while (true)
             {
-                T? work;
+                TaskWorkInterface<TWork>? workInterface;
                 lock (worker.linkedList)
                 {
                     if (worker.linkedList.First == null)
@@ -189,39 +211,31 @@ public class TaskWorker<T> : TaskWorkerBase
                         break;
                     }
 
-                    work = worker.linkedList.First.Value;
-                    worker.linkedList.RemoveFirst();
-                    worker.hashSet.Remove(work);
-                    worker.workInProgress = work;
+                    workInterface = worker.linkedList.First.Value;
+                    worker.linkedList.RemoveFirst(); // Remove from linked list.
+                    worker.workInProgress = workInterface;
                 }
 
                 // Standby or Aborted
-                if (Interlocked.CompareExchange(ref work.state, stateWorking, stateStandby) == stateStandby)
+                if (Interlocked.CompareExchange(ref workInterface.state, stateWorking, stateStandby) == stateStandby)
                 {// Standby -> Working
-                    if (await worker.method(worker, work).ConfigureAwait(false) == AbortOrComplete.Complete)
+                    if (!worker.IsTerminated &&
+                        await worker.method(worker, workInterface.Work).ConfigureAwait(false) == AbortOrComplete.Complete)
                     {// Copmplete
-                        work.state = TaskWork.StateToInt(TaskWorkState.Complete);
+                        workInterface.state = TaskWorkHelper.StateToInt(TaskWorkState.Complete);
                     }
                     else
                     {// Aborted
-                        work.state = TaskWork.StateToInt(TaskWorkState.Aborted);
+                        workInterface.state = TaskWorkHelper.StateToInt(TaskWorkState.Aborted);
                     }
                 }
 
                 lock (worker.linkedList)
                 {
+                    worker.dictionary.Remove(workInterface.Work); // Remove from dictionary (delayed to determine if it was the same work).
                     worker.workInProgress = null;
-
-                    var identicalChain = work.identicalChain;
-                    while (identicalChain != null)
-                    {
-                        identicalChain.state = work.state;
-                        identicalChain.Result = work.Result;
-                        identicalChain = identicalChain.identicalChain;
-                    }
-
-                    work.completeEvent?.Pulse();
-                    work.completeEvent = null;
+                    workInterface.completeEvent?.Pulse();
+                    workInterface.completeEvent = null;
                 }
             }
         }
@@ -229,14 +243,13 @@ public class TaskWorker<T> : TaskWorkerBase
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TaskWorker{T}"/> class.<br/>
-    /// <see cref="TaskWorker{T}"/> uses <see cref="HashSet{T}"/> and <see cref="LinkedList{T}"/> to manage <see cref="TaskWork"/>.
     /// </summary>
     /// <param name="parent">The parent.</param>
     /// <param name="method">The method that receives and processes a work.</param>
     /// <param name="startImmediately">Starts the worker immediately.<br/>
     /// <see langword="false"/>: Manually call <see cref="ThreadCore.Start" /> to start the worker.</param>
     public TaskWorker(ThreadCoreBase parent, WorkDelegate method, bool startImmediately = true)
-        : base(parent, Process)
+        : base(parent, Process, startImmediately)
     {
         this.method = method;
         if (startImmediately)
@@ -250,37 +263,28 @@ public class TaskWorker<T> : TaskWorkerBase
     /// </summary>
     /// <param name="work">A work to be added.</param>
     /// <returns><see langword="true"/>: Success, <see langword="false"/>: The work already exists.</returns>
-    public bool AddFirst(T work)
+    public TaskWorkInterface<TWork> AddFirst(TWork work)
     {
         if (this.disposed)
         {
             throw new ObjectDisposedException(null);
         }
 
-        if (work.State != TaskWorkState.Created)
-        {
-            throw new InvalidOperationException("Only newly created work can be added to a worker.");
-        }
-
+        TaskWorkInterface<TWork>? workInterface;
         lock (this.linkedList)
         {
-            work.taskWorkerBase = this;
-            work.state = TaskWork.StateToInt(TaskWorkState.Standby);
-
-            if (this.hashSet.TryGetValue(work, out var work2))
-            {// Identical work found.
-                work.identicalChain = work2.identicalChain;
-                work2.identicalChain = work;
-                work.completeEvent = work2.completeEvent;
-                return false;
+            if (this.dictionary.TryGetValue(work, out workInterface))
+            {
+                return workInterface;
             }
 
-            this.linkedList.AddFirst(work);
-            this.hashSet.Add(work);
+            workInterface = new(this, work);
+            this.linkedList.AddFirst(workInterface);
+            this.dictionary.Add(work, workInterface);
         }
 
         this.addedEvent?.Pulse();
-        return true;
+        return workInterface;
     }
 
     /// <summary>
@@ -288,37 +292,28 @@ public class TaskWorker<T> : TaskWorkerBase
     /// </summary>
     /// <param name="work">A work to be added..</param>
     /// <returns><see langword="true"/>: Success, <see langword="false"/>: The work already exists.</returns>
-    public bool AddLast(T work)
+    public TaskWorkInterface<TWork> AddLast(TWork work)
     {
         if (this.disposed)
         {
             throw new ObjectDisposedException(null);
         }
 
-        if (work.State != TaskWorkState.Created)
-        {
-            throw new InvalidOperationException("Only newly created work can be added to a worker.");
-        }
-
+        TaskWorkInterface<TWork>? workInterface;
         lock (this.linkedList)
         {
-            work.taskWorkerBase = this;
-            work.state = TaskWork.StateToInt(TaskWorkState.Standby);
-
-            if (this.hashSet.TryGetValue(work, out var work2))
-            {// Identical work found.
-                work.identicalChain = work2.identicalChain;
-                work2.identicalChain = work;
-                work.completeEvent = work2.completeEvent;
-                return false;
+            if (this.dictionary.TryGetValue(work, out workInterface))
+            {
+                return workInterface;
             }
 
-            this.linkedList.AddLast(work);
-            this.hashSet.Add(work);
+            workInterface = new(this, work);
+            this.linkedList.AddLast(workInterface);
+            this.dictionary.Add(work, workInterface);
         }
 
         this.addedEvent?.Pulse();
-        return true;
+        return workInterface;
     }
 
     /// <summary>
@@ -348,17 +343,17 @@ public class TaskWorker<T> : TaskWorkerBase
 
         while (!this.IsTerminated)
         {
-            T? work;
+            TaskWorkInterface<TWork>? workInterface;
             lock (this.linkedList)
             {
                 if (this.linkedList.Last != null)
                 {
-                    work = this.linkedList.Last.Value;
+                    workInterface = this.linkedList.Last.Value;
                 }
                 else
                 {
-                    work = this.workInProgress;
-                    if (work == null)
+                    workInterface = this.workInProgress;
+                    if (workInterface == null)
                     {
                         return true;
                     }
@@ -367,7 +362,7 @@ public class TaskWorker<T> : TaskWorkerBase
 
             try
             {
-                var pulseEvent = work.completeEvent;
+                var pulseEvent = workInterface.completeEvent;
                 if (pulseEvent != null)
                 {
                     if (timeToWait < TimeSpan.Zero)
@@ -398,28 +393,6 @@ public class TaskWorker<T> : TaskWorkerBase
     /// </summary>
     public int Count => this.linkedList.Count;
 
-    private WorkDelegate method;
-
-    private LinkedList<T> linkedList = new(); // syncObject
-    private HashSet<T> hashSet = new();
-    private T? workInProgress;
-}
-
-/// <summary>
-/// Represents a base worker class.
-/// </summary>
-public class TaskWorkerBase : TaskCore
-{
-    /// <summary>
-    /// Initializes a new instance of the <see cref="TaskWorkerBase"/> class.
-    /// </summary>
-    /// <param name="parent">The parent.</param>
-    /// <param name="processWork">The method invoked to process a work.</param>
-    internal TaskWorkerBase(ThreadCoreBase parent, Func<object?, Task> processWork)
-    : base(parent, processWork, false)
-    {
-    }
-
     internal AsyncPulseEvent? addedEvent = new();
 
     /// <inheritdoc/>
@@ -435,4 +408,9 @@ public class TaskWorkerBase : TaskCore
             base.Dispose(disposing);
         }
     }
+
+    private WorkDelegate method;
+    private LinkedList<TaskWorkInterface<TWork>> linkedList = new(); // syncObject
+    private Dictionary<TWork, TaskWorkInterface<TWork>> dictionary = new();
+    private TaskWorkInterface<TWork>? workInProgress;
 }
