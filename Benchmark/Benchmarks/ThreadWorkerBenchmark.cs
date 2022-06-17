@@ -61,7 +61,7 @@ namespace Benchmark.Test
 
     internal class ThreadWorkerBenchmark
     {
-        internal const int Repeat = 5;
+        internal const int Repeat = 3;
         internal const int N = 1_000_000;
         internal const int N2 = 100_000;
 
@@ -85,11 +85,23 @@ namespace Benchmark.Test
             taskWorkerSlim.Dispose();
             Console.WriteLine();
 
-            /*Console.WriteLine($"ThreadWorker heavy");
+            Console.WriteLine($"ThreadWorker heavy");
             var heavyWorker2 = new ThreadWorker<TestWork>(ThreadCore.Root, HeavyMethod2);
             BenchWorker2(N2, heavyWorker2);
             heavyWorker2.Dispose();
-            Console.WriteLine();*/
+            Console.WriteLine();
+
+            Console.WriteLine($"TaskWorker heavy");
+            var taskWorker2 = new TaskWorker<TestTaskWork>(ThreadCore.Root, HeavyMethodTask);
+            BenchWorkerTask(N2, taskWorker2);
+            taskWorker2.Dispose();
+            Console.WriteLine();
+
+            Console.WriteLine($"TaskWorkerSlim heavy");
+            var taskWorkerSlim2 = new TaskWorkerSlim<TestTaskWorkSlim>(ThreadCore.Root, HeavyMethodTaskSlim);
+            BenchWorkerTaskSlim(N2, taskWorkerSlim2);
+            taskWorkerSlim2.Dispose();
+            Console.WriteLine();
 
             /*Console.WriteLine($"ThreadWorker(Obsolete)");
             var worker = new ThreadWorkerObsolete<TestWorkObsolete>(ThreadCore.Root, EmptyMethod);
