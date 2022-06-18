@@ -149,10 +149,19 @@ public class TaskWorker2<TWork> : TaskCore
         {
             try
             {
-                if (worker.addedEvent?.Wait(ThreadCore.DefaultInterval, worker.CancellationToken) == true)
-                {
+                if (Interlocked.CompareExchange(ref worker.addedEventFlag, 0, 1) == 1)
+                {// Set
                     worker.addedEvent?.Reset();
                 }
+                else
+                {
+                    if (worker.addedEvent?.Wait(ThreadCore.DefaultInterval, worker.CancellationToken) == true)
+                    {
+                        worker.addedEvent?.Reset();
+                    }
+                }
+
+                worker.addedEventFlag = 0;
             }
             catch
             {
@@ -239,9 +248,13 @@ public class TaskWorker2<TWork> : TaskCore
             workInterface = new(this, work);
             this.linkedList.AddFirst(workInterface);
             this.dictionary.Add(work, workInterface);
+
+            if (Interlocked.CompareExchange(ref this.addedEventFlag, 1, 0) == 0)
+            {
+                this.addedEvent?.Set();
+            }
         }
 
-        this.addedEvent?.Set();
         return workInterface;
     }
 
@@ -268,9 +281,13 @@ public class TaskWorker2<TWork> : TaskCore
             workInterface = new(this, work);
             this.linkedList.AddLast(workInterface);
             this.dictionary.Add(work, workInterface);
+
+            if (Interlocked.CompareExchange(ref this.addedEventFlag, 1, 0) == 0)
+            {
+                this.addedEvent?.Set();
+            }
         }
 
-        this.addedEvent?.Set();
         return workInterface;
     }
 
@@ -351,6 +368,7 @@ public class TaskWorker2<TWork> : TaskCore
     /// </summary>
     public int Count => this.linkedList.Count;
 
+    internal int addedEventFlag = 0;
     internal ManualResetEventSlim? addedEvent = new(false);
 
     /// <inheritdoc/>

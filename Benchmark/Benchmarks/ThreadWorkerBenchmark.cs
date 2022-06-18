@@ -83,7 +83,7 @@ namespace Benchmark.Test
             Console.WriteLine($"TaskWorker2");
             var taskWorker2 = new TaskWorker2<TestTaskWork>(ThreadCore.Root, EmptyMethodTask2);
             BenchWorkerTask2(N, taskWorker2);
-            taskWorker.Dispose();
+            taskWorker2.Dispose();
             Console.WriteLine(Count.ToString());
 
             Console.WriteLine($"TaskWorker heavy");
