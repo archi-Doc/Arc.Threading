@@ -36,7 +36,7 @@ public class TaskCore : ThreadCoreBase
         // this.Task = new Task(async () => await method(this).ConfigureAwait(false), TaskCreationOptions.LongRunning);
         // this.Task = new Task(() => method(this).Wait(this.CancellationToken), TaskCreationOptions.LongRunning);
 
-        this.Task = new Task(() => method(this).Wait(), TaskCreationOptions.LongRunning | TaskCreationOptions.RunContinuationsAsynchronously);
+        this.Task = new Task(() => method(this).Wait(), TaskCreationOptions.LongRunning);
         this.Prepare(parent); // this.Task (this.IsRunning) might be referenced after this method.
         if (startImmediately)
         {
