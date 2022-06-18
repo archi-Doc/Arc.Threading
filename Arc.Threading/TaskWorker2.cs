@@ -127,7 +127,7 @@ public sealed class TaskWorkInterface2<TWork>
 /// <see cref="TaskWorker{TWork}"/> uses <see cref="HashSet{TWork}"/> and <see cref="LinkedList{TWork}"/> to manage works.
 /// </summary>
 /// <typeparam name="TWork">The type of the work.</typeparam>
-public class TaskWorker2<TWork> : TaskCore
+public class TaskWorker2<TWork> : ThreadCore
     where TWork : notnull
 {
     /// <summary>
@@ -139,7 +139,7 @@ public class TaskWorker2<TWork> : TaskCore
     /// <see cref="AbortOrComplete.Abort"/>: Abort or Error.</returns>
     public delegate Task<AbortOrComplete> WorkDelegate(TaskWorker2<TWork> worker, TWork work);
 
-    private static async Task Process(object? parameter)
+    private static void Process(object? parameter)
     {
         var worker = (TaskWorker2<TWork>)parameter!;
         var stateStandby = TaskWorkHelper.StateToInt(TaskWorkState.Standby);
@@ -187,7 +187,7 @@ public class TaskWorker2<TWork> : TaskCore
                 if (Interlocked.CompareExchange(ref workInterface.state, stateWorking, stateStandby) == stateStandby)
                 {// Standby -> Working
                     if (!worker.IsTerminated &&
-                        await worker.method(worker, workInterface.Work).ConfigureAwait(false) == AbortOrComplete.Complete)
+                        worker.method(worker, workInterface.Work).Result == AbortOrComplete.Complete)
                     {// Copmplete
                         workInterface.state = TaskWorkHelper.StateToInt(TaskWorkState.Complete);
                     }

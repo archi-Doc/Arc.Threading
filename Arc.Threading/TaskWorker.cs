@@ -191,13 +191,16 @@ public class TaskWorker<TWork> : TaskCore
                     }
                 }
 
+                AsyncPulseEvent? completeEvent = null;
                 lock (worker.linkedList)
                 {
                     worker.dictionary.Remove(workInterface.Work); // Remove from dictionary (delayed to determine if it was the same work).
                     worker.workInProgress = null;
-                    workInterface.completeEvent?.Pulse();
+                    completeEvent = workInterface.completeEvent;
                     workInterface.completeEvent = null;
                 }
+
+                completeEvent?.Pulse();
             }
         }
     }

@@ -68,11 +68,17 @@ namespace Benchmark.Test
 
         internal static void Benchmark()
         {
-            /*Console.WriteLine($"ThreadWorker");
+            Console.WriteLine($"ThreadWorker");
             var worker2 = new ThreadWorker<TestWork>(ThreadCore.Root, EmptyMethod2);
             BenchWorker2(N, worker2);
             worker2.Dispose();
-            Console.WriteLine();*/
+            Console.WriteLine();
+
+            Console.WriteLine($"TaskWorkerSlim");
+            var taskWorkerSlim = new TaskWorkerSlim<TestTaskWorkSlim>(ThreadCore.Root, EmptyMethodTaskSlim);
+            BenchWorkerTaskSlim(N, taskWorkerSlim);
+            taskWorkerSlim.Dispose();
+            Console.WriteLine();
 
             Console.WriteLine($"TaskWorker");
             var taskWorker = new TaskWorker<TestTaskWork>(ThreadCore.Root, EmptyMethodTask);
@@ -86,6 +92,12 @@ namespace Benchmark.Test
             taskWorker2.Dispose();
             Console.WriteLine(Count.ToString());
 
+            /*Console.WriteLine($"TaskWorkerSlim heavy");
+            var taskWorkerSlim2 = new TaskWorkerSlim<TestTaskWorkSlim>(ThreadCore.Root, HeavyMethodTaskSlim);
+            BenchWorkerTaskSlim(N2, taskWorkerSlim2);
+            taskWorkerSlim2.Dispose();
+            Console.WriteLine();
+
             Console.WriteLine($"TaskWorker heavy");
             var taskWorkerHeavy = new TaskWorker<TestTaskWork>(ThreadCore.Root, HeavyMethodTask);
             BenchWorkerTask(N2, taskWorkerHeavy);
@@ -98,22 +110,10 @@ namespace Benchmark.Test
             taskWorker2Heavy.Dispose();
             Console.WriteLine(Count.ToString());
 
-            /*Console.WriteLine($"TaskWorkerSlim");
-            var taskWorkerSlim = new TaskWorkerSlim<TestTaskWorkSlim>(ThreadCore.Root, EmptyMethodTaskSlim);
-            BenchWorkerTaskSlim(N, taskWorkerSlim);
-            taskWorkerSlim.Dispose();
-            Console.WriteLine();
-
             Console.WriteLine($"ThreadWorker heavy");
             var heavyWorker2 = new ThreadWorker<TestWork>(ThreadCore.Root, HeavyMethod2);
             BenchWorker2(N2, heavyWorker2);
             heavyWorker2.Dispose();
-            Console.WriteLine();
-
-            Console.WriteLine($"TaskWorkerSlim heavy");
-            var taskWorkerSlim2 = new TaskWorkerSlim<TestTaskWorkSlim>(ThreadCore.Root, HeavyMethodTaskSlim);
-            BenchWorkerTaskSlim(N2, taskWorkerSlim2);
-            taskWorkerSlim2.Dispose();
             Console.WriteLine();*/
 
             /*Console.WriteLine($"ThreadWorker(Obsolete)");
