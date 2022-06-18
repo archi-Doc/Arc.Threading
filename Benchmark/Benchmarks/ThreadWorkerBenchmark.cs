@@ -61,9 +61,10 @@ namespace Benchmark.Test
 
     internal class ThreadWorkerBenchmark
     {
-        internal const int Repeat = 5;
+        internal const int Repeat = 2;
         internal const int N = 1_000_000;
         internal const int N2 = 100_000;
+        internal static int Count;
 
         internal static void Benchmark()
         {
@@ -77,25 +78,25 @@ namespace Benchmark.Test
             var taskWorker = new TaskWorker<TestTaskWork>(ThreadCore.Root, EmptyMethodTask);
             BenchWorkerTask(N, taskWorker);
             taskWorker.Dispose();
-            Console.WriteLine();
+            Console.WriteLine(Count.ToString());
 
             Console.WriteLine($"TaskWorker2");
             var taskWorker2 = new TaskWorker2<TestTaskWork>(ThreadCore.Root, EmptyMethodTask2);
             BenchWorkerTask2(N, taskWorker2);
             taskWorker.Dispose();
-            Console.WriteLine();
+            Console.WriteLine(Count.ToString());
 
             Console.WriteLine($"TaskWorker heavy");
             var taskWorkerHeavy = new TaskWorker<TestTaskWork>(ThreadCore.Root, HeavyMethodTask);
             BenchWorkerTask(N2, taskWorkerHeavy);
             taskWorker2.Dispose();
-            Console.WriteLine();
+            Console.WriteLine(Count.ToString());
 
             Console.WriteLine($"TaskWorker2 heavy");
             var taskWorker2Heavy = new TaskWorker2<TestTaskWork>(ThreadCore.Root, HeavyMethodTask2);
             BenchWorkerTask2(N2, taskWorker2Heavy);
             taskWorker2Heavy.Dispose();
-            Console.WriteLine();
+            Console.WriteLine(Count.ToString());
 
             /*Console.WriteLine($"TaskWorkerSlim");
             var taskWorkerSlim = new TaskWorkerSlim<TestTaskWorkSlim>(ThreadCore.Root, EmptyMethodTaskSlim);
@@ -589,6 +590,7 @@ namespace Benchmark.Test
 
         private static bool EmptyMethod(ThreadWorkerObsolete<TestWorkObsolete> worker, TestWorkObsolete work)
         {
+            Interlocked.Increment(ref Count);
             return true;
         }
 
@@ -605,11 +607,13 @@ namespace Benchmark.Test
                 work.Result = x;
             }
 
+            Interlocked.Increment(ref Count);
             return true;
         }
 
         private static AbortOrComplete EmptyMethod2(ThreadWorker<TestWork> worker, TestWork work)
         {
+            Interlocked.Increment(ref Count);
             return AbortOrComplete.Complete;
         }
 
@@ -626,11 +630,13 @@ namespace Benchmark.Test
                 work.Result = x;
             }
 
+            Interlocked.Increment(ref Count);
             return AbortOrComplete.Complete;
         }
 
         private static async Task<AbortOrComplete> EmptyMethodTask(TaskWorker<TestTaskWork> worker, TestTaskWork work)
         {
+            Interlocked.Increment(ref Count);
             return AbortOrComplete.Complete;
         }
 
@@ -647,11 +653,13 @@ namespace Benchmark.Test
                 work.Result = x;
             }
 
+            Interlocked.Increment(ref Count);
             return AbortOrComplete.Complete;
         }
 
         private static async Task<AbortOrComplete> EmptyMethodTask2(TaskWorker2<TestTaskWork> worker, TestTaskWork work)
         {
+            Interlocked.Increment(ref Count);
             return AbortOrComplete.Complete;
         }
 
@@ -668,11 +676,13 @@ namespace Benchmark.Test
                 work.Result = x;
             }
 
+            Interlocked.Increment(ref Count);
             return AbortOrComplete.Complete;
         }
 
         private static async Task<AbortOrComplete> EmptyMethodTaskSlim(TaskWorkerSlim<TestTaskWorkSlim> worker, TestTaskWorkSlim work)
         {
+            Interlocked.Increment(ref Count);
             return AbortOrComplete.Complete;
         }
 
@@ -689,6 +699,7 @@ namespace Benchmark.Test
                 work.Result = x;
             }
 
+            Interlocked.Increment(ref Count);
             return AbortOrComplete.Complete;
         }
 
