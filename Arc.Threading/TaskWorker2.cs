@@ -15,10 +15,10 @@ namespace Arc.Threading;
 /// Represents a interface for processing <typeparamref name="TWork"/>.
 /// </summary>
 /// <typeparam name="TWork">The type of the work.</typeparam>
-public sealed class TaskWorkInterface<TWork>
+public sealed class TaskWorkInterface2<TWork>
     where TWork : notnull
 {
-    public TaskWorkInterface(TaskWorker<TWork> taskWorker, TWork work)
+    public TaskWorkInterface2(TaskWorker2<TWork> taskWorker, TWork work)
     {
         this.TaskWorker = taskWorker;
         this.Work = work;
@@ -104,7 +104,7 @@ public sealed class TaskWorkInterface<TWork>
     /// <summary>
     /// Gets an instance of <see cref="TaskWorker{TWork}"/>.
     /// </summary>
-    public TaskWorker<TWork> TaskWorker { get; }
+    public TaskWorker2<TWork> TaskWorker { get; }
 
     /// <summary>
     /// Gets an instance of <typeparamref name="TWork"/>.
@@ -127,7 +127,7 @@ public sealed class TaskWorkInterface<TWork>
 /// <see cref="TaskWorker{TWork}"/> uses <see cref="HashSet{TWork}"/> and <see cref="LinkedList{TWork}"/> to manage works.
 /// </summary>
 /// <typeparam name="TWork">The type of the work.</typeparam>
-public class TaskWorker<TWork> : TaskCore
+public class TaskWorker2<TWork> : ThreadCore
     where TWork : notnull
 {
     /// <summary>
@@ -137,25 +137,22 @@ public class TaskWorker<TWork> : TaskCore
     /// <param name="work">Work instance.</param>
     /// <returns><see cref="AbortOrComplete.Complete"/>: Complete.<br/>
     /// <see cref="AbortOrComplete.Abort"/>: Abort or Error.</returns>
-    public delegate Task<AbortOrComplete> WorkDelegate(TaskWorker<TWork> worker, TWork work);
+    public delegate Task<AbortOrComplete> WorkDelegate(TaskWorker2<TWork> worker, TWork work);
 
-    private static async Task Process(object? parameter)
+    private static void Process(object? parameter)
     {
-        var worker = (TaskWorker<TWork>)parameter!;
+        var worker = (TaskWorker2<TWork>)parameter!;
         var stateStandby = TaskWorkHelper.StateToInt(TaskWorkState.Standby);
         var stateWorking = TaskWorkHelper.StateToInt(TaskWorkState.Working);
 
         while (!worker.IsTerminated)
         {
-            var pulseEvent = worker.addedEvent;
-            if (pulseEvent == null)
-            {
-                break;
-            }
-
             try
             {
-                await pulseEvent.WaitAsync(worker.CancellationToken).ConfigureAwait(false);
+                if (worker.addedEvent?.Wait(ThreadCore.DefaultInterval, worker.CancellationToken) == true)
+                {
+                    worker.addedEvent?.Reset();
+                }
             }
             catch
             {
@@ -164,7 +161,7 @@ public class TaskWorker<TWork> : TaskCore
 
             while (true)
             {
-                TaskWorkInterface<TWork>? workInterface;
+                TaskWorkInterface2<TWork>? workInterface;
                 lock (worker.linkedList)
                 {
                     if (worker.linkedList.First == null)
@@ -181,7 +178,7 @@ public class TaskWorker<TWork> : TaskCore
                 if (Interlocked.CompareExchange(ref workInterface.state, stateWorking, stateStandby) == stateStandby)
                 {// Standby -> Working
                     if (!worker.IsTerminated &&
-                        await worker.method(worker, workInterface.Work).ConfigureAwait(false) == AbortOrComplete.Complete)
+                        worker.method(worker, workInterface.Work).Result == AbortOrComplete.Complete)
                     {// Copmplete
                         workInterface.state = TaskWorkHelper.StateToInt(TaskWorkState.Complete);
                     }
@@ -203,13 +200,13 @@ public class TaskWorker<TWork> : TaskCore
     }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="TaskWorker{T}"/> class.<br/>
+    /// Initializes a new instance of the <see cref="TaskWorker2{T}"/> class.<br/>
     /// </summary>
     /// <param name="parent">The parent.</param>
     /// <param name="method">The method that receives and processes a work.</param>
     /// <param name="startImmediately">Starts the worker immediately.<br/>
     /// <see langword="false"/>: Manually call <see cref="ThreadCore.Start" /> to start the worker.</param>
-    public TaskWorker(ThreadCoreBase parent, WorkDelegate method, bool startImmediately = true)
+    public TaskWorker2(ThreadCoreBase parent, WorkDelegate method, bool startImmediately = true)
         : base(parent, Process, startImmediately)
     {
         this.method = method;
@@ -224,14 +221,14 @@ public class TaskWorker<TWork> : TaskCore
     /// </summary>
     /// <param name="work">A work to be added.</param>
     /// <returns><see langword="true"/>: Success, <see langword="false"/>: The work already exists.</returns>
-    public TaskWorkInterface<TWork> AddFirst(TWork work)
+    public TaskWorkInterface2<TWork> AddFirst(TWork work)
     {
         if (this.disposed)
         {
             throw new ObjectDisposedException(null);
         }
 
-        TaskWorkInterface<TWork>? workInterface;
+        TaskWorkInterface2<TWork>? workInterface;
         lock (this.linkedList)
         {
             if (this.dictionary.TryGetValue(work, out workInterface))
@@ -244,7 +241,7 @@ public class TaskWorker<TWork> : TaskCore
             this.dictionary.Add(work, workInterface);
         }
 
-        this.addedEvent?.Pulse();
+        this.addedEvent?.Set();
         return workInterface;
     }
 
@@ -253,14 +250,14 @@ public class TaskWorker<TWork> : TaskCore
     /// </summary>
     /// <param name="work">A work to be added..</param>
     /// <returns><see langword="true"/>: Success, <see langword="false"/>: The work already exists.</returns>
-    public TaskWorkInterface<TWork> AddLast(TWork work)
+    public TaskWorkInterface2<TWork> AddLast(TWork work)
     {
         if (this.disposed)
         {
             throw new ObjectDisposedException(null);
         }
 
-        TaskWorkInterface<TWork>? workInterface;
+        TaskWorkInterface2<TWork>? workInterface;
         lock (this.linkedList)
         {
             if (this.dictionary.TryGetValue(work, out workInterface))
@@ -273,7 +270,7 @@ public class TaskWorker<TWork> : TaskCore
             this.dictionary.Add(work, workInterface);
         }
 
-        this.addedEvent?.Pulse();
+        this.addedEvent?.Set();
         return workInterface;
     }
 
@@ -304,7 +301,7 @@ public class TaskWorker<TWork> : TaskCore
 
         while (!this.IsTerminated)
         {
-            TaskWorkInterface<TWork>? workInterface;
+            TaskWorkInterface2<TWork>? workInterface;
             lock (this.linkedList)
             {
                 if (this.linkedList.Last != null)
@@ -354,7 +351,7 @@ public class TaskWorker<TWork> : TaskCore
     /// </summary>
     public int Count => this.linkedList.Count;
 
-    internal AsyncPulseEvent? addedEvent = new();
+    internal ManualResetEventSlim? addedEvent = new(false);
 
     /// <inheritdoc/>
     protected override void Dispose(bool disposing)
@@ -363,6 +360,7 @@ public class TaskWorker<TWork> : TaskCore
         {
             if (disposing)
             {
+                this.addedEvent?.Dispose();
                 this.addedEvent = null;
             }
 
@@ -371,7 +369,7 @@ public class TaskWorker<TWork> : TaskCore
     }
 
     private WorkDelegate method;
-    private LinkedList<TaskWorkInterface<TWork>> linkedList = new(); // syncObject
-    private Dictionary<TWork, TaskWorkInterface<TWork>> dictionary = new();
-    private TaskWorkInterface<TWork>? workInProgress;
+    private LinkedList<TaskWorkInterface2<TWork>> linkedList = new(); // syncObject
+    private Dictionary<TWork, TaskWorkInterface2<TWork>> dictionary = new();
+    private TaskWorkInterface2<TWork>? workInProgress;
 }

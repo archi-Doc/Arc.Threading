@@ -79,6 +79,12 @@ namespace Benchmark.Test
             taskWorker.Dispose();
             Console.WriteLine();
 
+            Console.WriteLine($"TaskWorker2");
+            var taskWorker2 = new TaskWorker2<TestTaskWork>(ThreadCore.Root, EmptyMethodTask2);
+            BenchWorkerTask2(N, taskWorker2);
+            taskWorker.Dispose();
+            Console.WriteLine();
+
             Console.WriteLine($"TaskWorkerSlim");
             var taskWorkerSlim = new TaskWorkerSlim<TestTaskWorkSlim>(ThreadCore.Root, EmptyMethodTaskSlim);
             BenchWorkerTaskSlim(N, taskWorkerSlim);
@@ -92,8 +98,8 @@ namespace Benchmark.Test
             Console.WriteLine();
 
             Console.WriteLine($"TaskWorker heavy");
-            var taskWorker2 = new TaskWorker<TestTaskWork>(ThreadCore.Root, HeavyMethodTask);
-            BenchWorkerTask(N2, taskWorker2);
+            var taskWorkerHeavy = new TaskWorker<TestTaskWork>(ThreadCore.Root, HeavyMethodTask);
+            BenchWorkerTask(N2, taskWorkerHeavy);
             taskWorker2.Dispose();
             Console.WriteLine();
 
@@ -229,23 +235,6 @@ namespace Benchmark.Test
             for (var repeat = 0; repeat < Repeat; repeat++)
             {
                 benchTimer.Start();
-                for (var n = 0; n < count; n++)
-                {
-                    var w = new TestWork(n);
-                    worker.Add(w);
-                    w.Wait(-1);
-                }
-
-                worker.WaitForCompletion(-1);
-                benchTimer.Stop();
-            }
-
-            Console.WriteLine(benchTimer.GetResult("Sequence Add and Wait"));
-            benchTimer.Clear();
-
-            for (var repeat = 0; repeat < Repeat; repeat++)
-            {
-                benchTimer.Start();
                 Parallel.For(0, 10, x =>
                 {
                     for (var n = 0; n < (count / 10); n++)
@@ -259,6 +248,23 @@ namespace Benchmark.Test
             }
 
             Console.WriteLine(benchTimer.GetResult("Parallel 10 Add"));
+            benchTimer.Clear();
+
+            for (var repeat = 0; repeat < Repeat; repeat++)
+            {
+                benchTimer.Start();
+                for (var n = 0; n < count; n++)
+                {
+                    var w = new TestWork(n);
+                    worker.Add(w);
+                    w.Wait(-1);
+                }
+
+                worker.WaitForCompletion(-1);
+                benchTimer.Stop();
+            }
+
+            Console.WriteLine(benchTimer.GetResult("Sequence Add and Wait"));
             benchTimer.Clear();
 
             for (var repeat = 0; repeat < Repeat; repeat++)
@@ -322,6 +328,24 @@ namespace Benchmark.Test
             for (var repeat = 0; repeat < Repeat; repeat++)
             {
                 benchTimer.Start();
+                Parallel.For(0, 10, x =>
+                {
+                    for (var n = 0; n < (count / 10); n++)
+                    {
+                        worker.AddLast(new(n));
+                    }
+                });
+
+                worker.WaitForCompletionAsync().Wait();
+                benchTimer.Stop();
+            }
+
+            Console.WriteLine(benchTimer.GetResult("Parallel 10 Add"));
+            benchTimer.Clear();
+
+            for (var repeat = 0; repeat < Repeat; repeat++)
+            {
+                benchTimer.Start();
                 for (var n = 0; n < count; n++)
                 {
                     var w = new TestTaskWork(n);
@@ -342,6 +366,62 @@ namespace Benchmark.Test
                 {
                     for (var n = 0; n < (count / 10); n++)
                     {
+                        var w = new TestTaskWork(n);
+                        worker.AddLast(w).WaitForCompletionAsync().Wait();
+                    }
+                });
+
+                worker.WaitForCompletionAsync().Wait();
+                benchTimer.Stop();
+            }
+
+            Console.WriteLine(benchTimer.GetResult("Parallel 10 Add and Wait"));
+            benchTimer.Clear();
+
+            for (var repeat = 0; repeat < Repeat; repeat++)
+            {
+                benchTimer.Start();
+                Parallel.For(0, 100, x =>
+                {
+                    for (var n = 0; n < (count / 100); n++)
+                    {
+                        var w = new TestTaskWork(n);
+                        worker.AddLast(w).WaitForCompletionAsync().Wait();
+                    }
+                });
+
+                worker.WaitForCompletionAsync().Wait();
+                benchTimer.Stop();
+            }
+
+            Console.WriteLine(benchTimer.GetResult("Parallel 100 Add and Wait"));
+            benchTimer.Clear();
+        }
+
+        private static void BenchWorkerTask2(int count, TaskWorker2<TestTaskWork> worker)
+        {
+            for (var repeat = 0; repeat < Repeat; repeat++)
+            {
+                benchTimer.Start();
+                for (var n = 0; n < count; n++)
+                {
+                    worker.AddLast(new(n));
+                }
+
+                benchTimer.Stop();
+                worker.WaitForCompletionAsync().Wait();
+            }
+
+            Console.WriteLine(benchTimer.GetResult("Sequence Add"));
+            benchTimer.Clear();
+
+            for (var repeat = 0; repeat < Repeat; repeat++)
+            {
+                benchTimer.Start();
+                Parallel.For(0, 10, x =>
+                {
+                    for (var n = 0; n < (count / 10); n++)
+                    {
                         worker.AddLast(new(n));
                     }
                 });
@@ -351,6 +431,22 @@ namespace Benchmark.Test
             }
 
             Console.WriteLine(benchTimer.GetResult("Parallel 10 Add"));
+            benchTimer.Clear();
+
+            for (var repeat = 0; repeat < Repeat; repeat++)
+            {
+                benchTimer.Start();
+                for (var n = 0; n < count; n++)
+                {
+                    var w = new TestTaskWork(n);
+                    worker.AddLast(w).WaitForCompletionAsync().Wait();
+                }
+
+                worker.WaitForCompletionAsync().Wait();
+                benchTimer.Stop();
+            }
+
+            Console.WriteLine(benchTimer.GetResult("Sequence Add and Wait"));
             benchTimer.Clear();
 
             for (var repeat = 0; repeat < Repeat; repeat++)
@@ -412,23 +508,6 @@ namespace Benchmark.Test
             for (var repeat = 0; repeat < Repeat; repeat++)
             {
                 benchTimer.Start();
-                for (var n = 0; n < count; n++)
-                {
-                    var w = new TestTaskWorkSlim(n);
-                    worker.Add(w);
-                    w.WaitForCompletionAsync().Wait();
-                }
-
-                worker.WaitForCompletionAsync().Wait();
-                benchTimer.Stop();
-            }
-
-            Console.WriteLine(benchTimer.GetResult("Sequence Add and Wait"));
-            benchTimer.Clear();
-
-            for (var repeat = 0; repeat < Repeat; repeat++)
-            {
-                benchTimer.Start();
                 Parallel.For(0, 10, x =>
                 {
                     for (var n = 0; n < (count / 10); n++)
@@ -442,6 +521,23 @@ namespace Benchmark.Test
             }
 
             Console.WriteLine(benchTimer.GetResult("Parallel 10 Add"));
+            benchTimer.Clear();
+
+            for (var repeat = 0; repeat < Repeat; repeat++)
+            {
+                benchTimer.Start();
+                for (var n = 0; n < count; n++)
+                {
+                    var w = new TestTaskWorkSlim(n);
+                    worker.Add(w);
+                    w.WaitForCompletionAsync().Wait();
+                }
+
+                worker.WaitForCompletionAsync().Wait();
+                benchTimer.Stop();
+            }
+
+            Console.WriteLine(benchTimer.GetResult("Sequence Add and Wait"));
             benchTimer.Clear();
 
             for (var repeat = 0; repeat < Repeat; repeat++)
@@ -533,6 +629,27 @@ namespace Benchmark.Test
         }
 
         private static async Task<AbortOrComplete> HeavyMethodTask(TaskWorker<TestTaskWork> worker, TestTaskWork work)
+        {
+            unchecked
+            {
+                long x = 0;
+                for (var i = 0; i < (work.Id & 0xFFFF); i++)
+                {
+                    x += i;
+                }
+
+                work.Result = x;
+            }
+
+            return AbortOrComplete.Complete;
+        }
+
+        private static async Task<AbortOrComplete> EmptyMethodTask2(TaskWorker2<TestTaskWork> worker, TestTaskWork work)
+        {
+            return AbortOrComplete.Complete;
+        }
+
+        private static async Task<AbortOrComplete> HeavyMethodTask2(TaskWorker2<TestTaskWork> worker, TestTaskWork work)
         {
             unchecked
             {
