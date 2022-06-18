@@ -93,7 +93,7 @@ public class TaskWorkSlim
 
     internal TaskWorkerSlimBase? taskWorkerBase;
     internal int state;
-    internal AsyncPulseEvent? completeEvent = new();
+    internal SemaphoreSlim? completeEvent = new(0, 1);
 
     public TaskWorkState State => TaskWorkHelper.IntToState(this.state);
 }
@@ -149,7 +149,7 @@ public class TaskWorkerSlim<T> : TaskWorkerSlimBase
                     }
 
                     worker.workInProgress = null;
-                    work.completeEvent?.Pulse();
+                    work.completeEvent?.Release();
                     work.completeEvent = null;
                 }
             }

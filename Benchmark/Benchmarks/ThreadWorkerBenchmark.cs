@@ -166,7 +166,7 @@ namespace Benchmark.Test
             for (var repeat = 0; repeat < Repeat; repeat++)
             {
                 benchTimer.Start();
-                Parallel.For(0, 10, x =>
+                Parallel.For(0, 10, parallelOptions, x =>
                 {
                     for (var n = 0; n < (count / 10); n++)
                     {
@@ -184,7 +184,7 @@ namespace Benchmark.Test
             for (var repeat = 0; repeat < Repeat; repeat++)
             {
                 benchTimer.Start();
-                Parallel.For(0, 10, x =>
+                Parallel.For(0, 10, parallelOptions, x =>
                 {
                     for (var n = 0; n < (count / 10); n++)
                     {
@@ -204,7 +204,7 @@ namespace Benchmark.Test
             for (var repeat = 0; repeat < Repeat; repeat++)
             {
                 benchTimer.Start();
-                Parallel.For(0, 100, x =>
+                Parallel.For(0, 100, parallelOptions, x =>
                 {
                     for (var n = 0; n < (count / 100); n++)
                     {
@@ -242,7 +242,7 @@ namespace Benchmark.Test
             for (var repeat = 0; repeat < Repeat; repeat++)
             {
                 benchTimer.Start();
-                Parallel.For(0, 10, x =>
+                Parallel.For(0, 10, parallelOptions, x =>
                 {
                     for (var n = 0; n < (count / 10); n++)
                     {
@@ -277,7 +277,7 @@ namespace Benchmark.Test
             for (var repeat = 0; repeat < Repeat; repeat++)
             {
                 benchTimer.Start();
-                Parallel.For(0, 10, x =>
+                Parallel.For(0, 10, parallelOptions, x =>
                 {
                     for (var n = 0; n < (count / 10); n++)
                     {
@@ -297,7 +297,7 @@ namespace Benchmark.Test
             for (var repeat = 0; repeat < Repeat; repeat++)
             {
                 benchTimer.Start();
-                Parallel.For(0, 100, x =>
+                Parallel.For(0, 100, parallelOptions, x =>
                 {
                     for (var n = 0; n < (count / 100); n++)
                     {
@@ -335,7 +335,7 @@ namespace Benchmark.Test
             for (var repeat = 0; repeat < Repeat; repeat++)
             {
                 benchTimer.Start();
-                Parallel.For(0, 10, x =>
+                Parallel.For(0, 10, parallelOptions, x =>
                 {
                     for (var n = 0; n < (count / 10); n++)
                     {
@@ -369,7 +369,7 @@ namespace Benchmark.Test
             for (var repeat = 0; repeat < Repeat; repeat++)
             {
                 benchTimer.Start();
-                Parallel.For(0, 10, x =>
+                Parallel.For(0, 10, parallelOptions, x =>
                 {
                     for (var n = 0; n < (count / 10); n++)
                     {
@@ -388,7 +388,7 @@ namespace Benchmark.Test
             for (var repeat = 0; repeat < Repeat; repeat++)
             {
                 benchTimer.Start();
-                Parallel.For(0, 100, x =>
+                Parallel.For(0, 100, parallelOptions, x =>
                 {
                     for (var n = 0; n < (count / 100); n++)
                     {
@@ -425,7 +425,7 @@ namespace Benchmark.Test
             for (var repeat = 0; repeat < Repeat; repeat++)
             {
                 benchTimer.Start();
-                Parallel.For(0, 10, x =>
+                Parallel.For(0, 10, parallelOptions, x =>
                 {
                     for (var n = 0; n < (count / 10); n++)
                     {
@@ -459,7 +459,7 @@ namespace Benchmark.Test
             for (var repeat = 0; repeat < Repeat; repeat++)
             {
                 benchTimer.Start();
-                Parallel.For(0, 10, x =>
+                Parallel.For(0, 10, parallelOptions, x =>
                 {
                     for (var n = 0; n < (count / 10); n++)
                     {
@@ -478,7 +478,7 @@ namespace Benchmark.Test
             for (var repeat = 0; repeat < Repeat; repeat++)
             {
                 benchTimer.Start();
-                Parallel.For(0, 100, x =>
+                Parallel.For(0, 100, parallelOptions, x =>
                 {
                     for (var n = 0; n < (count / 100); n++)
                     {
@@ -515,7 +515,7 @@ namespace Benchmark.Test
             for (var repeat = 0; repeat < Repeat; repeat++)
             {
                 benchTimer.Start();
-                Parallel.For(0, 10, x =>
+                Parallel.For(0, 10, parallelOptions, x =>
                 {
                     for (var n = 0; n < (count / 10); n++)
                     {
@@ -550,7 +550,7 @@ namespace Benchmark.Test
             for (var repeat = 0; repeat < Repeat; repeat++)
             {
                 benchTimer.Start();
-                Parallel.For(0, 10, x =>
+                Parallel.For(0, 10, parallelOptions, x =>
                 {
                     for (var n = 0; n < (count / 10); n++)
                     {
@@ -570,7 +570,7 @@ namespace Benchmark.Test
             for (var repeat = 0; repeat < Repeat; repeat++)
             {
                 benchTimer.Start();
-                Parallel.For(0, 100, x =>
+                Parallel.For(0, 100, parallelOptions, x =>
                 {
                     for (var n = 0; n < (count / 100); n++)
                     {
@@ -704,5 +704,6 @@ namespace Benchmark.Test
         }
 
         private static BenchTimer benchTimer = new();
+        private static ParallelOptions parallelOptions = new() { MaxDegreeOfParallelism = 4, };
     }
 }
