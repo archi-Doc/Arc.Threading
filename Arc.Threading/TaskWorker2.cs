@@ -119,7 +119,7 @@ public sealed class TaskWorkInterface2<TWork>
     public override string ToString() => $"State: {this.State}, Work: {this.Work}";
 
     internal int state;
-    internal AsyncPulseEvent? completeEvent = new();
+    internal AsyncSinglePulseEvent? completeEvent = new();
 }
 
 /// <summary>
