@@ -61,7 +61,7 @@ namespace Benchmark.Test
 
     internal class ThreadWorkerBenchmark
     {
-        internal const int Repeat = 2;
+        internal const int Repeat = 10;
         internal const int N = 1_000_000;
         internal const int N2 = 100_000;
         internal static int Count;
