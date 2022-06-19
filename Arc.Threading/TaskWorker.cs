@@ -120,6 +120,7 @@ public sealed class TaskWorkInterface<TWork>
 
     internal int state;
     internal AsyncSinglePulseEvent? completeEvent = new();
+    internal LinkedListNode<TaskWorkInterface<TWork>> node;
 }
 
 /// <summary>
@@ -173,8 +174,8 @@ public class TaskWorker<TWork> : TaskCore
                     }
 
                     workInterface = worker.standbyList.First.Value;
-                    worker.standbyList.RemoveFirst(); // Remove from linked list.
-                    worker.workInProgress = workInterface;
+                    worker.standbyList.RemoveFirst(); // Remove from standby list.
+                    workInterface.node = worker.workingList.AddLast(workInterface);
                 }
 
                 // Standby or Aborted
@@ -195,7 +196,7 @@ public class TaskWorker<TWork> : TaskCore
                 lock (worker.workToInterface)
                 {
                     worker.workToInterface.Remove(workInterface.Work); // Remove from dictionary (delayed to determine if it was the same work).
-                    worker.workInProgress = null;
+                    workInterface.node.List?.Remove(workInterface.node);
                     completeEvent = workInterface.completeEvent;
                     workInterface.completeEvent = null;
                 }
@@ -243,8 +244,8 @@ public class TaskWorker<TWork> : TaskCore
             }
 
             workInterface = new(this, work);
-            this.standbyList.AddFirst(workInterface);
             this.workToInterface.Add(work, workInterface);
+            workInterface.node = this.standbyList.AddFirst(workInterface);
         }
 
         this.addedEvent?.Pulse();
@@ -272,8 +273,8 @@ public class TaskWorker<TWork> : TaskCore
             }
 
             workInterface = new(this, work);
-            this.standbyList.AddLast(workInterface);
             this.workToInterface.Add(work, workInterface);
+            workInterface.node = this.standbyList.AddLast(workInterface);
         }
 
         this.addedEvent?.Pulse();
@@ -377,5 +378,4 @@ public class TaskWorker<TWork> : TaskCore
     private Dictionary<TWork, TaskWorkInterface<TWork>> workToInterface = new(); // syncObject
     private LinkedList<TaskWorkInterface<TWork>> standbyList = new();
     private LinkedList<TaskWorkInterface<TWork>> workingList = new();
-    private TaskWorkInterface<TWork>? workInProgress;
 }
