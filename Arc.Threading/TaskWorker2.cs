@@ -149,19 +149,17 @@ public class TaskWorker2<TWork> : ThreadCore
         {
             try
             {
-                if (Interlocked.CompareExchange(ref worker.addedEventFlag, 0, 1) == 1)
-                {// Set
-                    worker.addedEvent?.Reset();
-                }
-                else
+                if (worker.addedEvent is { } addedEvent)
                 {
-                    if (worker.addedEvent?.Wait(ThreadCore.DefaultInterval, worker.CancellationToken) == true)
+                    if (addedEvent.IsSet)
                     {
-                        worker.addedEvent?.Reset();
+                        addedEvent.Reset();
+                    }
+                    else if (addedEvent.Wait(ThreadCore.DefaultInterval, worker.CancellationToken) == true)
+                    {
+                        addedEvent.Reset();
                     }
                 }
-
-                worker.addedEventFlag = 0;
             }
             catch
             {
@@ -249,9 +247,9 @@ public class TaskWorker2<TWork> : ThreadCore
             this.linkedList.AddFirst(workInterface);
             this.dictionary.Add(work, workInterface);
 
-            if (Interlocked.CompareExchange(ref this.addedEventFlag, 1, 0) == 0)
+            if (this.addedEvent is { } addedEvent && !addedEvent.IsSet)
             {
-                this.addedEvent?.Set();
+                addedEvent.Set();
             }
         }
 
@@ -282,9 +280,9 @@ public class TaskWorker2<TWork> : ThreadCore
             this.linkedList.AddLast(workInterface);
             this.dictionary.Add(work, workInterface);
 
-            if (Interlocked.CompareExchange(ref this.addedEventFlag, 1, 0) == 0)
+            if (this.addedEvent is { } addedEvent && !addedEvent.IsSet)
             {
-                this.addedEvent?.Set();
+                addedEvent.Set();
             }
         }
 
@@ -364,11 +362,15 @@ public class TaskWorker2<TWork> : ThreadCore
     }
 
     /// <summary>
+    /// The number of milliseconds for which the process is suspended.
+    /// </summary>
+    public int ProcessTimeout = 100;
+
+    /// <summary>
     /// Gets the number of works in the queue.
     /// </summary>
     public int Count => this.linkedList.Count;
 
-    internal int addedEventFlag = 0;
     internal ManualResetEventSlim? addedEvent = new(false);
 
     /// <inheritdoc/>

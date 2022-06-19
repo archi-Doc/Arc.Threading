@@ -119,7 +119,7 @@ public sealed class TaskWorkInterface<TWork>
     public override string ToString() => $"State: {this.State}, Work: {this.Work}";
 
     internal int state;
-    internal AsyncPulseEvent? completeEvent = new();
+    internal AsyncSinglePulseEvent? completeEvent = new();
 }
 
 /// <summary>
@@ -191,7 +191,7 @@ public class TaskWorker<TWork> : TaskCore
                     }
                 }
 
-                AsyncPulseEvent? completeEvent = null;
+                AsyncSinglePulseEvent? completeEvent = null;
                 lock (worker.linkedList)
                 {
                     worker.dictionary.Remove(workInterface.Work); // Remove from dictionary (delayed to determine if it was the same work).

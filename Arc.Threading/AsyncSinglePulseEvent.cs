@@ -16,7 +16,7 @@ namespace Arc.Threading;
 /// </summary>
 public class AsyncSinglePulseEvent
 {
-    private volatile TaskCompletionSource<object> tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private volatile TaskCompletionSource tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     /// <summary>
     /// Send a pulse to restart the waiting threads.<br/>
@@ -26,7 +26,7 @@ public class AsyncSinglePulseEvent
     /// <see langword="false"/>: A pulse is already sent (not yet received by a thread).</returns>
     public bool Pulse()
     {
-        if (!this.tcs.Task.IsCompleted && this.tcs.TrySetResult(null!))
+        if (!this.tcs.Task.IsCompleted && this.tcs.TrySetResult())
         {
             return true;
         }
