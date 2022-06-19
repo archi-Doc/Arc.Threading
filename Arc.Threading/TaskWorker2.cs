@@ -102,7 +102,7 @@ public sealed class TaskWorkInterface2<TWork>
     }
 
     /// <summary>
-    /// Gets an instance of <see cref="TaskWorker{TWork}"/>.
+    /// Gets an instance of <see cref="TaskWorker2{TWork}"/>.
     /// </summary>
     public TaskWorker2<TWork> TaskWorker { get; }
 
@@ -124,10 +124,10 @@ public sealed class TaskWorkInterface2<TWork>
 
 /// <summary>
 /// Represents a worker class.<br/>
-/// <see cref="TaskWorker{TWork}"/> uses <see cref="HashSet{TWork}"/> and <see cref="LinkedList{TWork}"/> to manage works.
+/// <see cref="TaskWorker2{TWork}"/> uses <see cref="HashSet{TWork}"/> and <see cref="LinkedList{TWork}"/> to manage works.
 /// </summary>
 /// <typeparam name="TWork">The type of the work.</typeparam>
-public class TaskWorker2<TWork> : ThreadCore
+public class TaskWorker2<TWork> : TaskCore
     where TWork : notnull
 {
     /// <summary>
@@ -139,7 +139,7 @@ public class TaskWorker2<TWork> : ThreadCore
     /// <see cref="AbortOrComplete.Abort"/>: Abort or Error.</returns>
     public delegate Task<AbortOrComplete> WorkDelegate(TaskWorker2<TWork> worker, TWork work);
 
-    private static void Process(object? parameter)
+    private static async Task Process(object? parameter)
     {
         var worker = (TaskWorker2<TWork>)parameter!;
         var stateStandby = TaskWorkHelper.StateToInt(TaskWorkState.Standby);
@@ -147,19 +147,15 @@ public class TaskWorker2<TWork> : ThreadCore
 
         while (!worker.IsTerminated)
         {
+            var pulseEvent = worker.addedEvent;
+            if (pulseEvent == null)
+            {
+                break;
+            }
+
             try
             {
-                if (worker.addedEvent is { } addedEvent)
-                {
-                    if (addedEvent.IsSet)
-                    {
-                        addedEvent.Reset();
-                    }
-                    else if (addedEvent.Wait(ThreadCore.DefaultInterval, worker.CancellationToken) == true)
-                    {
-                        addedEvent.Reset();
-                    }
-                }
+                await pulseEvent.WaitAsync(worker.CancellationToken).ConfigureAwait(false);
             }
             catch
             {
@@ -185,7 +181,7 @@ public class TaskWorker2<TWork> : ThreadCore
                 if (Interlocked.CompareExchange(ref workInterface.state, stateWorking, stateStandby) == stateStandby)
                 {// Standby -> Working
                     if (!worker.IsTerminated &&
-                        worker.method(worker, workInterface.Work).Result == AbortOrComplete.Complete)
+                        await worker.method(worker, workInterface.Work).ConfigureAwait(false) == AbortOrComplete.Complete)
                     {// Copmplete
                         workInterface.state = TaskWorkHelper.StateToInt(TaskWorkState.Complete);
                     }
@@ -195,13 +191,16 @@ public class TaskWorker2<TWork> : ThreadCore
                     }
                 }
 
+                AsyncSinglePulseEvent? completeEvent = null;
                 lock (worker.linkedList)
                 {
                     worker.dictionary.Remove(workInterface.Work); // Remove from dictionary (delayed to determine if it was the same work).
                     worker.workInProgress = null;
-                    workInterface.completeEvent?.Pulse();
+                    completeEvent = workInterface.completeEvent;
                     workInterface.completeEvent = null;
                 }
+
+                completeEvent?.Pulse();
             }
         }
     }
@@ -246,13 +245,9 @@ public class TaskWorker2<TWork> : ThreadCore
             workInterface = new(this, work);
             this.linkedList.AddFirst(workInterface);
             this.dictionary.Add(work, workInterface);
-
-            if (this.addedEvent is { } addedEvent && !addedEvent.IsSet)
-            {
-                addedEvent.Set();
-            }
         }
 
+        this.addedEvent?.Pulse();
         return workInterface;
     }
 
@@ -279,13 +274,9 @@ public class TaskWorker2<TWork> : ThreadCore
             workInterface = new(this, work);
             this.linkedList.AddLast(workInterface);
             this.dictionary.Add(work, workInterface);
-
-            if (this.addedEvent is { } addedEvent && !addedEvent.IsSet)
-            {
-                addedEvent.Set();
-            }
         }
 
+        this.addedEvent?.Pulse();
         return workInterface;
     }
 
@@ -362,16 +353,11 @@ public class TaskWorker2<TWork> : ThreadCore
     }
 
     /// <summary>
-    /// The number of milliseconds for which the process is suspended.
-    /// </summary>
-    public int ProcessTimeout = 100;
-
-    /// <summary>
     /// Gets the number of works in the queue.
     /// </summary>
     public int Count => this.linkedList.Count;
 
-    internal ManualResetEventSlim? addedEvent = new(false);
+    internal AsyncPulseEvent? addedEvent = new();
 
     /// <inheritdoc/>
     protected override void Dispose(bool disposing)
@@ -380,7 +366,6 @@ public class TaskWorker2<TWork> : ThreadCore
         {
             if (disposing)
             {
-                this.addedEvent?.Dispose();
                 this.addedEvent = null;
             }
 

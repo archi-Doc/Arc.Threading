@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 namespace Arc.Threading;
 
 /// <summary>
-/// Represents a thread synchronization event that other threads wait until a pulse (signal) is received.
+/// Represents a thread synchronization event that other threads wait until a pulse is received.
 /// </summary>
 public class AsyncPulseEvent
 {
