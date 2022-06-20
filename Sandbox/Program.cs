@@ -197,7 +197,7 @@ internal class Program
         worker.AddLast(w3);
         wi = worker.AddFirst(new(3, "C"));
 
-        var b = await wi1.WaitForCompletionAsync();
+        // var b = await wi1.WaitForCompletionAsync();
         Console.WriteLine(wi1);
         await worker.WaitForCompletionAsync();
         Console.WriteLine(w); // Complete

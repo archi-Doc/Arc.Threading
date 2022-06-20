@@ -4,6 +4,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Linq.Expressions;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -19,15 +21,21 @@ namespace Arc.Threading;
 /// <typeparam name="TWork">The type of the work.</typeparam>
 public sealed class TaskWorkInterface<TWork>
     where TWork : notnull
-{
+{// Created (task:created, node:null) -> Standby (task:created, node:standby list) -> Working (task:running, node:working list) -> Complete/Abort (task:completed, node:null)
     public TaskWorkInterface(TaskWorker<TWork> taskWorker, TWork work)
     {
         this.TaskWorker = taskWorker;
         this.Work = work;
-        this.task = Task.Run(() =>
+        this.task = new Task(() =>
         {
-            this.TaskWorker.method(this.TaskWorker, this.Work).Wait();
-            this.TaskWorker.FinishWork(this);
+            try
+            {
+                this.TaskWorker.method(this.TaskWorker, this.Work).Wait();
+            }
+            finally
+            {
+                this.TaskWorker.FinishWork2(this);
+            }
         });
     }
 
@@ -159,12 +167,18 @@ public class TaskWorker<TWork> : TaskCore
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     public delegate Task WorkDelegate(TaskWorker<TWork> worker, TWork work);
 
+    private static Action<Task> trySetResult;
+
+    static TaskWorker()
+    {
+        var method = typeof(Task).GetMethod("TrySetResult", BindingFlags.Instance | BindingFlags.Static | BindingFlags.NonPublic) !;
+        var arg = Expression.Parameter(typeof(Task));
+        trySetResult = Expression.Lambda<Action<Task>>(Expression.Call(arg, method), arg).Compile();
+    }
+
     private static async Task Process(object? parameter)
     {
         var worker = (TaskWorker<TWork>)parameter!;
-        var stateStandby = TaskWorkHelper.StateToInt(TaskWorkState.Standby);
-        var stateWorking = TaskWorkHelper.StateToInt(TaskWorkState.Working);
-
         while (!worker.IsTerminated)
         {
             var updateEvent = worker.updateEvent;
@@ -175,30 +189,54 @@ public class TaskWorker<TWork> : TaskCore
 
             try
             {
-                await updateEvent.WaitAsync(worker.CancellationToken).ConfigureAwait(false);
+                await updateEvent.WaitAsync(worker.CancellationToken).ConfigureAwait(false); // Add or Finish
             }
             catch
             {
                 return;
             }
 
-            lock (worker.workToInterface)
+            if (worker.ConcurrentWorks == 1)
             {
                 while (true)
                 {
-                    var work = worker.standbyList.FirstOrDefault();
-                    if (work == null)
-                    {// No work left.
-                        break;
-                    }
-                    else if (worker.workingList.Count >= 1)
-                    {// Working list is full.
-                        break;
+                    TaskWorkInterface<TWork>? workInterface;
+                    lock (worker.workToInterface)
+                    {
+                        workInterface = worker.standbyList.FirstOrDefault();
+                        if (workInterface == null)
+                        {// No work left.
+                            break;
+                        }
+
+                        worker.standbyList.Remove(workInterface.node!);
+                        workInterface.node = worker.workingList.AddLast(workInterface);
                     }
 
-                    worker.standbyList.Remove(work.node!);
-                    worker.workingList.AddLast(work);
-                    work.task.Start();
+                    await worker.method(worker, workInterface.Work).ConfigureAwait(false);
+                    worker.FinishWork(workInterface);
+                }
+            }
+            else
+            {
+                lock (worker.workToInterface)
+                {
+                    while (true)
+                    {
+                        var workInterface = worker.standbyList.FirstOrDefault();
+                        if (workInterface == null)
+                        {// No work left.
+                            break;
+                        }
+                        else if (worker.ConcurrentWorks > 0 && worker.workingList.Count >= worker.ConcurrentWorks)
+                        {// The maximum number of concurrent tasks reached.
+                            break;
+                        }
+
+                        worker.standbyList.Remove(workInterface.node!);
+                        workInterface.node = worker.workingList.AddLast(workInterface);
+                        workInterface.task.Start();
+                    }
                 }
             }
         }
@@ -304,11 +342,12 @@ public class TaskWorker<TWork> : TaskCore
             throw new ObjectDisposedException(null);
         }
 
+        TimeSpan elapsed = TimeSpan.Zero;
         while (!this.IsTerminated)
         {
             Task? task;
             lock (this.workToInterface)
-            {// Get standby or working task.
+            {// Get a standby or working task.
                 task = this.standbyList.LastOrDefault()?.task ?? this.workingList.LastOrDefault()?.task;
                 if (task == null)
                 {// No task (complete)
@@ -316,7 +355,22 @@ public class TaskWorker<TWork> : TaskCore
                 }
             }
 
-            var sw = Stopwatch.StartNew();
+            if (elapsed != TimeSpan.Zero)
+            {// After WaitAsync()
+                if (timeToWait < TimeSpan.Zero)
+                {// Wait indefinitely
+                }
+                else if (timeToWait <= elapsed)
+                {// Timeout
+                    return false;
+                }
+                else
+                {
+                    timeToWait -= elapsed;
+                }
+            }
+
+            this.stopwatch.Restart();
             try
             {
                 if (timeToWait < TimeSpan.Zero)
@@ -333,15 +387,18 @@ public class TaskWorker<TWork> : TaskCore
                 return false;
             }
 
-            timeToWait -= sw.Elapsed;
-            if (timeToWait <= TimeSpan.Zero)
-            {// Timeout
-                return false;
-            }
+            elapsed = this.stopwatch.Elapsed;
         }
 
         return false;
     }
+
+    /// <summary>
+    /// Gets or sets the maximum number of concurrent works.<br/>
+    /// The default is 1.<br/>
+    /// 0 or less is unlimited.
+    /// </summary>
+    public int ConcurrentWorks { get; set; } = 1;
 
     /// <summary>
     /// Gets the number of works in the standby queue.
@@ -356,6 +413,19 @@ public class TaskWorker<TWork> : TaskCore
     internal AsyncPulseEvent? updateEvent = new();
 
     internal void FinishWork(TaskWorkInterface<TWork> workInterface)
+    {
+        lock (this.workToInterface)
+        {
+            this.workToInterface.Remove(workInterface.Work);
+            var node = workInterface.node;
+            node?.List?.Remove(node);
+            workInterface.node = null; // Complete or Aborted
+        }
+
+        trySetResult(workInterface.task);
+    }
+
+    internal void FinishWork2(TaskWorkInterface<TWork> workInterface)
     {
         lock (this.workToInterface)
         {
@@ -386,4 +456,5 @@ public class TaskWorker<TWork> : TaskCore
     private Dictionary<TWork, TaskWorkInterface<TWork>> workToInterface = new(); // syncObject
     private LinkedList<TaskWorkInterface<TWork>> standbyList = new();
     private LinkedList<TaskWorkInterface<TWork>> workingList = new();
+    private Stopwatch stopwatch = new();
 }

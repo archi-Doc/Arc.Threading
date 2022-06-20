@@ -82,6 +82,7 @@ namespace Benchmark.Test
 
             Console.WriteLine($"TaskWorker");
             var taskWorker = new TaskWorker<TestTaskWork>(ThreadCore.Root, EmptyMethodTask);
+            taskWorker.ConcurrentWorks = 4;
             BenchWorkerTask(N, taskWorker);
             taskWorker.Dispose();
             Console.WriteLine(Count.ToString());
@@ -106,6 +107,7 @@ namespace Benchmark.Test
 
             Console.WriteLine($"TaskWorker heavy");
             var taskWorkerHeavy = new TaskWorker<TestTaskWork>(ThreadCore.Root, HeavyMethodTask);
+            taskWorkerHeavy.ConcurrentWorks = 4;
             BenchWorkerTask(N2, taskWorkerHeavy);
             taskWorkerHeavy.Dispose();
             Console.WriteLine(Count.ToString());
@@ -634,13 +636,12 @@ namespace Benchmark.Test
             return AbortOrComplete.Complete;
         }
 
-        private static async Task<AbortOrComplete> EmptyMethodTask(TaskWorker<TestTaskWork> worker, TestTaskWork work)
+        private static async Task EmptyMethodTask(TaskWorker<TestTaskWork> worker, TestTaskWork work)
         {
             Interlocked.Increment(ref Count);
-            return AbortOrComplete.Complete;
         }
 
-        private static async Task<AbortOrComplete> HeavyMethodTask(TaskWorker<TestTaskWork> worker, TestTaskWork work)
+        private static async Task HeavyMethodTask(TaskWorker<TestTaskWork> worker, TestTaskWork work)
         {
             unchecked
             {
@@ -654,7 +655,6 @@ namespace Benchmark.Test
             }
 
             Interlocked.Increment(ref Count);
-            return AbortOrComplete.Complete;
         }
 
         private static async Task<AbortOrComplete> EmptyMethodTask2(TaskWorker2<TestTaskWork> worker, TestTaskWork work)
