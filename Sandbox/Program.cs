@@ -173,12 +173,12 @@ internal class Program
         {
             if (!await worker.Delay(1000))
             {
-                return AbortOrComplete.Abort;
+                return;
             }
 
             work.Result = "complete";
             Console.WriteLine($"Complete: {work.Id}, {work.Name}");
-            return AbortOrComplete.Complete;
+            return;
         });
 
         await worker.WaitForCompletionAsync();
