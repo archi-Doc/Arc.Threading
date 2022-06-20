@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -120,7 +121,7 @@ public sealed class TaskWorkInterface<TWork>
 
     internal int state;
     internal AsyncSinglePulseEvent? completeEvent = new();
-    internal LinkedListNode<TaskWorkInterface<TWork>> node;
+    internal LinkedListNode<TaskWorkInterface<TWork>>? node;
 }
 
 /// <summary>
@@ -198,6 +199,7 @@ public class TaskWorker<TWork> : TaskCore
                     worker.workToInterface.Remove(workInterface.Work); // Remove from dictionary (delayed to determine if it was the same work).
                     workInterface.node.List?.Remove(workInterface.node);
                     completeEvent = workInterface.completeEvent;
+                    workInterface.node = null;
                     workInterface.completeEvent = null;
                 }
 
@@ -308,40 +310,25 @@ public class TaskWorker<TWork> : TaskCore
 
         while (!this.IsTerminated)
         {
-            TaskWorkInterface<TWork>? workInterface;
+            AsyncSinglePulseEvent? completeEvent;
             lock (this.workToInterface)
             {
-                if (this.standbyList.Last != null)
-                {
-                    workInterface = this.standbyList.Last.Value;
-                }
-                else
-                {
-                    workInterface = this.workInProgress;
-                    if (workInterface == null)
-                    {
-                        return true;
-                    }
+                completeEvent = this.standbyList.FirstOrDefault()?.completeEvent ?? this.workingList.FirstOrDefault()?.completeEvent;
+                if (completeEvent == null)
+                {// No task (complete)
+                    return true;
                 }
             }
 
             try
             {
-                var pulseEvent = workInterface.completeEvent;
-                if (pulseEvent != null)
+                if (timeToWait < TimeSpan.Zero)
                 {
-                    if (timeToWait < TimeSpan.Zero)
-                    {
-                        await pulseEvent.WaitAsync(this.CancellationToken).ConfigureAwait(false);
-                    }
-                    else
-                    {
-                        await pulseEvent.WaitAsync(timeToWait, this.CancellationToken).ConfigureAwait(false);
-                    }
+                    await completeEvent.WaitAsync(this.CancellationToken).ConfigureAwait(false);
                 }
                 else
                 {
-                    await Task.Delay(ThreadCore.DefaultInterval).ConfigureAwait(false);
+                    await completeEvent.WaitAsync(timeToWait, this.CancellationToken).ConfigureAwait(false);
                 }
             }
             catch
