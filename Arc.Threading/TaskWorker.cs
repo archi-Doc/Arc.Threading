@@ -2,6 +2,10 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Linq.Expressions;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,45 +14,6 @@ using System.Threading.Tasks;
 #pragma warning disable SA1307 // Accessible fields should begin with upper-case letter
 
 namespace Arc.Threading;
-
-/// <summary>
-/// Represents a state of a task work.<br/>
-/// Created -> Standby -> Abort / Working -> Completed.
-/// </summary>
-public enum TaskWorkState : int
-{
-    /// <summary>
-    /// Work is created.
-    /// </summary>
-    Created,
-
-    /// <summary>
-    /// Work is on standby.
-    /// </summary>
-    Standby,
-
-    /// <summary>
-    /// Work in progress.
-    /// </summary>
-    Working,
-
-    /// <summary>
-    /// Work is complete (worker -> user).
-    /// </summary>
-    Complete,
-
-    /// <summary>
-    /// Work is aborted (user -> worker).
-    /// </summary>
-    Aborted,
-}
-
-internal static class TaskWorkHelper
-{
-    internal static TaskWorkState IntToState(int state) => Unsafe.As<int, TaskWorkState>(ref state);
-
-    internal static int StateToInt(TaskWorkState state) => Unsafe.As<TaskWorkState, int>(ref state);
-}
 
 /// <summary>
 /// Represents a interface for processing <typeparamref name="TWork"/>.
@@ -61,76 +26,75 @@ public sealed class TaskWorkInterface<TWork>
     {
         this.TaskWorker = taskWorker;
         this.Work = work;
-        this.state = TaskWorkHelper.StateToInt(TaskWorkState.Standby);
+        this.task = new Task(() =>
+        {
+            try
+            {
+                this.TaskWorker.method(this.TaskWorker, this.Work).Wait();
+            }
+            finally
+            {
+                this.TaskWorker.FinishWork(this);
+            }
+        });
     }
 
     /// <summary>
     /// Wait until the work is completed.
     /// </summary>
     /// <returns><see langword="true"/>: The work is complete<br/><see langword="false"/>: Not complete.</returns>
-    public Task<bool> WaitForCompletionAsync() => this.WaitForCompletionAsync(TimeSpan.MinValue, false);
+    public Task<bool> WaitForCompletionAsync() => this.WaitForCompletionAsync(TimeSpan.MinValue);
 
     /// <summary>
     /// Wait for the specified time until the work is completed.
     /// </summary>
     /// <param name="millisecondsToWait">The number of milliseconds to wait, or -1 to wait indefinitely.</param>
-    /// <param name="abortIfTimeout">Abort the work if the specified time is elapsed.</param>
     /// <returns><see langword="true"/>: The work is complete<br/><see langword="false"/>: Not complete.</returns>
-    public Task<bool> WaitForCompletionAsync(int millisecondsToWait, bool abortIfTimeout = true) => this.WaitForCompletionAsync(TimeSpan.FromMilliseconds(millisecondsToWait), abortIfTimeout);
+    public Task<bool> WaitForCompletionAsync(int millisecondsToWait) => this.WaitForCompletionAsync(TimeSpan.FromMilliseconds(millisecondsToWait));
 
     /// <summary>
     /// Wait for the specified time until the work is completed.
     /// </summary>
     /// <param name="timeToWait">The TimeSpan to wait, or negative value (e.g TimeSpan.MinValue) to wait indefinitely.</param>
-    /// <param name="abortIfTimeout">Abort the work if the specified time is elapsed.</param>
     /// <returns><see langword="true"/>: The work is complete<br/><see langword="false"/>: Not complete.</returns>
-    public async Task<bool> WaitForCompletionAsync(TimeSpan timeToWait, bool abortIfTimeout = true)
+    public async Task<bool> WaitForCompletionAsync(TimeSpan timeToWait)
     {
         var state = this.State;
-        if (state != TaskWorkState.Standby && state != TaskWorkState.Working)
-        {
-            return state == TaskWorkState.Complete;
+        if (state == TaskWorkState.Complete)
+        {// Complete
+            return true;
+        }
+        else if (state == TaskWorkState.Aborted)
+        {// Aborted
+            return false;
         }
         else if (this.TaskWorker.IsTerminated)
         {// Terminated
             return false;
         }
 
-        var stateComplete = TaskWorkHelper.StateToInt(TaskWorkState.Complete);
-        var stateAborted = TaskWorkHelper.StateToInt(TaskWorkState.Aborted);
+        // Standby or Working
         try
         {
-            if (this.completeEvent is { } pulseEvent)
+            if (timeToWait < TimeSpan.Zero)
             {
-                if (timeToWait < TimeSpan.Zero)
-                {
-                    await pulseEvent.WaitAsync(this.TaskWorker.CancellationToken).ConfigureAwait(false);
-                }
-                else
-                {
-                    await pulseEvent.WaitAsync(timeToWait, this.TaskWorker.CancellationToken).ConfigureAwait(false);
-                }
+                await this.task.WaitAsync(this.TaskWorker.CancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                await this.task.WaitAsync(timeToWait, this.TaskWorker.CancellationToken).ConfigureAwait(false);
             }
         }
         catch (TimeoutException)
         {// Timeout
-            if (abortIfTimeout)
-            {// Abort (Standby->Abort, Working->Abort)
-                if (this.state != stateComplete)
-                {
-                    this.state = stateAborted;
-                }
-            }
+            return false;
         }
         catch
         {// Cancellation
-            if (this.state != stateComplete)
-            {
-                this.state = stateAborted;
-            }
+            return false;
         }
 
-        if (this.state == stateComplete)
+        if (this.task.Status == TaskStatus.RanToCompletion)
         {// Complete
             return true;
         }
@@ -151,14 +115,45 @@ public sealed class TaskWorkInterface<TWork>
     public TWork Work { get; }
 
     /// <summary>
-    /// Gets a state of the work.
+    /// Gets a state of the work (Standby -> Working -> Complete or Aborted).
     /// </summary>
-    public TaskWorkState State => TaskWorkHelper.IntToState(this.state);
+    public TaskWorkState State
+    {
+        // Created: node:null, task:Task.New
+        // Standby: node:standby, task:Task.New
+        // Working: node:working, task:Task.New
+        // Complete/Abort(Cancelled): node:null, task:Task.New
+        get
+        {
+            var list = this.node?.List;
+            if (list == this.TaskWorker.StandbyList)
+            {// Standby
+                return TaskWorkState.Standby;
+            }
+            else if (list == this.TaskWorker.WorkingList)
+            {// Working
+                return TaskWorkState.Working;
+            }
+
+            var status = this.task.Status;
+            if (status == TaskStatus.RanToCompletion)
+            {// Complete
+                return TaskWorkState.Complete;
+            }
+            else if (status == TaskStatus.Canceled || status == TaskStatus.Faulted)
+            {// TaskWorkState
+                return TaskWorkState.Aborted;
+            }
+
+            return TaskWorkState.Created;
+        }
+    }
 
     public override string ToString() => $"State: {this.State}, Work: {this.Work}";
 
-    internal int state;
-    internal AsyncPulseEvent? completeEvent = new();
+    internal LinkedListNode<TaskWorkInterface<TWork>>? node; // null: , not null: standby list or working list
+    // internal TaskCompletionSource? tcs;
+    internal Task task;
 }
 
 /// <summary>
@@ -172,70 +167,91 @@ public class TaskWorker<TWork> : TaskCore
     /// <summary>
     /// Defines the type of delegate to process a work.
     /// </summary>
-    /// <param name="worker">Worker instance.</param>
-    /// <param name="work">Work instance.</param>
-    /// <returns><see cref="AbortOrComplete.Complete"/>: Complete.<br/>
-    /// <see cref="AbortOrComplete.Abort"/>: Abort or Error.</returns>
-    public delegate Task<AbortOrComplete> WorkDelegate(TaskWorker<TWork> worker, TWork work);
+    /// <param name="worker">A worker instance.</param>
+    /// <param name="work">A work instance.</param>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    public delegate Task WorkDelegate(TaskWorker<TWork> worker, TWork work);
+
+    private static Action<Task> trySetResult;
+
+    static TaskWorker()
+    {
+        var method = typeof(Task).GetMethod("TrySetResult", BindingFlags.Instance | BindingFlags.Static | BindingFlags.NonPublic) !;
+        var arg = Expression.Parameter(typeof(Task));
+        trySetResult = Expression.Lambda<Action<Task>>(Expression.Call(arg, method), arg).Compile();
+    }
 
     private static async Task Process(object? parameter)
     {
         var worker = (TaskWorker<TWork>)parameter!;
-        var stateStandby = TaskWorkHelper.StateToInt(TaskWorkState.Standby);
-        var stateWorking = TaskWorkHelper.StateToInt(TaskWorkState.Working);
-
         while (!worker.IsTerminated)
         {
-            var pulseEvent = worker.addedEvent;
-            if (pulseEvent == null)
+            var updateEvent = worker.updateEvent;
+            if (updateEvent == null)
             {
                 break;
             }
 
             try
             {
-                await pulseEvent.WaitAsync(worker.CancellationToken).ConfigureAwait(false);
+                await updateEvent.WaitAsync(worker.CancellationToken).ConfigureAwait(false); // Add or Finish
             }
             catch
             {
                 return;
             }
 
-            while (true)
-            {
-                TaskWorkInterface<TWork>? workInterface;
-                lock (worker.linkedList)
+            if (worker.NumberOfConcurrentTasks == 1)
+            {// Execute each work on this task.
+                while (true)
                 {
-                    if (worker.linkedList.First == null)
-                    {// No work left.
-                        break;
+                    TaskWorkInterface<TWork>? workInterface;
+                    lock (worker.syncObject)
+                    {
+                        workInterface = worker.standbyList.FirstOrDefault();
+                        if (workInterface == null)
+                        {// No work left.
+                            break;
+                        }
+
+                        worker.standbyList.Remove(workInterface.node!); // Standby list -> Working list
+                        workInterface.node = worker.workingList.AddLast(workInterface);
                     }
 
-                    workInterface = worker.linkedList.First.Value;
-                    worker.linkedList.RemoveFirst(); // Remove from linked list.
-                    worker.workInProgress = workInterface;
+                    try
+                    {
+                        // workInterface.task?.RunSynchronously();
+                        await worker.method(worker, workInterface.Work).ConfigureAwait(false);
+                    }
+                    catch
+                    {
+                    }
+                    finally
+                    {
+                        worker.FinishWork2(workInterface);
+                    }
                 }
-
-                // Standby or Aborted
-                if (Interlocked.CompareExchange(ref workInterface.state, stateWorking, stateStandby) == stateStandby)
-                {// Standby -> Working
-                    if (!worker.IsTerminated &&
-                        await worker.method(worker, workInterface.Work).ConfigureAwait(false) == AbortOrComplete.Complete)
-                    {// Copmplete
-                        workInterface.state = TaskWorkHelper.StateToInt(TaskWorkState.Complete);
-                    }
-                    else
-                    {// Aborted
-                        workInterface.state = TaskWorkHelper.StateToInt(TaskWorkState.Aborted);
-                    }
-                }
-
-                lock (worker.linkedList)
+            }
+            else
+            {// Start a new task for each work.
+                lock (worker.syncObject)
                 {
-                    worker.dictionary.Remove(workInterface.Work); // Remove from dictionary (delayed to determine if it was the same work).
-                    worker.workInProgress = null;
-                    workInterface.completeEvent?.Pulse();
-                    workInterface.completeEvent = null;
+                    while (true)
+                    {
+                        var workInterface = worker.standbyList.FirstOrDefault();
+                        if (workInterface == null)
+                        {// No work left.
+                            break;
+                        }
+                        else if (worker.NumberOfConcurrentTasks > 0 && worker.workingList.Count >= worker.NumberOfConcurrentTasks)
+                        {// The maximum number of concurrent tasks reached.
+                            break;
+                        }
+
+                        worker.standbyList.Remove(workInterface.node!); // Standby list -> Working list
+                        workInterface.node = worker.workingList.AddLast(workInterface);
+                        workInterface.task.Start();
+                    }
                 }
             }
         }
@@ -271,19 +287,19 @@ public class TaskWorker<TWork> : TaskCore
         }
 
         TaskWorkInterface<TWork>? workInterface;
-        lock (this.linkedList)
+        lock (this.syncObject)
         {
-            if (this.dictionary.TryGetValue(work, out workInterface))
+            if (this.workToInterface.TryGetValue(work, out workInterface))
             {
                 return workInterface;
             }
 
             workInterface = new(this, work);
-            this.linkedList.AddFirst(workInterface);
-            this.dictionary.Add(work, workInterface);
+            this.workToInterface.Add(work, workInterface);
+            workInterface.node = this.standbyList.AddFirst(workInterface);
         }
 
-        this.addedEvent?.Pulse();
+        this.updateEvent?.Pulse();
         return workInterface;
     }
 
@@ -300,19 +316,19 @@ public class TaskWorker<TWork> : TaskCore
         }
 
         TaskWorkInterface<TWork>? workInterface;
-        lock (this.linkedList)
+        lock (this.syncObject)
         {
-            if (this.dictionary.TryGetValue(work, out workInterface))
+            if (this.workToInterface.TryGetValue(work, out workInterface))
             {
                 return workInterface;
             }
 
             workInterface = new(this, work);
-            this.linkedList.AddLast(workInterface);
-            this.dictionary.Add(work, workInterface);
+            this.workToInterface.Add(work, workInterface);
+            workInterface.node = this.standbyList.AddLast(workInterface);
         }
 
-        this.addedEvent?.Pulse();
+        this.updateEvent?.Pulse();
         return workInterface;
     }
 
@@ -341,59 +357,101 @@ public class TaskWorker<TWork> : TaskCore
             throw new ObjectDisposedException(null);
         }
 
+        TimeSpan elapsed = TimeSpan.Zero;
         while (!this.IsTerminated)
         {
-            TaskWorkInterface<TWork>? workInterface;
-            lock (this.linkedList)
-            {
-                if (this.linkedList.Last != null)
-                {
-                    workInterface = this.linkedList.Last.Value;
-                }
-                else
-                {
-                    workInterface = this.workInProgress;
-                    if (workInterface == null)
-                    {
-                        return true;
-                    }
+            Task? task;
+            lock (this.syncObject)
+            {// Get a standby or working task.
+                task = this.standbyList.LastOrDefault()?.task ?? this.workingList.LastOrDefault()?.task;
+                if (task == null)
+                {// No task (complete)
+                    return true;
                 }
             }
 
-            try
-            {
-                var pulseEvent = workInterface.completeEvent;
-                if (pulseEvent != null)
-                {
-                    if (timeToWait < TimeSpan.Zero)
-                    {
-                        await pulseEvent.WaitAsync(this.CancellationToken).ConfigureAwait(false);
-                    }
-                    else
-                    {
-                        await pulseEvent.WaitAsync(timeToWait, this.CancellationToken).ConfigureAwait(false);
-                    }
+            if (elapsed != TimeSpan.Zero)
+            {// After WaitAsync()
+                if (timeToWait < TimeSpan.Zero)
+                {// Wait indefinitely
+                }
+                else if (timeToWait <= elapsed)
+                {// Timeout
+                    return false;
                 }
                 else
                 {
-                    await Task.Delay(ThreadCore.DefaultInterval).ConfigureAwait(false);
+                    timeToWait -= elapsed;
+                }
+            }
+
+            this.stopwatch.Restart();
+            try
+            {
+                if (timeToWait < TimeSpan.Zero)
+                {
+                    await task.WaitAsync(this.CancellationToken).ConfigureAwait(false);
+                }
+                else
+                {
+                    await task.WaitAsync(timeToWait, this.CancellationToken).ConfigureAwait(false);
                 }
             }
             catch
             {// Timeout or cancelled
                 return false;
             }
+
+            elapsed = this.stopwatch.Elapsed;
         }
 
         return false;
     }
 
     /// <summary>
-    /// Gets the number of works in the queue.
+    /// Gets or sets the maximum number of concurrent tasks.<br/>
+    /// The default is 1.<br/>
+    /// 0 or less is unlimited.
     /// </summary>
-    public int Count => this.linkedList.Count;
+    public int NumberOfConcurrentTasks { get; set; } = 1;
 
-    internal AsyncPulseEvent? addedEvent = new();
+    /// <summary>
+    /// Gets the number of works in the standby queue.
+    /// </summary>
+    public int StandbyCount => this.standbyList.Count;
+
+    /// <summary>
+    /// Gets the number of works in the working queue.
+    /// </summary>
+    public int WorkingCount => this.workingList.Count;
+
+    internal AsyncPulseEvent? updateEvent = new();
+
+    internal void FinishWork2(TaskWorkInterface<TWork> workInterface)
+    {
+        lock (this.syncObject)
+        {
+            this.workToInterface.Remove(workInterface.Work);
+            var node = workInterface.node;
+            node?.List?.Remove(node);
+            workInterface.node = null; // Complete or Aborted
+        }
+
+        trySetResult(workInterface.task);
+    }
+
+    internal void FinishWork(TaskWorkInterface<TWork> workInterface)
+    {
+        lock (this.syncObject)
+        {
+            this.workToInterface.Remove(workInterface.Work);
+            var node = workInterface.node;
+            node?.List?.Remove(node);
+            workInterface.node = null; // Complete or Aborted
+        }
+
+        this.updateEvent?.Pulse();
+    }
 
     /// <inheritdoc/>
     protected override void Dispose(bool disposing)
@@ -402,15 +460,21 @@ public class TaskWorker<TWork> : TaskCore
         {
             if (disposing)
             {
-                this.addedEvent = null;
+                this.updateEvent = null;
             }
 
             base.Dispose(disposing);
         }
     }
 
-    private WorkDelegate method;
-    private LinkedList<TaskWorkInterface<TWork>> linkedList = new(); // syncObject
-    private Dictionary<TWork, TaskWorkInterface<TWork>> dictionary = new();
-    private TaskWorkInterface<TWork>? workInProgress;
+    internal LinkedList<TaskWorkInterface<TWork>> StandbyList => this.standbyList;
+
+    internal LinkedList<TaskWorkInterface<TWork>> WorkingList => this.workingList;
+
+    internal WorkDelegate method;
+    private object syncObject = new();
+    private Dictionary<TWork, TaskWorkInterface<TWork>> workToInterface = new();
+    private LinkedList<TaskWorkInterface<TWork>> standbyList = new();
+    private LinkedList<TaskWorkInterface<TWork>> workingList = new();
+    private Stopwatch stopwatch = new();
 }

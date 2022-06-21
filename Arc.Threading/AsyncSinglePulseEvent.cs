@@ -12,11 +12,11 @@ using System.Threading.Tasks;
 namespace Arc.Threading;
 
 /// <summary>
-/// Represents a thread synchronization event that other threads wait until a pulse is received.
+/// Represents a thread synchronization event that other threads wait until a pulse is received (just one time).
 /// </summary>
-public class AsyncPulseEvent
+public class AsyncSinglePulseEvent
 {
-    private volatile TaskCompletionSource<object> tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private volatile TaskCompletionSource tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     /// <summary>
     /// Send a pulse to restart the waiting threads.<br/>
@@ -26,8 +26,7 @@ public class AsyncPulseEvent
     /// <see langword="false"/>: A pulse is already sent (not yet received by a thread).</returns>
     public bool Pulse()
     {
-        if (!this.tcs.Task.IsCompleted &&
-            this.tcs.TrySetResult(new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously)))
+        if (!this.tcs.Task.IsCompleted && this.tcs.TrySetResult())
         {
             return true;
         }
@@ -41,7 +40,7 @@ public class AsyncPulseEvent
     /// <returns>The <see cref="Task"/> representing the asynchronous wait.</returns>
     public async Task WaitAsync()
     {
-        this.tcs = (TaskCompletionSource<object>)await this.tcs.Task.ConfigureAwait(false);
+        await this.tcs.Task.ConfigureAwait(false);
     }
 
     /// <summary>
@@ -51,7 +50,7 @@ public class AsyncPulseEvent
     /// <returns>The <see cref="Task"/> representing the asynchronous wait.</returns>
     public async Task WaitAsync(TimeSpan timeout)
     {
-        this.tcs = (TaskCompletionSource<object>)await this.tcs.Task.WaitAsync(timeout).ConfigureAwait(false);
+        await this.tcs.Task.WaitAsync(timeout).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -61,7 +60,7 @@ public class AsyncPulseEvent
     /// <returns>The <see cref="Task"/> representing the asynchronous wait.</returns>
     public async Task WaitAsync(CancellationToken cancellationToken)
     {
-        this.tcs = (TaskCompletionSource<object>)await this.tcs.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await this.tcs.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -72,6 +71,6 @@ public class AsyncPulseEvent
     /// <returns>The <see cref="Task"/> representing the asynchronous wait.</returns>
     public async Task WaitAsync(TimeSpan timeout, CancellationToken cancellationToken)
     {
-        this.tcs = (TaskCompletionSource<object>)await this.tcs.Task.WaitAsync(timeout, cancellationToken).ConfigureAwait(false);
+        await this.tcs.Task.WaitAsync(timeout, cancellationToken).ConfigureAwait(false);
     }
 }

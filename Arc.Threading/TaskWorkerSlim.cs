@@ -93,7 +93,7 @@ public class TaskWorkSlim
 
     internal TaskWorkerSlimBase? taskWorkerBase;
     internal int state;
-    internal AsyncPulseEvent? completeEvent = new();
+    internal SemaphoreSlim? completeEvent = new(0, 1);
 
     public TaskWorkState State => TaskWorkHelper.IntToState(this.state);
 }
@@ -114,7 +114,7 @@ public class TaskWorkerSlim<T> : TaskWorkerSlimBase
     /// <see cref="AbortOrComplete.Abort"/>: Abort or Error.</returns>
     public delegate Task<AbortOrComplete> WorkDelegate(TaskWorkerSlim<T> worker, T work);
 
-    private static async Task Process(object? parameter)
+    private static void Process(object? parameter)
     {
         var worker = (TaskWorkerSlim<T>)parameter!;
         var stateStandby = TaskWorkHelper.StateToInt(TaskWorkState.Standby);
@@ -122,15 +122,12 @@ public class TaskWorkerSlim<T> : TaskWorkerSlimBase
 
         while (!worker.IsTerminated)
         {
-            var pulseEvent = worker.addedEvent;
-            if (pulseEvent == null)
-            {
-                break;
-            }
-
             try
             {
-                await pulseEvent.WaitAsync(worker.CancellationToken).ConfigureAwait(false);
+                if (worker.addedEvent?.Wait(ThreadCore.DefaultInterval, worker.CancellationToken) == true)
+                {
+                    worker.addedEvent?.Reset();
+                }
             }
             catch
             {
@@ -142,7 +139,7 @@ public class TaskWorkerSlim<T> : TaskWorkerSlimBase
                 if (Interlocked.CompareExchange(ref work.state, stateWorking, stateStandby) == stateStandby)
                 {// Standby -> Working
                     worker.workInProgress = work;
-                    if (await worker.method(worker, work).ConfigureAwait(false) == AbortOrComplete.Complete)
+                    if (worker.method(worker, work).Result == AbortOrComplete.Complete)
                     {// Copmplete
                         work.state = TaskWorkHelper.StateToInt(TaskWorkState.Complete);
                     }
@@ -152,7 +149,7 @@ public class TaskWorkerSlim<T> : TaskWorkerSlimBase
                     }
 
                     worker.workInProgress = null;
-                    work.completeEvent?.Pulse();
+                    work.completeEvent?.Release();
                     work.completeEvent = null;
                 }
             }
@@ -195,7 +192,7 @@ public class TaskWorkerSlim<T> : TaskWorkerSlimBase
         work.taskWorkerBase = this;
         work.state = TaskWorkHelper.StateToInt(TaskWorkState.Standby);
         this.workQueue.Enqueue(work);
-        this.addedEvent?.Pulse();
+        this.addedEvent?.Set();
     }
 
     /// <summary>
@@ -275,19 +272,19 @@ public class TaskWorkerSlim<T> : TaskWorkerSlimBase
 /// <summary>
 /// Represents a base worker class.
 /// </summary>
-public class TaskWorkerSlimBase : TaskCore
+public class TaskWorkerSlimBase : ThreadCore
 {
     /// <summary>
     /// Initializes a new instance of the <see cref="TaskWorkerSlimBase"/> class.
     /// </summary>
     /// <param name="parent">The parent.</param>
     /// <param name="processWork">The method invoked to process a work.</param>
-    internal TaskWorkerSlimBase(ThreadCoreBase parent, Func<object?, Task> processWork)
+    internal TaskWorkerSlimBase(ThreadCoreBase parent, Action<object?> processWork)
     : base(parent, processWork, false)
     {
     }
 
-    internal AsyncPulseEvent? addedEvent = new();
+    internal ManualResetEventSlim? addedEvent = new(false);
 
     /// <inheritdoc/>
     protected override void Dispose(bool disposing)
