@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 #pragma warning disable SA1009 // Closing parenthesis should be spaced correctly
 
-namespace Arc.Threading;
+namespace Benchmark.Obsolete;
 
 public class AsyncManualResetEvent
 {

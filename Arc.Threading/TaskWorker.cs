@@ -201,7 +201,7 @@ public class TaskWorker<TWork> : TaskCore
                 return;
             }
 
-            if (worker.ConcurrentTasks == 1)
+            if (worker.NumberOfConcurrentTasks == 1)
             {// Execute each work on this task.
                 while (true)
                 {
@@ -243,7 +243,7 @@ public class TaskWorker<TWork> : TaskCore
                         {// No work left.
                             break;
                         }
-                        else if (worker.ConcurrentTasks > 0 && worker.workingList.Count >= worker.ConcurrentTasks)
+                        else if (worker.NumberOfConcurrentTasks > 0 && worker.workingList.Count >= worker.NumberOfConcurrentTasks)
                         {// The maximum number of concurrent tasks reached.
                             break;
                         }
@@ -413,7 +413,7 @@ public class TaskWorker<TWork> : TaskCore
     /// The default is 1.<br/>
     /// 0 or less is unlimited.
     /// </summary>
-    public int ConcurrentTasks { get; set; } = 1;
+    public int NumberOfConcurrentTasks { get; set; } = 1;
 
     /// <summary>
     /// Gets the number of works in the standby queue.

@@ -5,11 +5,19 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Arc.Threading;
 
 #pragma warning disable SA1401 // Fields should be private
 #pragma warning disable SA1307 // Accessible fields should begin with upper-case letter
 
-namespace Arc.Threading;
+namespace Benchmark.Obsolete;
+
+internal static class TaskWorkHelper
+{
+    internal static TaskWorkState IntToState(int state) => Unsafe.As<int, TaskWorkState>(ref state);
+
+    internal static int StateToInt(TaskWorkState state) => Unsafe.As<TaskWorkState, int>(ref state);
+}
 
 /// <summary>
 /// Represents a interface for processing <typeparamref name="TWork"/>.

@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Arc.Threading;
+using Benchmark.Obsolete;
 
 namespace Benchmark.Test
 {
@@ -83,7 +84,7 @@ namespace Benchmark.Test
 
             Console.WriteLine($"TaskWorker");
             var taskWorker = new TaskWorker<TestTaskWork>(ThreadCore.Root, EmptyMethodTask);
-            taskWorker.ConcurrentTasks = 4;
+            taskWorker.NumberOfConcurrentTasks = 4;
             BenchWorkerTask(N, taskWorker);
             taskWorker.Dispose();
             Console.WriteLine(Count.ToString());
