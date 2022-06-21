@@ -64,7 +64,7 @@ namespace Benchmark.Test
         internal const int ConcurrentTasks = 1;
         internal const int Repeat = 5;
         internal const int N = 1_000_000;
-        internal const int N2 = 100_000;
+        internal const int N2 = 100;
         internal static int Count;
 
         internal static void Benchmark()
@@ -73,9 +73,9 @@ namespace Benchmark.Test
             var worker2 = new ThreadWorker<TestWork>(ThreadCore.Root, EmptyMethod2);
             BenchWorker2(N, worker2);
             worker2.Dispose();
-            Console.WriteLine();*/
+            Console.WriteLine();
 
-            /*Console.WriteLine($"TaskWorkerSlim");
+            Console.WriteLine($"TaskWorkerSlim");
             var taskWorkerSlim = new TaskWorkerSlim<TestTaskWorkSlim>(ThreadCore.Root, EmptyMethodTaskSlim);
             BenchWorkerTaskSlim(N, taskWorkerSlim);
             taskWorkerSlim.Dispose();
@@ -98,13 +98,13 @@ namespace Benchmark.Test
             var taskWorkerSlim2 = new TaskWorkerSlim<TestTaskWorkSlim>(ThreadCore.Root, HeavyMethodTaskSlim);
             BenchWorkerTaskSlim(N2, taskWorkerSlim2);
             taskWorkerSlim2.Dispose();
-            Console.WriteLine();*/
+            Console.WriteLine();
 
-            /*Console.WriteLine($"ThreadWorker heavy");
+            Console.WriteLine($"ThreadWorker heavy");
             var heavyWorker2 = new ThreadWorker<TestWork>(ThreadCore.Root, HeavyMethod2);
             BenchWorker2(N2, heavyWorker2);
             heavyWorker2.Dispose();
-            Console.WriteLine();*/
+            Console.WriteLine();
 
             Console.WriteLine($"TaskWorker heavy");
             var taskWorkerHeavy = new TaskWorker<TestTaskWork>(ThreadCore.Root, HeavyMethodTask);
@@ -117,7 +117,7 @@ namespace Benchmark.Test
             var taskWorker2Heavy = new TaskWorker2<TestTaskWork>(ThreadCore.Root, HeavyMethodTask2);
             BenchWorkerTask2(N2, taskWorker2Heavy);
             taskWorker2Heavy.Dispose();
-            Console.WriteLine(Count.ToString());
+            Console.WriteLine(Count.ToString());*/
 
             /*Console.WriteLine($"ThreadWorker(Obsolete)");
             var worker = new ThreadWorkerObsolete<TestWorkObsolete>(ThreadCore.Root, EmptyMethod);
@@ -142,8 +142,8 @@ namespace Benchmark.Test
                     worker.Add(new(n));
                 }
 
-                benchTimer.Stop();
                 worker.WaitForCompletion(-1);
+                benchTimer.Stop();
             }
 
             Console.WriteLine(benchTimer.GetResult("Sequence Add"));
@@ -235,8 +235,8 @@ namespace Benchmark.Test
                     worker.Add(new(n));
                 }
 
-                benchTimer.Stop();
                 worker.WaitForCompletion(-1);
+                benchTimer.Stop();
             }
 
             Console.WriteLine(benchTimer.GetResult("Sequence Add"));
@@ -328,8 +328,8 @@ namespace Benchmark.Test
                     worker.AddLast(new(n));
                 }
 
-                benchTimer.Stop();
                 worker.WaitForCompletionAsync().Wait();
+                benchTimer.Stop();
             }
 
             Console.WriteLine(benchTimer.GetResult("Sequence Add"));
@@ -418,8 +418,8 @@ namespace Benchmark.Test
                     worker.AddLast(new(n));
                 }
 
-                benchTimer.Stop();
                 worker.WaitForCompletionAsync().Wait();
+                benchTimer.Stop();
             }
 
             Console.WriteLine(benchTimer.GetResult("Sequence Add"));
@@ -508,8 +508,8 @@ namespace Benchmark.Test
                     worker.Add(new(n));
                 }
 
-                benchTimer.Stop();
                 worker.WaitForCompletionAsync().Wait();
+                benchTimer.Stop();
             }
 
             Console.WriteLine(benchTimer.GetResult("Sequence Add"));
@@ -610,6 +610,7 @@ namespace Benchmark.Test
                 work.Result = x;
             }
 
+            Thread.Sleep(1);
             Interlocked.Increment(ref Count);
             return true;
         }
@@ -633,6 +634,7 @@ namespace Benchmark.Test
                 work.Result = x;
             }
 
+            Thread.Sleep(1);
             Interlocked.Increment(ref Count);
             return AbortOrComplete.Complete;
         }
@@ -655,6 +657,7 @@ namespace Benchmark.Test
                 work.Result = x;
             }
 
+            await Task.Delay(1);
             Interlocked.Increment(ref Count);
         }
 
@@ -677,6 +680,7 @@ namespace Benchmark.Test
                 work.Result = x;
             }
 
+            await Task.Delay(1);
             Interlocked.Increment(ref Count);
             return AbortOrComplete.Complete;
         }
@@ -700,6 +704,7 @@ namespace Benchmark.Test
                 work.Result = x;
             }
 
+            await Task.Delay(1);
             Interlocked.Increment(ref Count);
             return AbortOrComplete.Complete;
         }

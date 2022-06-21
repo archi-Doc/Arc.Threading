@@ -130,7 +130,7 @@ public sealed class TaskWorkInterface<TWork>
             {// Standby
                 return TaskWorkState.Standby;
             }
-            else if (list == this.TaskWorker.StandbyList)
+            else if (list == this.TaskWorker.WorkingList)
             {// Working
                 return TaskWorkState.Working;
             }
@@ -172,14 +172,14 @@ public class TaskWorker<TWork> : TaskCore
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     public delegate Task WorkDelegate(TaskWorker<TWork> worker, TWork work);
 
-    // private static Action<Task> trySetResult;
+    private static Action<Task> trySetResult;
 
-    /*static TaskWorker()
+    static TaskWorker()
     {
-        var method = typeof(Task).GetMethod("TrySetResult", BindingFlags.Instance | BindingFlags.Static | BindingFlags.NonPublic)!;
+        var method = typeof(Task).GetMethod("TrySetResult", BindingFlags.Instance | BindingFlags.Static | BindingFlags.NonPublic) !;
         var arg = Expression.Parameter(typeof(Task));
         trySetResult = Expression.Lambda<Action<Task>>(Expression.Call(arg, method), arg).Compile();
-    }*/
+    }
 
     private static async Task Process(object? parameter)
     {
@@ -202,7 +202,7 @@ public class TaskWorker<TWork> : TaskCore
             }
 
             if (worker.ConcurrentTasks == 1)
-            {// Execute a work on this task.
+            {// Execute each work on this task.
                 while (true)
                 {
                     TaskWorkInterface<TWork>? workInterface;
@@ -220,17 +220,16 @@ public class TaskWorker<TWork> : TaskCore
 
                     try
                     {
-                        workInterface.task?.RunSynchronously();
-                        // await worker.method(worker, workInterface.Work).ConfigureAwait(false);
+                        // workInterface.task?.RunSynchronously();
+                        await worker.method(worker, workInterface.Work).ConfigureAwait(false);
                     }
                     catch
                     {
                     }
-
-                    /*finally
+                    finally
                     {
-                        worker.FinishWork(workInterface);
-                    }*/
+                        worker.FinishWork2(workInterface);
+                    }
                 }
             }
             else
@@ -428,7 +427,7 @@ public class TaskWorker<TWork> : TaskCore
 
     internal AsyncPulseEvent? updateEvent = new();
 
-    /*internal void FinishWork(TaskWorkInterface<TWork> workInterface)
+    internal void FinishWork2(TaskWorkInterface<TWork> workInterface)
     {
         lock (this.syncObject)
         {
@@ -439,7 +438,7 @@ public class TaskWorker<TWork> : TaskCore
         }
 
         trySetResult(workInterface.task);
-    }*/
+    }
 
     internal void FinishWork(TaskWorkInterface<TWork> workInterface)
     {
