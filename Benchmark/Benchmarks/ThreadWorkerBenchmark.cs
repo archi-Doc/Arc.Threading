@@ -61,6 +61,7 @@ namespace Benchmark.Test
 
     internal class ThreadWorkerBenchmark
     {
+        internal const int ConcurrentTasks = 1;
         internal const int Repeat = 5;
         internal const int N = 1_000_000;
         internal const int N2 = 100_000;
@@ -82,7 +83,7 @@ namespace Benchmark.Test
 
             Console.WriteLine($"TaskWorker");
             var taskWorker = new TaskWorker<TestTaskWork>(ThreadCore.Root, EmptyMethodTask);
-            taskWorker.ConcurrentWorks = 4;
+            taskWorker.ConcurrentTasks = 4;
             BenchWorkerTask(N, taskWorker);
             taskWorker.Dispose();
             Console.WriteLine(Count.ToString());
@@ -107,7 +108,7 @@ namespace Benchmark.Test
 
             Console.WriteLine($"TaskWorker heavy");
             var taskWorkerHeavy = new TaskWorker<TestTaskWork>(ThreadCore.Root, HeavyMethodTask);
-            taskWorkerHeavy.ConcurrentWorks = 4;
+            taskWorkerHeavy.ConcurrentTasks = 4;
             BenchWorkerTask(N2, taskWorkerHeavy);
             taskWorkerHeavy.Dispose();
             Console.WriteLine(Count.ToString());
