@@ -196,6 +196,20 @@ public class ThreadCoreGroup : ThreadCoreBase
 }
 
 /// <summary>
+/// <see cref="UnitCore"/> is a <see cref="ThreadCoreGroup"/> for unit, directly created from <see cref="ThreadCore.Root"/>.
+/// </summary>
+public class UnitCore : ThreadCoreGroup
+{
+    /// <summary>
+    /// Initializes a new instance of the <see cref="UnitCore"/> class.<br/>
+    /// </summary>
+    public UnitCore()
+        : base(ThreadCore.Root)
+    {
+    }
+}
+
+/// <summary>
 /// Class for the root object.
 /// </summary>
 public class ThreadCoreRoot : ThreadCoreBase
