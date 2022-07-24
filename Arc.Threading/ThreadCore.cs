@@ -300,7 +300,7 @@ public class ThreadCoreBase : IDisposable
     public bool ChangeParent(ThreadCoreBase newParent)
     {
         lock (TreeSync)
-        {
+        {// checked
             if (this.parent != null && newParent != null && !newParent.IsTerminated)
             {
                 this.parent.hashSet.Remove(this);
@@ -331,15 +331,7 @@ public class ThreadCoreBase : IDisposable
     public void LockTreeSync()
     {
         lock (TreeSync)
-        {
-        }
-    }
-
-    public bool LockTreeSync2()
-    {
-        lock (TreeSync)
-        {
-            return this.IsTerminated;
+        {// checked
         }
     }
 
@@ -348,21 +340,15 @@ public class ThreadCoreBase : IDisposable
     /// </summary>
     public void Terminate()
     {
-        lock (TreeSync)
+        if (this.IsTerminated)
         {
-            if (this.IsTerminated)
-            {
-                // return;
-            }
+            // return;
         }
 
-        Task.Run(() =>
-        {
-            lock (TreeSync)
-            {
-                TerminateCore(this);
-            }
-        });
+        lock (TreeSync)
+        {// checked
+            TerminateCore(this);
+        }
 
         static void TerminateCore(ThreadCoreBase c)
         {
@@ -524,7 +510,7 @@ public class ThreadCoreBase : IDisposable
     public void Pause()
     {
         lock (TreeSync)
-        {
+        {// checked
             PauseCore(this);
         }
 
@@ -544,7 +530,7 @@ public class ThreadCoreBase : IDisposable
     public void Resume()
     {
         lock (TreeSync)
-        {
+        {// checked
             ResumeCore(this);
         }
 
@@ -565,7 +551,7 @@ public class ThreadCoreBase : IDisposable
     public ThreadCoreBase[] GetChildren()
     {
         lock (TreeSync)
-        {
+        {// checked
             return this.hashSet.ToArray();
         }
     }
@@ -590,7 +576,12 @@ public class ThreadCoreBase : IDisposable
                 {
                     if (!CleanCore(x, ref numberOfActiveObjects))
                     {
-                        x.Dispose();
+                        // x.Dispose();
+
+                        // tempcode
+                        if (x.IsTerminated)
+                        {
+                        }
                     }
                     else if (x.IsThreadOrTask)
                     {// Active (associated with Thread/Task) object
@@ -662,7 +653,7 @@ public class ThreadCoreBase : IDisposable
                 }
 
                 lock (TreeSync)
-                {
+                {// checked
                     if (this.parent != null)
                     {
                         this.parent.hashSet.Remove(this);
