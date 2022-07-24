@@ -45,7 +45,6 @@ internal class Program
             }
             catch
             {
-                core.LockTreeSync();
                 Console.WriteLine("TaskCore 1: Canceled");
                 return;
             }
@@ -77,7 +76,6 @@ internal class Program
         {
             ThreadCore.Root.Terminate();
             ThreadCore.Root.WaitForTermination(-1);
-            c1.LockTreeSync();
         }
 
         // c1.Start();
