@@ -335,6 +335,11 @@ public class ThreadCoreBase : IDisposable
     {
         lock (TreeSync)
         {
+            if (this.IsTerminated)
+            {
+                return;
+            }
+
             TerminateCore(this);
         }
 
