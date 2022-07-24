@@ -328,12 +328,12 @@ public class ThreadCoreBase : IDisposable
         }
     }
 
-    /*public void LockTreeSync()
+    public void LockTreeSync()
     {// Check deadlock
         lock (TreeSync)
         {// checked
         }
-    }*/
+    }
 
     /// <summary>
     /// Sends a termination signal (calls <see cref="CancellationTokenSource.Cancel()"/>) to the object and the children.
@@ -345,12 +345,21 @@ public class ThreadCoreBase : IDisposable
             return;
         }
 
+        List<CancellationTokenSource>? ctsToCancel = null;
         lock (TreeSync)
         {// checked
             TerminateCore(this);
         }
 
-        static void TerminateCore(ThreadCoreBase c)
+        if (ctsToCancel != null)
+        {
+            foreach (var x in ctsToCancel)
+            {
+                x.Cancel();
+            }
+        }
+
+        void TerminateCore(ThreadCoreBase c)
         {
             // c.cancellationTokenSource.Cancel(); // Moved to the end of the method due to mysterious behavior.
             var array = c.hashSet.ToArray();
@@ -359,7 +368,11 @@ public class ThreadCoreBase : IDisposable
                 TerminateCore(x);
             }
 
-            c.cancellationTokenSource.Cancel();
+            if (!c.cancellationTokenSource.IsCancellationRequested)
+            {
+                ctsToCancel ??= new();
+                ctsToCancel.Add(c.cancellationTokenSource);
+            }
         }
     }
 

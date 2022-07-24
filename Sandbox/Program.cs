@@ -53,7 +53,6 @@ internal class Program
 
         Console.WriteLine("Sandbox.");
 
-        TestThreadCore2();
         // TestThreadCore();
         // TestThreadWorker();
         // await TestTaskWorker();
@@ -61,35 +60,6 @@ internal class Program
 
         await ThreadCore.Root.WaitForTerminationAsync(-1); // Wait for the termination infinitely.
         ThreadCore.Root.TerminationEvent.Set(); // The termination process is complete (#1).
-    }
-
-    private static void TestThreadCore2()
-    {
-        var c1 = new ThreadCore(ThreadCore.Root, parameter =>
-        {
-            var core = (ThreadCore)parameter!; // Get ThreadCore from the parameter.
-            Console.WriteLine("ThreadCore 1: Start");
-
-            try
-            {
-                // Task.Delay(2000).Wait(); // No CancellationToken
-                Task.Delay(3000, core.CancellationToken).Wait();
-            }
-            catch
-            {
-                Console.WriteLine("ThreadCore 1: Canceled");
-                return;
-            }
-
-            Console.WriteLine("ThreadCore 1: End");
-        }, false);
-
-        var c2 = new ThreadCoreGroup(ThreadCore.Root);
-
-        c1.ChangeParent(c2);
-        c2.Start(true);
-        c2.Terminate();
-        // c2.Start(true);
     }
 
     private static void TestThreadCore()
