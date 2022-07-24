@@ -328,12 +328,12 @@ public class ThreadCoreBase : IDisposable
         }
     }
 
-    public void LockTreeSync()
+    /*public void LockTreeSync()
     {// Check deadlock
         lock (TreeSync)
         {// checked
         }
-    }
+    }*/
 
     /// <summary>
     /// Sends a termination signal (calls <see cref="CancellationTokenSource.Cancel()"/>) to the object and the children.
@@ -361,7 +361,7 @@ public class ThreadCoreBase : IDisposable
 
         void TerminateCore(ThreadCoreBase c)
         {
-            // c.cancellationTokenSource.Cancel(); // Moved to the end of the method due to mysterious behavior.
+            // c.cancellationTokenSource.Cancel(); // Moved to the outside of lock statement due to the mysterious behavior.
             var array = c.hashSet.ToArray();
             foreach (var x in array)
             {
