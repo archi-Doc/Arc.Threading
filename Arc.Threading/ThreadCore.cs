@@ -328,6 +328,21 @@ public class ThreadCoreBase : IDisposable
         }
     }
 
+    public void LockTreeSync()
+    {
+        lock (TreeSync)
+        {
+        }
+    }
+
+    public bool LockTreeSync2()
+    {
+        lock (TreeSync)
+        {
+            return this.IsTerminated;
+        }
+    }
+
     /// <summary>
     /// Sends a termination signal (calls <see cref="CancellationTokenSource.Cancel()"/>) to the object and the children.
     /// </summary>
