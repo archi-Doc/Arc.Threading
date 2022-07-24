@@ -24,10 +24,67 @@ internal class Program
         };
 
 
-        await TestAsyncPulseEvent();
+        await TestThreadCore_Termination();
+        // await TestAsyncPulseEvent();
 
         await ThreadCore.Root.WaitForTerminationAsync(-1); // Wait for the termination infinitely.
         ThreadCore.Root.TerminationEvent.Set(); // The termination process is complete (#1).
+    }
+
+    private static async Task TestThreadCore_Termination()
+    {
+        var c1 = new TaskCore(ThreadCore.Root, async parameter =>
+        {
+            var core = (TaskCore)parameter!; // Get ThreadCore from the parameter.
+            Console.WriteLine("TaskCore 1: Start");
+
+            try
+            {
+                // Task.Delay(2000).Wait(); // No CancellationToken
+                await Task.Delay(3000, ThreadCore.Root.CancellationToken);
+            }
+            catch
+            {
+                core.LockTreeSync();
+                Console.WriteLine("TaskCore 1: Canceled");
+                return;
+            }
+
+            Console.WriteLine("TaskCore 1: End");
+        }, false);
+
+        c1.Start();
+        var c2 = new ThreadCoreGroup(ThreadCore.Root);
+
+        try
+        {
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(1000);
+                ThreadCore.Root.Terminate();
+            });
+
+            try
+            {
+                await Task.Delay(2000, ThreadCore.Root.CancellationToken);
+            }
+            catch
+            {
+                throw new Exception();
+            }
+        }
+        catch
+        {
+            ThreadCore.Root.Terminate();
+            ThreadCore.Root.WaitForTermination(-1);
+            c1.LockTreeSync();
+        }
+
+        // c1.Start();
+
+        // c1.ChangeParent(c2);
+        // c2.Start(true);
+        // c2.Terminate();
     }
 
     private class WaitPulseTask : TaskCore
