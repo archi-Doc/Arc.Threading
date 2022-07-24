@@ -342,7 +342,7 @@ public class ThreadCoreBase : IDisposable
     {
         if (this.IsTerminated)
         {
-            // return;
+            return;
         }
 
         lock (TreeSync)
@@ -581,6 +581,11 @@ public class ThreadCoreBase : IDisposable
                         // tempcode
                         if (x.IsTerminated)
                         {
+                            if (x.parent != null)
+                            {
+                                x.parent.hashSet.Remove(x);
+                                x.parent = null;
+                            }
                         }
                     }
                     else if (x.IsThreadOrTask)
@@ -657,6 +662,7 @@ public class ThreadCoreBase : IDisposable
                     if (this.parent != null)
                     {
                         this.parent.hashSet.Remove(this);
+                        this.parent = null;
                     }
                 }
             }
