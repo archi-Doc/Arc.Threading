@@ -328,12 +328,12 @@ public class ThreadCoreBase : IDisposable
         }
     }
 
-    public void LockTreeSync()
-    {
+    /*public void LockTreeSync()
+    {// Check deadlock
         lock (TreeSync)
         {// checked
         }
-    }
+    }*/
 
     /// <summary>
     /// Sends a termination signal (calls <see cref="CancellationTokenSource.Cancel()"/>) to the object and the children.
@@ -578,7 +578,7 @@ public class ThreadCoreBase : IDisposable
                     {
                         // x.Dispose();
 
-                        // tempcode
+                        // Avoid deadlock.
                         if (x.IsTerminated)
                         {
                             if (x.parent != null)
