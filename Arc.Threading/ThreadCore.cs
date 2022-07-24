@@ -253,9 +253,13 @@ public class ThreadCoreBase : IDisposable
             }
 
             this.parent = parent;
-            if (parent != null && !parent.IsTerminated)
+            if (parent != null)
             {
                 parent.hashSet.Add(this);
+                if (parent.IsTerminated)
+                {
+                    this.cancellationTokenSource.Cancel();
+                }
             }
         }
     }
