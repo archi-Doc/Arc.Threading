@@ -194,11 +194,11 @@ public class TaskWorker<TWork> : TaskCore
 
             try
             {
-                await updateEvent.WaitAsync(TimeSpan.FromMilliseconds(ThreadCore.DefaultInterval), worker.CancellationToken).ConfigureAwait(false); // Add or Finish
+                await updateEvent.WaitAsync(worker.CancellationToken).ConfigureAwait(false); // Add or Finish
             }
             catch
             {
-                continue;
+                break;
             }
 
             if (worker.NumberOfConcurrentTasks == 1)
