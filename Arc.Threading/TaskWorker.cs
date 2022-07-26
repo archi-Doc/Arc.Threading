@@ -26,17 +26,19 @@ public sealed class TaskWorkInterface<TWork>
     {
         this.TaskWorker = taskWorker;
         this.Work = work;
-        this.task = new Task(() =>
-        {
-            try
+        this.task = new Task(
+            () =>
             {
-                this.TaskWorker.method(this.TaskWorker, this.Work).Wait();
-            }
-            finally
-            {
-                this.TaskWorker.FinishWork(this);
-            }
-        });
+                try
+                {
+                    this.TaskWorker.method(this.TaskWorker, this.Work).Wait();
+                }
+                finally
+                {
+                    this.TaskWorker.FinishWork(this);
+                }
+            },
+            TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
     /// <summary>
