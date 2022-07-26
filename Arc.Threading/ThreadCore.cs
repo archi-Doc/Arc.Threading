@@ -438,7 +438,7 @@ public class ThreadCoreBase : IDisposable
                 }
             }
 
-            await Task.Delay(ThreadCore.DefaultInterval);
+            await Task.Delay(ThreadCore.DefaultInterval).ConfigureAwait(false);
             if (millisecondsTimeout >= 0 && sw.ElapsedMilliseconds >= millisecondsTimeout)
             {
                 return false;
