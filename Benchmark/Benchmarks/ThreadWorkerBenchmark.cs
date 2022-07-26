@@ -84,16 +84,16 @@ namespace Benchmark.Test
 
             Console.WriteLine($"TaskWorker");
             var taskWorker = new TaskWorker<TestTaskWork>(ThreadCore.Root, EmptyMethodTask);
-            taskWorker.NumberOfConcurrentTasks = 4;
+            taskWorker.NumberOfConcurrentTasks = 1;
             BenchWorkerTask(N, taskWorker);
             taskWorker.Dispose();
             Console.WriteLine(Count.ToString());
 
-            Console.WriteLine($"TaskWorker2");
+            /*Console.WriteLine($"TaskWorker2");
             var taskWorker2 = new TaskWorker2<TestTaskWork>(ThreadCore.Root, EmptyMethodTask2);
             BenchWorkerTask2(N, taskWorker2);
             taskWorker2.Dispose();
-            Console.WriteLine(Count.ToString());
+            Console.WriteLine(Count.ToString());*/
 
             /*Console.WriteLine($"TaskWorkerSlim heavy");
             var taskWorkerSlim2 = new TaskWorkerSlim<TestTaskWorkSlim>(ThreadCore.Root, HeavyMethodTaskSlim);

@@ -24,10 +24,10 @@ public class Program
 
     public static async Task Main(string[] args)
     {
-        ThreadPool.GetMaxThreads(out var workerThreads, out var completionPortThreads);
-        ThreadPool.SetMaxThreads(100, completionPortThreads);
+        // ThreadPool.GetMaxThreads(out var workerThreads, out var completionPortThreads);
+        // ThreadPool.SetMaxThreads(100, completionPortThreads);
         Test.ThreadWorkerBenchmark.Benchmark();
-        ThreadPool.SetMaxThreads(workerThreads, completionPortThreads);
+        // ThreadPool.SetMaxThreads(workerThreads, completionPortThreads);
 
         DebugRun<Test.TemplateBenchmark>();
 
