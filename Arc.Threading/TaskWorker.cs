@@ -194,11 +194,11 @@ public class TaskWorker<TWork> : TaskCore
 
             try
             {
-                await updateEvent.WaitAsync(worker.CancellationToken).ConfigureAwait(false); // Add or Finish
+                await updateEvent.WaitAsync(TimeSpan.FromMilliseconds(ThreadCore.DefaultInterval), worker.CancellationToken).ConfigureAwait(false); // Add or Finish
             }
             catch
             {
-                return;
+                continue;
             }
 
             if (worker.NumberOfConcurrentTasks == 1)
@@ -228,7 +228,7 @@ public class TaskWorker<TWork> : TaskCore
                     }
                     finally
                     {
-                        worker.FinishWork2(workInterface);
+                        worker.FinishWork2(workInterface); // trySetResult(workInterface.task);
                     }
                 }
             }
@@ -250,7 +250,7 @@ public class TaskWorker<TWork> : TaskCore
 
                         worker.standbyList.Remove(workInterface.node!); // Standby list -> Working list
                         workInterface.node = worker.workingList.AddLast(workInterface);
-                        workInterface.task.Start();
+                        workInterface.task.Start(); // -> worker.FinishWork (this.updateEvent?.Pulse())
                     }
                 }
             }
