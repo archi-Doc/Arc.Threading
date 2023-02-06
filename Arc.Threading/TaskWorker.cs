@@ -160,7 +160,7 @@ public sealed class TaskWorkInterface<TWork>
 
 /// <summary>
 /// Represents a worker class.<br/>
-/// <see cref="TaskWorker{TWork}"/> uses <see cref="HashSet{TWork}"/> and <see cref="LinkedList{TWork}"/> to manage works.
+/// <see cref="TaskWorker{TWork}"/> uses <see cref="Dictionary{TKey, TValue}"/> and <see cref="LinkedList{T}"/> to manage works.
 /// </summary>
 /// <typeparam name="TWork">The type of the work.</typeparam>
 public class TaskWorker<TWork> : TaskCore
@@ -173,6 +173,15 @@ public class TaskWorker<TWork> : TaskCore
     /// <param name="work">A work instance.</param>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     public delegate Task WorkDelegate(TaskWorker<TWork> worker, TWork work);
+
+    /// <summary>
+    /// Delegate to determine if the work can be started concurrently.<br/>
+    /// Used when the number of concurrent tasks is 2 or more.
+    /// </summary>
+    /// <param name="work">Represents the work scheduled to begin.</param>
+    /// <param name="workingList">A list of work currently running.</param>
+    /// <returns><see langword="true"/>; The work is viable.</returns>
+    public delegate bool CanStartConcurrentlyDelegate(TaskWorkInterface<TWork> work, LinkedList<TaskWorkInterface<TWork>> workingList);
 
     private static Action<Task> trySetResult;
 
@@ -247,6 +256,12 @@ public class TaskWorker<TWork> : TaskCore
                         }
                         else if (worker.NumberOfConcurrentTasks > 0 && worker.workingList.Count >= worker.NumberOfConcurrentTasks)
                         {// The maximum number of concurrent tasks reached.
+                            break;
+                        }
+                        else if (worker.workingList.Count > 0 &&
+                            worker.canStartConcurrently is { } canStartWork &&
+                            !canStartWork(workInterface, worker.workingList))
+                        {// Cannot start a task work right now.
                             break;
                         }
 
@@ -411,6 +426,16 @@ public class TaskWorker<TWork> : TaskCore
     }
 
     /// <summary>
+    /// Sets the method to determine if the work can be started concurrently.<br/>
+    /// Used when the number of concurrent tasks is 2 or more.
+    /// </summary>
+    /// <param name="canSartConcurrently"><see cref="CanStartConcurrentlyDelegate"/>.</param>
+    public void SetCanStartConcurrentlyDelegate(CanStartConcurrentlyDelegate? canSartConcurrently)
+    {
+        this.canStartConcurrently = canSartConcurrently;
+    }
+
+    /// <summary>
     /// Gets or sets the maximum number of concurrent tasks.<br/>
     /// The default is 1.<br/>
     /// 0 or less is unlimited.
@@ -474,6 +499,7 @@ public class TaskWorker<TWork> : TaskCore
     internal LinkedList<TaskWorkInterface<TWork>> WorkingList => this.workingList;
 
     internal WorkDelegate method;
+    internal CanStartConcurrentlyDelegate? canStartConcurrently;
     private object syncObject = new();
     private Dictionary<TWork, TaskWorkInterface<TWork>> workToInterface = new();
     private LinkedList<TaskWorkInterface<TWork>> standbyList = new();

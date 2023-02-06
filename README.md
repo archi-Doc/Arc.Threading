@@ -195,7 +195,80 @@ internal class TestWork : ThreadWork
 `TaskWorker` is a `TaskCore` class which receives and processes `TWork`.
 
 ```csharp
+private static async Task TestTaskWorker()
+{
+    // Create a TaskWorker by specifying the type of work and delegate.
+    var worker = new TaskWorker<TestTaskWork>(ThreadCore.Root, async (worker, work) =>
+    {
+        if (!await worker.Delay(1000))
+        {
+            return;
+        }
 
+        work.Result = "complete";
+        Console.WriteLine($"Complete: {work.Id}, {work.Name}");
+        return;
+    });
+
+    worker.NumberOfConcurrentTasks = 2;
+    worker.SetCanStartConcurrentlyDelegate((workInterface, workingList) =>
+    {
+        Console.WriteLine("Start work concurrently: false");
+        return false;
+    });
+
+    var w = new TestTaskWork(1, "A"); // New work
+    Console.WriteLine(w); // Added work is 'Created'.
+    var wi1 = worker.AddLast(w); // Add a work to the worker.
+    Console.WriteLine(wi1); // Added work is 'Standby'.
+
+    await Task.Delay(10);
+    worker.AddLast(new TestTaskWork(1, "A"));
+
+    var w2 = new TestTaskWork(2, "B");
+    var wi = worker.AddLast(w2);
+    worker.AddLast(w2);
+    var w3 = new TestTaskWork(2, "B");
+    worker.AddLast(w3);
+    wi = worker.AddFirst(new(3, "C"));
+    wi = worker.AddLast(new(4, "D"));
+
+    var b = await wi1.WaitForCompletionAsync();
+    Console.WriteLine(wi1);
+    await worker.WaitForCompletionAsync();
+    Console.WriteLine(w); // Complete
+
+    worker.Terminate();
+}
+
+internal class TestTaskWork : IEquatable<TestTaskWork>
+{
+    public int Id { get; }
+
+    public string Name { get; } = string.Empty;
+
+    public string Result { get; set; } = string.Empty;
+
+    public TestTaskWork(int id, string name)
+    {
+        this.Id = id;
+        this.Name = name;
+    }
+
+    public override string ToString() => $"Id: {this.Id}, Name: {this.Name}, Result: {this.Result}";
+
+    public override int GetHashCode() => HashCode.Combine(this.Id, this.Name);
+
+    public bool Equals(TestTaskWork? other)
+    {
+        if (other == null)
+        {
+            return false;
+        }
+
+        return this.Id == other.Id && this.Name == other.Name;
+    }
+}
 ```
 
 

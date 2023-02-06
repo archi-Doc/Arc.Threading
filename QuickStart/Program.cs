@@ -23,7 +23,7 @@ internal class Program
             ThreadCore.Root.Terminate(); // Send a termination signal to the root.
         };
 
-        Console.WriteLine("ThreadCore Sample.");
+        Console.WriteLine("QuickStart.");
 
         // await TestThreadCore();
         // TestThreadWorker();
@@ -97,7 +97,7 @@ internal class Program
 
     private static async Task TestTaskWorker()
     {
-        // Create TaskWorker by specifying a type of work and delegate.
+        // Create a TaskWorker by specifying the type of work and delegate.
         var worker = new TaskWorker<TestTaskWork>(ThreadCore.Root, async (worker, work) =>
         {
             if (!await worker.Delay(1000))
@@ -110,12 +110,19 @@ internal class Program
             return;
         });
 
+        worker.NumberOfConcurrentTasks = 2;
+        worker.SetCanStartConcurrentlyDelegate((workInterface, workingList) =>
+        {
+            Console.WriteLine("Start work concurrently: false");
+            return false;
+        });
+
         var w = new TestTaskWork(1, "A"); // New work
         Console.WriteLine(w); // Added work is 'Created'.
         var wi1 = worker.AddLast(w); // Add a work to the worker.
         Console.WriteLine(wi1); // Added work is 'Standby'.
 
-        await Task.Delay(100);
+        await Task.Delay(10);
         worker.AddLast(new TestTaskWork(1, "A"));
 
         var w2 = new TestTaskWork(2, "B");
@@ -124,6 +131,7 @@ internal class Program
         var w3 = new TestTaskWork(2, "B");
         worker.AddLast(w3);
         wi = worker.AddFirst(new(3, "C"));
+        wi = worker.AddLast(new(4, "D"));
 
         var b = await wi1.WaitForCompletionAsync();
         Console.WriteLine(wi1);
