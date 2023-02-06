@@ -259,8 +259,8 @@ public class TaskWorker<TWork> : TaskCore
                             break;
                         }
                         else if (worker.workingList.Count > 0 &&
-                            worker.canStartConcurrently is { } canStartWork &&
-                            !canStartWork(workInterface, worker.workingList))
+                            worker.canStartConcurrently is { } canStartConcurrently &&
+                            !canStartConcurrently(workInterface, worker.workingList))
                         {// Cannot start a task work right now.
                             break;
                         }
