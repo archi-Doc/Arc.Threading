@@ -55,8 +55,10 @@ internal class Program
 
         // TestThreadCore();
         // TestThreadWorker();
-        // await TestTaskWorker();
+        await TestTaskWorker();
         // await TestTaskWorker2();
+
+        Console.WriteLine("Terminated.");
 
         await ThreadCore.Root.WaitForTerminationAsync(-1); // Wait for the termination infinitely.
         ThreadCore.Root.TerminationEvent.Set(); // The termination process is complete (#1).
@@ -202,6 +204,6 @@ internal class Program
         await worker.WaitForCompletionAsync();
         Console.WriteLine(w); // Complete
 
-        worker.Terminate();
+        worker.Terminate(); // ThreadCore.Root -> ThreadCore.Dependent?
     }
 }
