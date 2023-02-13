@@ -1,13 +1,8 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
-using System.Linq;
-using System.Linq.Expressions;
-using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
-
-#pragma warning disable SA1009 // Closing parenthesis should be spaced correctly
 
 namespace Arc.Threading;
 
