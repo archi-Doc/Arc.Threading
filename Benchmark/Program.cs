@@ -13,6 +13,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Running;
+using PerformanceUpToDate;
 
 #pragma warning disable SA1401 // Fields should be private
 
@@ -26,13 +27,14 @@ public class Program
     {
         // ThreadPool.GetMaxThreads(out var workerThreads, out var completionPortThreads);
         // ThreadPool.SetMaxThreads(100, completionPortThreads);
-        Test.ThreadWorkerBenchmark.Benchmark();
+        // Test.ThreadWorkerBenchmark.Benchmark();
         // ThreadPool.SetMaxThreads(workerThreads, completionPortThreads);
 
-        DebugRun<Test.TemplateBenchmark>();
+        DebugRun<LockBenchmark>();
 
         var switcher = new BenchmarkSwitcher(new[]
         {
+            typeof(LockBenchmark),
             typeof(Test.TemplateBenchmark),
         });
         switcher.Run(args);

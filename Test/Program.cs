@@ -1,11 +1,83 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
-using System;
-using System.Threading;
-using System.Threading.Tasks;
+using System.Diagnostics;
 using Arc.Threading;
 
 namespace QuickStart;
+
+internal class TestLock
+{
+    public const int N = 1_000_000;
+    public const int Concurrency = 10;
+
+    public int x;
+
+    public SemaphoreSlim semaphoreSlim = new(1, 1);
+    public SemaphoreLock semaphoreLock = new();
+
+    public async Task Run(string name, Action<TestLock> action)
+    {
+        this.x = 0;
+        var sw = Stopwatch.StartNew();
+        var tasks = Enumerable.Range(1, Concurrency).Select(async _ =>
+        {
+            await Task.Delay(1).ConfigureAwait(false);
+            for (int i = 0; i < N; ++i)
+            {
+                action(this);
+            }
+        }).ToArray();
+
+        Task.WaitAll(tasks);
+        Console.WriteLine($"{name}: {sw.ElapsedMilliseconds} ms, {this.x}");
+        this.x = 0;
+    }
+
+    public async Task Run(string name, Func<TestLock, Task> action)
+    {
+        this.x = 0;
+        var sw = Stopwatch.StartNew();
+        var tasks = Enumerable.Range(1, Concurrency).Select(async _ =>
+        {
+            await Task.Delay(1).ConfigureAwait(false);
+            for (int i = 0; i < N; ++i)
+            {
+                await action(this);
+            }
+        }).ToArray();
+
+        Task.WaitAll(tasks);
+        Console.WriteLine($"{name}: {sw.ElapsedMilliseconds} ms, {this.x}");
+        this.x = 0;
+    }
+
+    public async Task Run(string name, Action<TestLock> action, Func<TestLock, Task> action2)
+    {
+        this.x = 0;
+        var sw = Stopwatch.StartNew();
+        var tasks = Enumerable.Range(1, Concurrency).Select(async _ =>
+        {
+            await Task.Delay(1).ConfigureAwait(false);
+            for (int i = 0; i < N / 2; ++i)
+            {
+                action(this);
+            }
+        });
+
+        var tasks2 = Enumerable.Range(1, Concurrency).Select(async _ =>
+        {
+            await Task.Delay(1).ConfigureAwait(false);
+            for (int i = 0; i < N / 2; ++i)
+            {
+                await action2(this);
+            }
+        });
+
+        Task.WaitAll(tasks.Concat(tasks2).ToArray());
+        Console.WriteLine($"{name}: {sw.ElapsedMilliseconds} ms, {this.x}");
+        this.x = 0;
+    }
+}
 
 internal class Program
 {
@@ -23,13 +95,141 @@ internal class Program
             ThreadCore.Root.Terminate(); // Send a termination signal to the root.
         };
 
-
-        await TestThreadCore_Termination();
+        await TestLock();
+        // await TestThreadCore_Termination();
         // await TestAsyncPulseEvent();
 
         await ThreadCore.Root.WaitForTerminationAsync(-1); // Wait for the termination infinitely.
         ThreadCore.Root.TerminationEvent.Set(); // The termination process is complete (#1).
     }
+
+    private static async Task TestLock()
+    {
+        var testLock = new TestLock();
+
+        await testLock.Run("Simple", test =>
+        {
+            test.x++;
+        });
+
+        await testLock.Run("Interlocked", test =>
+        {
+            Interlocked.Increment(ref test.x);
+        });
+
+        await testLock.Run("lock", test =>
+        {
+            lock (test)
+            {
+                test.x++;
+            }
+        });
+
+        await testLock.Run("SemaphoreSlim", test =>
+        {
+            try
+            {
+                test.semaphoreSlim.Wait();
+                test.x++;
+            }
+            finally
+            {
+                test.semaphoreSlim.Release();
+            }
+        });
+
+        await testLock.Run("SemaphoreLock", test =>
+        {
+            try
+            {
+                test.semaphoreLock.Enter();
+                test.x++;
+            }
+            finally
+            {
+                test.semaphoreLock.Exit();
+            }
+        });
+
+        await testLock.Run("SemaphoreSlim Async", async test =>
+        {
+            try
+            {
+                await test.semaphoreSlim.WaitAsync();
+                test.x++;
+            }
+            finally
+            {
+                test.semaphoreSlim.Release();
+            }
+        });
+
+        await testLock.Run("SemaphoreLock Async", async test =>
+        {
+            try
+            {
+                await test.semaphoreLock.EnterAsync();
+                test.x++;
+            }
+            finally
+            {
+                test.semaphoreLock.Exit();
+            }
+        });
+
+        await testLock.Run("SemaphoreSlim Sync+Async",
+            test =>
+            {
+                try
+                {
+                    test.semaphoreSlim.Wait();
+                    test.x++;
+                }
+                finally
+                {
+                    test.semaphoreSlim.Release();
+                }
+            },
+            async test =>
+            {
+                try
+                {
+                    await test.semaphoreSlim.WaitAsync();
+                    test.x++;
+                }
+                finally
+                {
+                    test.semaphoreSlim.Release();
+                }
+            });
+
+        await testLock.Run("SemaphoreLock Sync+Async",
+            test =>
+            {
+                try
+                {
+                    test.semaphoreLock.Enter();
+                    test.x++;
+                }
+                finally
+                {
+                    test.semaphoreLock.Exit();
+                }
+            },
+            async test =>
+            {
+                try
+                {
+                    await test.semaphoreLock.EnterAsync();
+                    test.x++;
+                }
+                finally
+                {
+                    test.semaphoreLock.Exit();
+                }
+            });
+    }
+
 
     private static async Task TestThreadCore_Termination()
     {
