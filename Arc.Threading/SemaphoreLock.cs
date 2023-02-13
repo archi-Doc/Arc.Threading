@@ -21,11 +21,39 @@ public class SemaphoreLock
     private TaskNode? head;
     private TaskNode? tail;
 
+    public struct LockStruct : IDisposable
+    {
+        public LockStruct(SemaphoreLock semaphore)
+        {
+            this.semaphore = semaphore;
+            this.locked = semaphore.Enter();
+        }
+
+        public void Dispose()
+        {
+            if (this.locked)
+            {
+                this.semaphore.Exit();
+                this.locked = false;
+            }
+        }
+
+        public SemaphoreLock SemaphoreLock => this.semaphore;
+
+        public bool IsLocked => this.locked;
+
+        private readonly SemaphoreLock semaphore;
+        private bool locked;
+    }
+
     public SemaphoreLock()
     {
     }
 
-    public bool IsEntered => this.entered;
+    public LockStruct Lock()
+        => new LockStruct(this);
+
+    public bool IsLocked => this.entered;
 
     /// <summary>
     /// Acquires an exclusive lock.
