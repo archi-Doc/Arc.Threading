@@ -105,6 +105,16 @@ internal class Program
 
     private static async Task TestLock()
     {
+        var obj = new object();
+        Monitor.Enter(obj);
+        // await Task.Delay(1000); // Error
+        Monitor.Exit(obj);
+
+        var semaphoreLock = new SemaphoreLock();
+        semaphoreLock.Enter();
+        await Task.Delay(100);
+        semaphoreLock.Exit();
+
         var testLock = new TestLock();
 
         await testLock.Run("Simple", test =>
