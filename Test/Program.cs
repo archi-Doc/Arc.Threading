@@ -110,10 +110,15 @@ internal class Program
         // await Task.Delay(1000); // Error
         Monitor.Exit(obj);
 
-        var semaphoreLock = new SemaphoreLock();
-        semaphoreLock.Enter();
+        var semaphore = new SemaphoreLock();
+        semaphore.Enter();
         await Task.Delay(100);
-        semaphoreLock.Exit();
+        semaphore.Exit();
+
+        using (semaphore.Lock())
+        {
+            await Task.Delay(100);
+        }
 
         var testLock = new TestLock();
 
@@ -158,6 +163,14 @@ internal class Program
             finally
             {
                 test.semaphoreLock.Exit();
+            }
+        });
+
+        await testLock.Run("SemaphoreLock.Lock()", test =>
+        {
+            using (test.semaphoreLock.Lock())
+            {
+                test.x++;
             }
         });
 

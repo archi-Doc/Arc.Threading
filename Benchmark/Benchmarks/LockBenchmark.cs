@@ -110,6 +110,14 @@ public class LockBenchmark
     }
 
     [Benchmark]
+    public void SemaphoreLock()
+    {
+        using (this.semaphoreLock.Lock())
+        {
+        }
+    }
+
+    [Benchmark]
     public void SemaphoreSlimWaitRelease2()
     {
         var lockTaken = false;

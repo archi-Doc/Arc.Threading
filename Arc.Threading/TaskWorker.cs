@@ -187,7 +187,7 @@ public class TaskWorker<TWork> : TaskCore
 
     static TaskWorker()
     {
-        var method = typeof(Task).GetMethod("TrySetResult", BindingFlags.Instance | BindingFlags.Static | BindingFlags.NonPublic) !;
+        var method = typeof(Task).GetMethod("TrySetResult", BindingFlags.Instance | BindingFlags.Static | BindingFlags.NonPublic)!;
         var arg = Expression.Parameter(typeof(Task));
         trySetResult = Expression.Lambda<Action<Task>>(Expression.Call(arg, method), arg).Compile();
     }
