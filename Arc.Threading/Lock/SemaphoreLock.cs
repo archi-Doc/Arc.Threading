@@ -11,7 +11,7 @@ namespace Arc.Threading;
 /// Used for object mutual exclusion and can also be used in code that includes await syntax.<br/>
 /// An instance of <see cref="SemaphoreLock"/> should be a private member since it uses `lock (this)` statement to reduce memory usage.
 /// </summary>
-public class SemaphoreLock
+public class SemaphoreLock : ILockable
 {
     private object SyncObject => this; // lock (this) is a bad practice but...
 
@@ -20,31 +20,6 @@ public class SemaphoreLock
     private int countOfWaitersPulsedToWake;
     private TaskNode? head;
     private TaskNode? tail;
-
-    public struct LockStruct : IDisposable
-    {
-        public LockStruct(SemaphoreLock semaphore)
-        {
-            this.semaphore = semaphore;
-            this.locked = semaphore.Enter();
-        }
-
-        public void Dispose()
-        {
-            if (this.locked)
-            {
-                this.semaphore.Exit();
-                this.locked = false;
-            }
-        }
-
-        public SemaphoreLock SemaphoreLock => this.semaphore;
-
-        public bool IsLocked => this.locked;
-
-        private readonly SemaphoreLock semaphore;
-        private bool locked;
-    }
 
     public SemaphoreLock()
     {
@@ -216,7 +191,7 @@ public class SemaphoreLock
 #pragma warning restore SA1401 // Fields should be private
 
         internal TaskNode()
-            : base((object?)null, TaskCreationOptions.RunContinuationsAsynchronously)
+            : base(null, TaskCreationOptions.RunContinuationsAsynchronously)
         {
         }
     }

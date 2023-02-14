@@ -112,7 +112,7 @@ public class LockBenchmark
     [Benchmark]
     public void SemaphoreLock()
     {
-        using (this.semaphoreLock.Lock())
+        using (((ILockable)this.semaphoreLock).Lock())
         {
         }
     }
