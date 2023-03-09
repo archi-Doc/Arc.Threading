@@ -99,16 +99,16 @@ internal class Program
     {
         // Create a TaskWorker by specifying the type of work and delegate.
         var worker = new TaskWorker<TestTaskWork>(ThreadCore.Root, async (worker, work) =>
-        {
-            if (!await worker.Delay(1000))
             {
-                return;
-            }
+                if (!await worker.Delay(1000))
+                {
+                    return;
+                }
 
-            work.Result = "complete";
-            Console.WriteLine($"Complete: {work.Id}, {work.Name}");
-            return;
-        });
+                work.Result = "complete";
+                Console.WriteLine($"Complete: {work.Id}, {work.Name}");
+                return;
+            });
 
         worker.NumberOfConcurrentTasks = 2;
         worker.SetCanStartConcurrentlyDelegate((workInterface, workingList) =>

@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Data.SqlTypes;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
@@ -29,17 +30,13 @@ public class ThreadCore : ThreadCoreBase
     /// <summary>
     /// Initializes a new instance of the <see cref="ThreadCore"/> class.
     /// </summary>
-    /// <param name="parent">The parent.</param>
+    /// <param name="parent">The parent of this thread/task.<br/>
+    /// Specify <see langword="null"/> to be independent (does not receive a termination signal from parent).</param>
     /// <param name="method">The method that executes on a System.Threading.Thread.</param>
     /// <param name="startImmediately">Starts the thread immediately.<br/>
     /// <see langword="false"/>: Manually call <see cref="Start"/> to start the thread.</param>
-    public ThreadCore(ThreadCoreBase parent, Action<object?> method, bool startImmediately = true)
+    public ThreadCore(ThreadCoreBase? parent, Action<object?> method, bool startImmediately = true)
     {
-        if (parent == null)
-        {
-            throw new ArgumentNullException(nameof(parent));
-        }
-
         this.Thread = new Thread(new ParameterizedThreadStart(method));
         this.Prepare(parent); // this.Thread (this.IsRunning) might be referenced after this method.
         if (startImmediately)
@@ -180,14 +177,10 @@ public class ThreadCoreGroup : ThreadCoreBase
     /// <summary>
     /// Initializes a new instance of the <see cref="ThreadCoreGroup"/> class.<br/>
     /// </summary>
-    /// <param name="parent">The parent.</param>
-    public ThreadCoreGroup(ThreadCoreBase parent)
+    /// <param name="parent">The parent of this thread/task.<br/>
+    /// Specify <see langword="null"/> to be independent (does not receive a termination signal from parent).</param>
+    public ThreadCoreGroup(ThreadCoreBase? parent)
     {
-        if (parent == null)
-        {
-            throw new ArgumentNullException(nameof(parent));
-        }
-
         this.Prepare(parent);
     }
 
@@ -268,6 +261,12 @@ public class ThreadCoreBase : IDisposable
     /// Gets a <see cref="System.Threading.CancellationToken"/> which is used to terminate thread/task.
     /// </summary>
     public CancellationToken CancellationToken { get; private set; }
+
+    /// <summary>
+    /// Gets a value indicating whether this thread/task is independent<br/>
+    /// (does not receive a termination signal from parent).
+    /// </summary>
+    public bool IsIndependent => this.parent == null;
 
     /// <summary>
     /// Gets a value indicating whether this thread/task is being terminated or has been terminated.<br/>
@@ -363,7 +362,7 @@ public class ThreadCoreBase : IDisposable
         {
             // c.cancellationTokenSource.Cancel(); // Moved to the outside of lock statement due to the mysterious behavior.
             var array = c.hashSet.ToArray();
-            foreach (var x in array)
+            foreach (var x in array.Where(a => !a.IsIndependent))
             {
                 TerminateCore(x);
             }

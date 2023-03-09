@@ -2,13 +2,9 @@
 
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 
 #pragma warning disable SA1401 // Fields should be private
 #pragma warning disable SA1307 // Accessible fields should begin with upper-case letter
@@ -198,11 +194,12 @@ public class ThreadWorker<T> : ThreadWorkerBase
     /// <summary>
     /// Initializes a new instance of the <see cref="ThreadWorker{T}"/> class.
     /// </summary>
-    /// <param name="parent">The parent.</param>
+    /// <param name="parent">The parent of this thread/task.<br/>
+    /// Specify <see langword="null"/> to be independent (does not receive a termination signal from parent).</param>
     /// <param name="method">The method that receives and processes a work.</param>
     /// <param name="startImmediately">Starts the worker immediately.<br/>
     /// <see langword="false"/>: Manually call <see cref="ThreadCore.Start" /> to start the worker.</param>
-    public ThreadWorker(ThreadCoreBase parent, WorkDelegate method, bool startImmediately = true)
+    public ThreadWorker(ThreadCoreBase? parent, WorkDelegate method, bool startImmediately = true)
         : base(parent, Process)
     {
         this.method = method;
@@ -303,9 +300,10 @@ public class ThreadWorkerBase : ThreadCore
     /// <summary>
     /// Initializes a new instance of the <see cref="ThreadWorkerBase"/> class.
     /// </summary>
-    /// <param name="parent">The parent.</param>
+    /// <param name="parent">The parent of this thread/task.<br/>
+    /// Specify <see langword="null"/> to be independent (does not receive a termination signal from parent).</param>
     /// <param name="method">The method that executes on a System.Threading.Thread.</param>
-    internal ThreadWorkerBase(ThreadCoreBase parent, Action<object?> method)
+    internal ThreadWorkerBase(ThreadCoreBase? parent, Action<object?> method)
         : base(parent, method, false)
     {
     }
