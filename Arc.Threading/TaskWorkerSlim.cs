@@ -159,11 +159,12 @@ public class TaskWorkerSlim<T> : TaskWorkerSlimBase
     /// <summary>
     /// Initializes a new instance of the <see cref="TaskWorkerSlim{T}"/> class.
     /// </summary>
-    /// <param name="parent">The parent.</param>
+    /// <param name="parent">The parent of this thread/task.<br/>
+    /// Specify <see langword="null"/> to be independent (does not receive a termination signal from parent).</param>
     /// <param name="method">The method that receives and processes a work.</param>
     /// <param name="startImmediately">Starts the worker immediately.<br/>
     /// <see langword="false"/>: Manually call <see cref="ThreadCore.Start" /> to start the worker.</param>
-    public TaskWorkerSlim(ThreadCoreBase parent, WorkDelegate method, bool startImmediately = true)
+    public TaskWorkerSlim(ThreadCoreBase? parent, WorkDelegate method, bool startImmediately = true)
         : base(parent, Process)
     {
         this.method = method;
@@ -277,9 +278,10 @@ public class TaskWorkerSlimBase : ThreadCore
     /// <summary>
     /// Initializes a new instance of the <see cref="TaskWorkerSlimBase"/> class.
     /// </summary>
-    /// <param name="parent">The parent.</param>
+    /// <param name="parent">The parent of this thread/task.<br/>
+    /// Specify <see langword="null"/> to be independent (does not receive a termination signal from parent).</param>
     /// <param name="processWork">The method invoked to process a work.</param>
-    internal TaskWorkerSlimBase(ThreadCoreBase parent, Action<object?> processWork)
+    internal TaskWorkerSlimBase(ThreadCoreBase? parent, Action<object?> processWork)
     : base(parent, processWork, false)
     {
     }

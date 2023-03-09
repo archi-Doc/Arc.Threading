@@ -1,9 +1,6 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -20,17 +17,13 @@ public class TaskCore : ThreadCoreBase
     /// Initializes a new instance of the <see cref="TaskCore"/> class.<br/>
     /// method: async <see cref="System.Threading.Tasks.Task"/> Method(<see cref="object"/>? parameter).
     /// </summary>
-    /// <param name="parent">The parent.</param>
+    /// <param name="parent">The parent of this thread/task.<br/>
+    /// Specify <see langword="null"/> to be independent (does not receive a termination signal from parent).</param>
     /// <param name="method">The method that executes on a <see cref="System.Threading.Tasks.Task"/>.</param>
     /// <param name="startImmediately">Starts the task immediately.<br/>
     /// <see langword="false"/>: Manually call <see cref="Start"/> to start the task.</param>
-    public TaskCore(ThreadCoreBase parent, Func<object?, Task> method, bool startImmediately = true)
+    public TaskCore(ThreadCoreBase? parent, Func<object?, Task> method, bool startImmediately = true)
     {
-        if (parent == null)
-        {
-            throw new ArgumentNullException(nameof(parent));
-        }
-
         // this.Task = System.Threading.Tasks.Task.Run(async () => { await method(this); });
         // this.Task = System.Threading.Tasks.Task.Factory.StartNew(async () => { await method(this); }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
         // this.Task = new Task(async () => await method(this).ConfigureAwait(false), TaskCreationOptions.LongRunning);
@@ -110,17 +103,13 @@ public class TaskCore<TResult> : ThreadCoreBase
     /// Initializes a new instance of the <see cref="TaskCore{TResult}"/> class.<br/>
     /// method: async <see cref="System.Threading.Tasks.Task{TResult}"/> Method(<see cref="object"/>? parameter).
     /// </summary>
-    /// <param name="parent">The parent.</param>
+    /// <param name="parent">The parent of this thread/task.<br/>
+    /// Specify <see langword="null"/> to be independent (does not receive a termination signal from parent).</param>
     /// <param name="method">The method that executes on a <see cref="System.Threading.Tasks.Task{TResult}"/>.</param>
     /// <param name="startImmediately">Starts the task immediately.<br/>
     /// <see langword="false"/>: Manually call <see cref="Start"/> to start the task.</param>
-    public TaskCore(ThreadCoreBase parent, Func<object?, Task<TResult>> method, bool startImmediately = true)
+    public TaskCore(ThreadCoreBase? parent, Func<object?, Task<TResult>> method, bool startImmediately = true)
     {
-        if (parent == null)
-        {
-            throw new ArgumentNullException(nameof(parent));
-        }
-
         // this.Task = System.Threading.Tasks.Task.Run(async () => await method(this));
         /*this.Task = new Task<TResult>(async () =>
         {

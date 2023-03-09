@@ -277,11 +277,12 @@ public class TaskWorker<TWork> : TaskCore
     /// <summary>
     /// Initializes a new instance of the <see cref="TaskWorker{T}"/> class.<br/>
     /// </summary>
-    /// <param name="parent">The parent.</param>
+    /// <param name="parent">The parent of this thread/task.<br/>
+    /// Specify <see langword="null"/> to be independent (does not receive a termination signal from parent).</param>
     /// <param name="method">The method that receives and processes a work.</param>
     /// <param name="startImmediately">Starts the worker immediately.<br/>
     /// <see langword="false"/>: Manually call <see cref="ThreadCore.Start" /> to start the worker.</param>
-    public TaskWorker(ThreadCoreBase parent, WorkDelegate method, bool startImmediately = true)
+    public TaskWorker(ThreadCoreBase? parent, WorkDelegate method, bool startImmediately = true)
         : base(parent, Process, startImmediately)
     {
         this.method = method;
