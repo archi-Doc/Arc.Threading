@@ -53,15 +53,33 @@ internal class Program
 
         Console.WriteLine("Sandbox.");
 
+        await TestUniqueCore();
         // TestThreadCore();
         // TestThreadWorker();
-        await TestTaskWorker();
+        // await TestTaskWorker();
         // await TestTaskWorker2();
 
         Console.WriteLine("Terminated.");
 
         await ThreadCore.Root.WaitForTerminationAsync(-1); // Wait for the termination infinitely.
         ThreadCore.Root.TerminationEvent.Set(); // The termination process is complete (#1).
+    }
+
+    private static async Task TestUniqueCore()
+    {
+        var unique = new UniqueWork(async Task () =>
+        {
+            Console.WriteLine("Unique work start");
+            await Task.Delay(1000);
+            Console.WriteLine("Unique work end");
+        });
+
+        for (var i = 0; i < 100; i++)
+        {
+            _ = unique.Run();
+        }
+
+        await unique.Run();
     }
 
     private static void TestThreadCore()
