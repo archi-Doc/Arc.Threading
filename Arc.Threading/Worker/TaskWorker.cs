@@ -6,8 +6,6 @@ using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
-using System.Runtime.CompilerServices;
-using System.Threading;
 using System.Threading.Tasks;
 
 #pragma warning disable SA1401 // Fields should be private
@@ -19,7 +17,7 @@ namespace Arc.Threading;
 /// Represents a interface for processing <typeparamref name="TWork"/>.
 /// </summary>
 /// <typeparam name="TWork">The type of the work.</typeparam>
-public sealed class TaskWorkInterface<TWork>
+public sealed class TaskWorkInterface<TWork> : IAbortOrCompleteTask
     where TWork : notnull
 {
     public TaskWorkInterface(TaskWorker<TWork> taskWorker, TWork work)
@@ -41,38 +39,41 @@ public sealed class TaskWorkInterface<TWork>
             TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
+    Task<AbortOrComplete> IAbortOrCompleteTask.GetTask(TimeSpan timeToWait)
+        => this.WaitForCompletionAsync(timeToWait);
+
     /// <summary>
     /// Wait until the work is completed.
     /// </summary>
     /// <returns><see langword="true"/>: The work is complete<br/><see langword="false"/>: Not complete.</returns>
-    public Task<bool> WaitForCompletionAsync() => this.WaitForCompletionAsync(TimeSpan.MinValue);
+    public Task<AbortOrComplete> WaitForCompletionAsync() => this.WaitForCompletionAsync(TimeSpan.MinValue);
 
     /// <summary>
     /// Wait for the specified time until the work is completed.
     /// </summary>
     /// <param name="millisecondsToWait">The number of milliseconds to wait, or -1 to wait indefinitely.</param>
     /// <returns><see langword="true"/>: The work is complete<br/><see langword="false"/>: Not complete.</returns>
-    public Task<bool> WaitForCompletionAsync(int millisecondsToWait) => this.WaitForCompletionAsync(TimeSpan.FromMilliseconds(millisecondsToWait));
+    public Task<AbortOrComplete> WaitForCompletionAsync(int millisecondsToWait) => this.WaitForCompletionAsync(TimeSpan.FromMilliseconds(millisecondsToWait));
 
     /// <summary>
     /// Wait for the specified time until the work is completed.
     /// </summary>
     /// <param name="timeToWait">The TimeSpan to wait, or negative value (e.g TimeSpan.MinValue) to wait indefinitely.</param>
     /// <returns><see langword="true"/>: The work is complete<br/><see langword="false"/>: Not complete.</returns>
-    public async Task<bool> WaitForCompletionAsync(TimeSpan timeToWait)
+    public async Task<AbortOrComplete> WaitForCompletionAsync(TimeSpan timeToWait)
     {
         var state = this.State;
         if (state == TaskWorkState.Complete)
         {// Complete
-            return true;
+            return AbortOrComplete.Complete;
         }
         else if (state == TaskWorkState.Aborted)
         {// Aborted
-            return false;
+            return AbortOrComplete.Abort;
         }
         else if (this.TaskWorker.IsTerminated)
         {// Terminated
-            return false;
+            return AbortOrComplete.Abort;
         }
 
         // Standby or Working
@@ -89,20 +90,20 @@ public sealed class TaskWorkInterface<TWork>
         }
         catch (TimeoutException)
         {// Timeout
-            return false;
+            return AbortOrComplete.Abort;
         }
         catch
         {// Cancellation
-            return false;
+            return AbortOrComplete.Abort;
         }
 
         if (this.task.Status == TaskStatus.RanToCompletion)
         {// Complete
-            return true;
+            return AbortOrComplete.Complete;
         }
         else
         {// Standby or Working or Aborted
-            return false;
+            return AbortOrComplete.Abort;
         }
     }
 
