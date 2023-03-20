@@ -39,7 +39,7 @@ public sealed class TaskWorkInterface<TWork> : IAbortOrCompleteTask
             TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
-    Task<AbortOrComplete> IAbortOrCompleteTask.GetTask(TimeSpan timeToWait)
+    Task<AbortOrComplete> IAbortOrCompleteTask.AbortOrCompleteTask(TimeSpan timeToWait)
         => this.WaitForCompletionAsync(timeToWait);
 
     /// <summary>
