@@ -7,7 +7,7 @@ namespace Arc.Threading;
 
 public interface IAbortOrCompleteTask
 {
-    Task<AbortOrComplete> GetTask(TimeSpan timeToWait);
+    Task<AbortOrComplete> AbortOrCompleteTask(TimeSpan timeToWait);
 
-    Task<AbortOrComplete> GetTask() => this.GetTask(TimeSpan.MinValue);
+    Task<AbortOrComplete> AbortOrCompleteTask() => this.AbortOrCompleteTask(TimeSpan.MinValue);
 }
