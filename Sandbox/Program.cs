@@ -53,7 +53,8 @@ internal class Program
 
         Console.WriteLine("Sandbox.");
 
-        await TestUniqueCore();
+        await TestSemaphoreLock();
+        // await TestUniqueCore();
         // TestThreadCore();
         // TestThreadWorker();
         // await TestTaskWorker();
@@ -63,6 +64,41 @@ internal class Program
 
         await ThreadCore.Root.WaitForTerminationAsync(-1); // Wait for the termination infinitely.
         ThreadCore.Root.TerminationEvent.Set(); // The termination process is complete (#1).
+    }
+
+    private static async Task TestSemaphoreLock()
+    {
+        var semaphore = new SemaphoreLock();
+
+        semaphore.Enter();
+        Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId}, {Task.CurrentId}");
+        Console.WriteLine($"Lock");
+
+        await Task.Run(async () =>
+        {
+            var a = Task.Delay(100);
+            var b = Task.Delay(100);
+            var c = Task.Delay(100);
+            await Task.WhenAll(new Task[] { a, b, c, });
+            Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId}, {Task.CurrentId}");
+            semaphore.Exit();
+            Console.WriteLine($"Unlock");
+        });
+
+        /*Monitor.Enter(semaphore);
+        Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId}");
+        Console.WriteLine($"Lock");
+
+        await Task.Run(async () =>
+        {
+            var a = Task.Delay(100);
+            var b = Task.Delay(100);
+            var c = Task.Delay(100);
+            await Task.WhenAll(new Task[] {a, b, c,});
+            Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId}");
+            Monitor.Exit(semaphore);
+            Console.WriteLine($"Unlock");
+        });*/
     }
 
     private static async Task TestUniqueCore()
