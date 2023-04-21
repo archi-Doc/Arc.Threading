@@ -37,6 +37,8 @@ internal class CustomCore : ThreadCore
 
 internal class Program
 {
+    public static readonly AsyncLocal<int> AsyncLocalInstance = new();
+
     public static async Task Main(string[] args)
     {
         AppDomain.CurrentDomain.ProcessExit += (s, e) =>
@@ -68,6 +70,9 @@ internal class Program
 
     private static async Task TestSemaphoreLock()
     {
+        var ec = System.Threading.Thread.CurrentThread.ExecutionContext;
+        AsyncLocalInstance.Value = 2;
+
         var semaphore = new SemaphoreLock();
 
         semaphore.Enter();
@@ -76,6 +81,7 @@ internal class Program
 
         await Task.Run(async () =>
         {
+            AsyncLocalInstance.Value = 3;
             var a = Task.Delay(100);
             var b = Task.Delay(100);
             var c = Task.Delay(100);
