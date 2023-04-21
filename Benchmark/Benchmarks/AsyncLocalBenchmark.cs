@@ -61,6 +61,7 @@ public class AsyncLocalBenchmark
             AsyncLocalInstance.Value = 2;
             v = 2;
         }
+        System.Threading.Tasks.Task.CurrentId
 
         return v;
     }
