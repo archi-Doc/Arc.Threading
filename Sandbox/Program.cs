@@ -35,6 +35,55 @@ internal class CustomCore : ThreadCore
     public int Count { get; private set; }
 }
 
+public static class TaskId
+{
+    private static volatile int currentId;
+    private static readonly AsyncLocal<int> asyncLocal = new();
+
+    public static int Get()
+    {
+        var v = asyncLocal.Value;
+        if (v != 0)
+        {
+            return v;
+        }
+        else
+        {
+            v = Interlocked.Increment(ref currentId);
+            asyncLocal.Value = v;
+            return v;
+        }
+    }
+}
+
+public readonly struct TaskId2
+{
+    private static volatile int currentId ;
+    private static readonly AsyncLocal<TaskId2> asyncLocal = new();
+
+    public static TaskId2 Get()
+    {
+        var v = asyncLocal.Value.Value;
+        if (v != 0)
+        {
+            return new(v);
+        }
+        else
+        {
+            var taskId = new TaskId2(Interlocked.Increment(ref currentId));
+            asyncLocal.Value = taskId;
+            return taskId;
+        }
+    }
+
+    public TaskId2(int id)
+    {
+        this.Value = id;
+    }
+
+    public readonly int Value;
+}
+
 internal class Program
 {
     public static readonly AsyncLocal<int> AsyncLocalInstance = new();
@@ -76,7 +125,7 @@ internal class Program
         var semaphore = new SemaphoreLock();
 
         semaphore.Enter();
-        Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId}, {Task.CurrentId}");
+        Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId}, {Task.CurrentId}, {TaskId.Get()}");
         Console.WriteLine($"Lock");
 
         await Task.Run(async () =>
@@ -86,7 +135,7 @@ internal class Program
             var b = Task.Delay(100);
             var c = Task.Delay(100);
             await Task.WhenAll(new Task[] { a, b, c, });
-            Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId}, {Task.CurrentId}");
+            Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId}, {Task.CurrentId}, {TaskId.Get()}");
             semaphore.Exit();
             Console.WriteLine($"Unlock");
         });
