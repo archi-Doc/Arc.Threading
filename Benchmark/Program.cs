@@ -30,7 +30,7 @@ public class Program
         // Test.ThreadWorkerBenchmark.Benchmark();
         // ThreadPool.SetMaxThreads(workerThreads, completionPortThreads);
 
-        DebugRun<AsyncLocalBenchmark>();
+        DebugRun<LockBenchmark>();
 
         var switcher = new BenchmarkSwitcher(new[]
         {

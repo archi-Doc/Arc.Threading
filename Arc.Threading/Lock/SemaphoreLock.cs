@@ -11,7 +11,7 @@ namespace Arc.Threading;
 /// Used for object mutual exclusion and can also be used in code that includes await syntax.<br/>
 /// An instance of <see cref="SemaphoreLock"/> should be a private member since it uses `lock (this)` statement to reduce memory usage.
 /// </summary>
-public class SemaphoreLock : ILockable
+public class SemaphoreLock : ILockable, IAsyncLockable
 {
     private object SyncObject => this; // lock (this) is a bad practice but...
 

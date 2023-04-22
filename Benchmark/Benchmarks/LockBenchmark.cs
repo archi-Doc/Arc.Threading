@@ -15,6 +15,7 @@ public class LockBenchmark
     private Semaphore semaphore = new(1, 1);
     private SemaphoreSlim semaphoreSlim = new(1, 1);
     private SemaphoreLock semaphoreLock = new();
+    private BinarySemaphore binarySemaphore = new();
 
     public LockBenchmark()
     {
@@ -25,7 +26,7 @@ public class LockBenchmark
     {
     }
 
-    [Benchmark]
+    /*[Benchmark]
     public object CreateObject()
         => new();
 
@@ -39,9 +40,9 @@ public class LockBenchmark
 
     [Benchmark]
     public SemaphoreLock CreateSemaphoreLock()
-        => new();
+        => new();*/
 
-    [Benchmark]
+    // [Benchmark]
     public void Lock()
     {
         lock (this.syncObject)
@@ -50,7 +51,7 @@ public class LockBenchmark
     }
 
     [Benchmark]
-    public void MonitorEnterExit()
+    public void Monitor_EnterExit()
     {
         var lockTaken = false;
         try
@@ -66,8 +67,8 @@ public class LockBenchmark
         }
     }
 
-    [Benchmark]
-    public void SemaphoreWaitRelease()
+    // [Benchmark]
+    public void Semaphore_WaitRelease()
     {
         try
         {
@@ -79,8 +80,8 @@ public class LockBenchmark
         }
     }
 
-    [Benchmark]
-    public void SemaphoreSlimWaitRelease()
+    // [Benchmark]
+    public void SemaphoreSlim_WaitRelease()
     {
         try
         {
@@ -93,7 +94,7 @@ public class LockBenchmark
     }
 
     [Benchmark]
-    public void SemaphoreLockEnterExit()
+    public void SemaphoreLock_EnterExit()
     {
         var lockTaken = false;
         try
@@ -109,16 +110,16 @@ public class LockBenchmark
         }
     }
 
-    [Benchmark]
-    public void SemaphoreLock()
+    // [Benchmark]
+    public void SemaphoreLock_Using()
     {
         using (((ILockable)this.semaphoreLock).Lock())
         {
         }
     }
 
-    [Benchmark]
-    public void SemaphoreSlimWaitRelease2()
+    // [Benchmark]
+    public void SemaphoreSlim_WaitRelease2()
     {
         var lockTaken = false;
         try
@@ -135,7 +136,7 @@ public class LockBenchmark
     }
 
     [Benchmark]
-    public async Task SemaphoreSlimWaitAsync()
+    public async Task SemaphoreSlim_WaitAsync()
     {
         try
         {
@@ -148,7 +149,15 @@ public class LockBenchmark
     }
 
     [Benchmark]
-    public async Task SemaphoreLockEnterAsyncExit()
+    public async Task SemaphoreLock_UsingAsync()
+    {
+        using (await ((IAsyncLockable)this.semaphoreLock).LockAsync().ConfigureAwait(false))
+        {
+        }
+    }
+
+    [Benchmark]
+    public async Task SemaphoreLock_EnterAsync()
     {
         var lockTaken = false;
         try
@@ -160,6 +169,23 @@ public class LockBenchmark
             if (lockTaken)
             {
                 this.semaphoreLock.Exit();
+            }
+        }
+    }
+
+    // [Benchmark]
+    public async Task BinarySemaphoreEnterAsyncExit()
+    {
+        var lockTaken = false;
+        try
+        {
+            lockTaken = await this.binarySemaphore.EnterAsync();
+        }
+        finally
+        {
+            if (lockTaken)
+            {
+                this.binarySemaphore.Exit();
             }
         }
     }
