@@ -35,8 +35,59 @@ internal class CustomCore : ThreadCore
     public int Count { get; private set; }
 }
 
+public static class TaskId
+{
+    private static volatile int currentId;
+    private static readonly AsyncLocal<int> asyncLocal = new();
+
+    public static int Get()
+    {
+        var v = asyncLocal.Value;
+        if (v != 0)
+        {
+            return v;
+        }
+        else
+        {
+            v = Interlocked.Increment(ref currentId);
+            asyncLocal.Value = v;
+            return v;
+        }
+    }
+}
+
+public readonly struct TaskId2
+{
+    private static volatile int currentId ;
+    private static readonly AsyncLocal<TaskId2> asyncLocal = new();
+
+    public static TaskId2 Get()
+    {
+        var v = asyncLocal.Value.Value;
+        if (v != 0)
+        {
+            return new(v);
+        }
+        else
+        {
+            var taskId = new TaskId2(Interlocked.Increment(ref currentId));
+            asyncLocal.Value = taskId;
+            return taskId;
+        }
+    }
+
+    public TaskId2(int id)
+    {
+        this.Value = id;
+    }
+
+    public readonly int Value;
+}
+
 internal class Program
 {
+    public static readonly AsyncLocal<int> AsyncLocalInstance = new();
+
     public static async Task Main(string[] args)
     {
         AppDomain.CurrentDomain.ProcessExit += (s, e) =>
@@ -53,7 +104,8 @@ internal class Program
 
         Console.WriteLine("Sandbox.");
 
-        await TestUniqueCore();
+        await TestSemaphoreLock();
+        // await TestUniqueCore();
         // TestThreadCore();
         // TestThreadWorker();
         // await TestTaskWorker();
@@ -63,6 +115,45 @@ internal class Program
 
         await ThreadCore.Root.WaitForTerminationAsync(-1); // Wait for the termination infinitely.
         ThreadCore.Root.TerminationEvent.Set(); // The termination process is complete (#1).
+    }
+
+    private static async Task TestSemaphoreLock()
+    {
+        var ec = System.Threading.Thread.CurrentThread.ExecutionContext;
+        AsyncLocalInstance.Value = 2;
+
+        var semaphore = new SemaphoreLock();
+
+        semaphore.Enter();
+        Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId}, {Task.CurrentId}, {TaskId.Get()}");
+        Console.WriteLine($"Lock");
+
+        await Task.Run(async () =>
+        {
+            AsyncLocalInstance.Value = 3;
+            var a = Task.Delay(100);
+            var b = Task.Delay(100);
+            var c = Task.Delay(100);
+            await Task.WhenAll(new Task[] { a, b, c, });
+            Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId}, {Task.CurrentId}, {TaskId.Get()}");
+            semaphore.Exit();
+            Console.WriteLine($"Unlock");
+        });
+
+        /*Monitor.Enter(semaphore);
+        Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId}");
+        Console.WriteLine($"Lock");
+
+        await Task.Run(async () =>
+        {
+            var a = Task.Delay(100);
+            var b = Task.Delay(100);
+            var c = Task.Delay(100);
+            await Task.WhenAll(new Task[] {a, b, c,});
+            Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId}");
+            Monitor.Exit(semaphore);
+            Console.WriteLine($"Unlock");
+        });*/
     }
 
     private static async Task TestUniqueCore()

@@ -2,6 +2,7 @@
 
 namespace Arc.Threading;
 
+/*
 /// <summary>
 /// Represents the return value of a process.<br/>
 /// <see cref="AbortOrContinue.Abort"/>: Abort or Error.<br/>
@@ -18,4 +19,4 @@ public enum AbortOrContinue
     /// Continue the process.
     /// </summary>
     Continue,
-}
+}*/
