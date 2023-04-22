@@ -104,7 +104,8 @@ internal class Program
 
         Console.WriteLine("Sandbox.");
 
-        await TestSemaphoreLock();
+        await TestBinarySemaphore();
+        // await TestSemaphoreLock();
         // await TestUniqueCore();
         // TestThreadCore();
         // TestThreadWorker();
@@ -115,6 +116,27 @@ internal class Program
 
         await ThreadCore.Root.WaitForTerminationAsync(-1); // Wait for the termination infinitely.
         ThreadCore.Root.TerminationEvent.Set(); // The termination process is complete (#1).
+    }
+
+    private static async Task TestBinarySemaphore()
+    {
+        var semaphore = new BinarySemaphore();
+
+        semaphore.Enter();
+        Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId}, {Task.CurrentId}, {TaskId.Get()}");
+        Console.WriteLine($"Lock");
+
+        await Task.Run(async () =>
+        {
+            AsyncLocalInstance.Value = 3;
+            var a = Task.Delay(100);
+            var b = Task.Delay(100);
+            var c = Task.Delay(100);
+            await Task.WhenAll(new Task[] { a, b, c, });
+            Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId}, {Task.CurrentId}, {TaskId.Get()}");
+            semaphore.Exit();
+            Console.WriteLine($"Unlock");
+        });
     }
 
     private static async Task TestSemaphoreLock()

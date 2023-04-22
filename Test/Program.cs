@@ -7,13 +7,14 @@ namespace QuickStart;
 
 internal class TestLock
 {
-    public const int N = 1_000_000;
+    public const int N = 1_00_000;
     public const int Concurrency = 10;
 
     public int x;
 
     public SemaphoreSlim semaphoreSlim = new(1, 1);
     public SemaphoreLock semaphoreLock = new();
+    public BinarySemaphore binarySemaphore = new();
 
     public async Task Run(string name, Action<TestLock> action)
     {
@@ -197,6 +198,19 @@ internal class Program
             finally
             {
                 test.semaphoreLock.Exit();
+            }
+        });
+
+        await testLock.Run("BinarySemaphore Async", async test =>
+        {
+            try
+            {
+                await test.binarySemaphore.EnterAsync();
+                test.x++;
+            }
+            finally
+            {
+                test.binarySemaphore.Exit();
             }
         });
 
