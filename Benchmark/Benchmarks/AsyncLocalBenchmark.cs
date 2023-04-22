@@ -1,30 +1,10 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System.Threading;
+using Arc.Threading;
 using BenchmarkDotNet.Attributes;
 
 namespace Benchmark;
-
-public static class TaskId
-{
-    private static volatile int currentId;
-    private static readonly AsyncLocal<int> asyncLocal = new();
-
-    public static int Get()
-    {
-        var v = asyncLocal.Value;
-        if (v != 0)
-        {
-            return v;
-        }
-        else
-        {
-            v = Interlocked.Increment(ref currentId);
-            asyncLocal.Value = v;
-            return v;
-        }
-    }
-}
 
 [Config(typeof(BenchmarkConfig))]
 public class AsyncLocalBenchmark
@@ -61,16 +41,15 @@ public class AsyncLocalBenchmark
             AsyncLocalInstance.Value = 2;
             v = 2;
         }
-        System.Threading.Tasks.Task.CurrentId
 
         return v;
     }
 
     [Benchmark]
-    public int GetTaskId()
-        => TaskId.Get();
+    public long GetExecutionId()
+        => ExecutionId.Get();
 
-    [Benchmark]
+    // [Benchmark]
     public ExecutionContext? GetExecutionContext()
         => System.Threading.Thread.CurrentThread.ExecutionContext;
 }
