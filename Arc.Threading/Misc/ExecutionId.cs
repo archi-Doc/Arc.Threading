@@ -1,5 +1,6 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
+using System.Runtime.CompilerServices;
 using System.Threading;
 
 namespace Arc.Threading;
@@ -17,6 +18,7 @@ public static class ExecutionId
     /// Note that although collisions are very rare, identifiers are not guaranteed to be unique.
     /// </summary>
     /// <returns>The identifier.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static long Get()
     {
         var id = AsyncLocalInstance.Value;
@@ -26,14 +28,20 @@ public static class ExecutionId
         }
         else
         {
-            do
-            {
-                id = Interlocked.Increment(ref currentId);
-            }
-            while (id == 0);
-
-            AsyncLocalInstance.Value = id;
-            return id;
+            return NewId();
         }
+    }
+
+    private static long NewId()
+    {
+        long id;
+        do
+        {
+            id = Interlocked.Increment(ref currentId);
+        }
+        while (id == 0);
+
+        AsyncLocalInstance.Value = id;
+        return id;
     }
 }

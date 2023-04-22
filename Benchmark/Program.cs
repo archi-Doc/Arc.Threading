@@ -4,18 +4,13 @@
  *  PM> Install-Package BenchmarkDotNet
  */
 
-using System;
 using System.Diagnostics;
 using System.Linq;
-using System.Linq.Expressions;
 using System.Reflection;
-using System.Threading;
 using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Running;
 using PerformanceUpToDate;
-
-#pragma warning disable SA1401 // Fields should be private
 
 namespace Benchmark;
 
@@ -30,7 +25,7 @@ public class Program
         // Test.ThreadWorkerBenchmark.Benchmark();
         // ThreadPool.SetMaxThreads(workerThreads, completionPortThreads);
 
-        DebugRun<AsyncLocalBenchmark>();
+        DebugRun<LockBenchmark>();
 
         var switcher = new BenchmarkSwitcher(new[]
         {

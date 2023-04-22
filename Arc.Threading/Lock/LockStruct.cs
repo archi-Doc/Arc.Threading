@@ -12,6 +12,12 @@ public struct LockStruct : IDisposable
         this.locked = lockableObject.Enter();
     }
 
+    internal LockStruct(ILockable lockableObject, bool locked)
+    {
+        this.lockableObject = lockableObject;
+        this.locked = locked;
+    }
+
     public void Dispose()
     {
         if (this.locked)

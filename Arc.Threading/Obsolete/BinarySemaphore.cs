@@ -7,11 +7,11 @@ using System.Threading.Tasks;
 namespace Arc.Threading;
 
 /// <summary>
-/// <see cref="SemaphoreLock"/> is a simplified version of <see cref="SemaphoreSlim"/>.<br/>
+/// <see cref="BinarySemaphore"/> is a simplified version of <see cref="SemaphoreSlim"/>.<br/>
 /// Used for object mutual exclusion and can also be used in code that includes await syntax.<br/>
-/// An instance of <see cref="SemaphoreLock"/> should be a private member since it uses `lock (this)` statement to reduce memory usage.
+/// An instance of <see cref="BinarySemaphore"/> should be a private member since it uses `lock (this)` statement to reduce memory usage.
 /// </summary>
-public class SemaphoreLock : ILockable, IAsyncLockable
+public class BinarySemaphore : ILockable
 {
     private object SyncObject => this; // lock (this) is a bad practice but...
 
@@ -21,7 +21,7 @@ public class SemaphoreLock : ILockable, IAsyncLockable
     private TaskNode? head;
     private TaskNode? tail;
 
-    public SemaphoreLock()
+    public BinarySemaphore()
     {
     }
 
@@ -37,8 +37,7 @@ public class SemaphoreLock : ILockable, IAsyncLockable
     public bool Enter()
     {
         var lockTaken = false;
-        var result = false;
-        Task<bool>? task = null;
+        ValueTask<bool> task;
 
         try
         {
@@ -62,6 +61,7 @@ public class SemaphoreLock : ILockable, IAsyncLockable
             if (this.head is not null)
             {// Async waiters.
                 task = this.EnterAsync();
+                return task.GetAwaiter().GetResult();
             }
             else
             {// No async waiters.
@@ -75,7 +75,8 @@ public class SemaphoreLock : ILockable, IAsyncLockable
                 }
 
                 this.entered = true;
-                result = true;
+
+                return true;
             }
         }
         finally
@@ -86,22 +87,20 @@ public class SemaphoreLock : ILockable, IAsyncLockable
                 Monitor.Exit(this.SyncObject);
             }
         }
-
-        return task == null ? result : task.GetAwaiter().GetResult();
     }
 
     /// <summary>
     /// Asynchronously waits to acquire an exclusive lock.
     /// </summary>
     /// <returns><see langword="true"/>; the lock is acquired.</returns>
-    public Task<bool> EnterAsync()
+    public ValueTask<bool> EnterAsync()
     {
         lock (this.SyncObject)
         {
             if (!this.entered)
             {
                 this.entered = true;
-                return Task.FromResult(true);
+                return ValueTask.FromResult(true);
             }
             else
             {
@@ -119,7 +118,7 @@ public class SemaphoreLock : ILockable, IAsyncLockable
                     this.tail = node;
                 }
 
-                return node.Task;
+                return new(node.Task);
             }
         }
     }
