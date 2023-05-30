@@ -30,10 +30,6 @@ public class SemaphoreLock : ILockable, IAsyncLockable
 
     public bool IsLocked => this.entered;
 
-    /// <summary>
-    /// Acquires an exclusive lock.
-    /// </summary>
-    /// <returns><see langword="true"/>; the lock is acquired.</returns>
     public bool Enter()
     {
         var lockTaken = false;
@@ -90,10 +86,6 @@ public class SemaphoreLock : ILockable, IAsyncLockable
         return task == null ? result : task.GetAwaiter().GetResult();
     }
 
-    /// <summary>
-    /// Asynchronously waits to acquire an exclusive lock.
-    /// </summary>
-    /// <returns><see langword="true"/>; the lock is acquired.</returns>
     public Task<bool> EnterAsync()
     {
         lock (this.SyncObject)
@@ -124,10 +116,6 @@ public class SemaphoreLock : ILockable, IAsyncLockable
         }
     }
 
-    /// <summary>
-    /// Releases an exclusive lock.
-    /// </summary>
-    /// <exception cref="SynchronizationLockException">The current thread does not own the lock.</exception>
     public void Exit()
     {
         lock (this.SyncObject)
