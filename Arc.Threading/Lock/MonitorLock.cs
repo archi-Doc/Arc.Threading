@@ -9,6 +9,9 @@ namespace Arc.Threading;
 /// </summary>
 public class MonitorLock : ILockable
 {
+    public LockStruct Lock()
+        => new LockStruct(this);
+
     public bool IsLocked
         => Monitor.IsEntered(this.syncObject);
 
