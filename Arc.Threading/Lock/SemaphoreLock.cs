@@ -13,6 +13,8 @@ namespace Arc.Threading;
 /// </summary>
 public class SemaphoreLock : ILockable, IAsyncLockable
 {
+    private const int DefaultSpinCountBeforeWait = 35 * 4;
+
     private object SyncObject => this; // lock (this) is a bad practice but...
 
     private volatile bool entered = false;
@@ -40,7 +42,7 @@ public class SemaphoreLock : ILockable, IAsyncLockable
         {
             if (this.entered)
             {
-                var spinCount = 35 * 4; // SpinWait.SpinCountforSpinBeforeWait * 4
+                var spinCount = DefaultSpinCountBeforeWait; // SpinWait.SpinCountforSpinBeforeWait * 4
                 SpinWait spinner = default;
                 while (spinner.Count < spinCount)
                 {
