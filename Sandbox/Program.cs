@@ -58,7 +58,7 @@ public static class TaskId
 
 public readonly struct TaskId2
 {
-    private static volatile int currentId ;
+    private static volatile int currentId;
     private static readonly AsyncLocal<TaskId2> asyncLocal = new();
 
     public static TaskId2 Get()
@@ -104,8 +104,8 @@ internal class Program
 
         Console.WriteLine("Sandbox.");
 
-        await TestBinarySemaphore();
-        // await TestSemaphoreLock();
+        // await TestBinarySemaphore();
+        await TestSemaphoreLock();
         // await TestUniqueCore();
         // TestThreadCore();
         // TestThreadWorker();
@@ -161,6 +161,22 @@ internal class Program
             semaphore.Exit();
             Console.WriteLine($"Unlock");
         });
+
+        Console.WriteLine();
+        await semaphore.EnterAsync(1000);
+        Console.WriteLine($"Entered");
+
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(500);
+            semaphore.Exit();
+        });
+
+        var result = await semaphore.EnterAsync(1000);
+        Console.WriteLine($"Try enter {result.ToString()}");
+
+        semaphore.Exit();
+        Console.WriteLine($"Exited");
 
         /*Monitor.Enter(semaphore);
         Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId}");

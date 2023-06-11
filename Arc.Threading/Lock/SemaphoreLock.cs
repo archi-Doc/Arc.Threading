@@ -1,6 +1,7 @@
 // Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
+using System.Diagnostics.Contracts;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -13,6 +14,8 @@ namespace Arc.Threading;
 /// </summary>
 public class SemaphoreLock : ILockable, IAsyncLockable
 {
+    private const int DefaultSpinCountBeforeWait = 35 * 4;
+
     private object SyncObject => this; // lock (this) is a bad practice but...
 
     private volatile bool entered = false;
@@ -40,7 +43,7 @@ public class SemaphoreLock : ILockable, IAsyncLockable
         {
             if (this.entered)
             {
-                var spinCount = 35 * 4; // SpinWait.SpinCountforSpinBeforeWait * 4
+                var spinCount = DefaultSpinCountBeforeWait; // SpinWait.SpinCountforSpinBeforeWait * 4
                 SpinWait spinner = default;
                 while (spinner.Count < spinCount)
                 {
@@ -116,6 +119,44 @@ public class SemaphoreLock : ILockable, IAsyncLockable
         }
     }
 
+    public Task<bool> EnterAsync(int millisecondsTimeout)
+        => this.EnterAsync(millisecondsTimeout, default);
+
+    public Task<bool> EnterAsync(int millisecondsTimeout, CancellationToken cancellationToken)
+    {
+        lock (this.SyncObject)
+        {
+            if (!this.entered)
+            {
+                this.entered = true;
+                return Task.FromResult(true);
+            }
+            else
+            {
+                if (millisecondsTimeout == 0)
+                {// No waiting
+                    return Task.FromResult(false);
+                }
+
+                var node = new TaskNode();
+
+                if (this.head == null)
+                {
+                    this.head = node;
+                    this.tail = node;
+                }
+                else
+                {
+                    this.tail!.Next = node;
+                    node.Prev = this.tail;
+                    this.tail = node;
+                }
+
+                return this.WaitUntilCountOrTimeoutAsync(node, millisecondsTimeout, cancellationToken);
+            }
+        }
+    }
+
     public void Exit()
     {
         lock (this.SyncObject)
@@ -145,8 +186,41 @@ public class SemaphoreLock : ILockable, IAsyncLockable
         }
     }
 
-    private void RemoveAsyncWaiter(TaskNode task)
+    private async Task<bool> WaitUntilCountOrTimeoutAsync(TaskNode taskNode, int millisecondsTimeout, CancellationToken cancellationToken)
     {
+        if (millisecondsTimeout < -1)
+        {
+            millisecondsTimeout = -1;
+        }
+
+        using (var cts = cancellationToken.CanBeCanceled ?
+            CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, default) :
+            new CancellationTokenSource())
+        {
+            var waitCompleted = Task.WhenAny(taskNode.Task, Task.Delay(millisecondsTimeout, cts.Token));
+            if (taskNode.Task == await waitCompleted.ConfigureAwait(false))
+            {
+                cts.Cancel();
+                return true;
+            }
+        }
+
+        lock (this.SyncObject)
+        {
+            if (this.RemoveAsyncWaiter(taskNode))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return false;
+            }
+        }
+
+        return await taskNode.Task.ConfigureAwait(false);
+    }
+
+    private bool RemoveAsyncWaiter(TaskNode task)
+    {
+        var wasInList = this.head == task || task.Prev != null;
+
         if (task.Next is not null)
         {
             task.Next.Prev = task.Prev;
@@ -169,6 +243,8 @@ public class SemaphoreLock : ILockable, IAsyncLockable
 
         task.Next = null;
         task.Prev = null;
+
+        return wasInList;
     }
 
     private sealed class TaskNode : TaskCompletionSource<bool>
