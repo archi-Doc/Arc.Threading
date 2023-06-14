@@ -70,13 +70,13 @@ public class SemaphoreDual
 
     public bool CanEnter1 => Volatile.Read(ref this.enteredTime) == 0;
 
-    public Task<long> Enter1Async()
+    public ValueTask<long> Enter1Async()
         => this.Enter1Async(-1, default);
 
-    public Task<long> Enter1Async(int millisecondsTimeout)
+    public ValueTask<long> Enter1Async(int millisecondsTimeout)
         => this.Enter1Async(millisecondsTimeout, default);
 
-    public Task<long> Enter1Async(int millisecondsTimeout, CancellationToken cancellationToken)
+    public ValueTask<long> Enter1Async(int millisecondsTimeout, CancellationToken cancellationToken)
     {
         TaskNode node;
 
@@ -85,13 +85,13 @@ public class SemaphoreDual
             if (this.CanEnter1)
             {// Can enter
                 this.enteredTime = Stopwatch.GetTimestamp();
-                return Task.FromResult(this.enteredTime);
+                return ValueTask.FromResult(this.enteredTime);
             }
             else
             {
                 if (millisecondsTimeout == 0)
                 {// No waiting
-                    return Task.FromResult(0L);
+                    return ValueTask.FromResult(0L);
                 }
 
                 node = new TaskNode();
@@ -199,7 +199,7 @@ public class SemaphoreDual
         }
     }
 
-    private async Task<long> WaitUntilCountOrTimeoutAsync(TaskNode taskNode, int millisecondsTimeout, CancellationToken cancellationToken)
+    private async ValueTask<long> WaitUntilCountOrTimeoutAsync(TaskNode taskNode, int millisecondsTimeout, CancellationToken cancellationToken)
     {
         if (millisecondsTimeout < -1)
         {
