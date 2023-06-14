@@ -1,28 +1,72 @@
 // Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
+using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
+#pragma warning disable SA1202
+
 namespace Arc.Threading;
 
+internal static class SemaphoreDualTask
+{
+    private const int IntervalInMilliseconds = 1_000;
+
+    static SemaphoreDualTask()
+    {
+        Core = new TaskCore(null, Process);
+    }
+
+    private static async Task Process(object? obj)
+    {
+        var core = (TaskCore)obj!;
+        while (await core.Delay(IntervalInMilliseconds))
+        {
+            var array = Dictionary.Keys.ToArray();
+            Dictionary.Clear();
+
+            if (array.Length != 0)
+            {
+                var currentTime = Stopwatch.GetTimestamp();
+                foreach (var x in array)
+                {
+                    x.ExitIfExpired(currentTime);
+                }
+            }
+        }
+    }
+
+    public static void Add(SemaphoreDual semaphore)
+        => Dictionary.TryAdd(semaphore, 0);
+
+    private static readonly TaskCore Core;
+    private static readonly ConcurrentDictionary<SemaphoreDual, int> Dictionary = new();
+}
+
 /// <summary>
-/// <see cref="SemaphoreToken"/> adds an identifier called token to semaphore locks,<br/>
-/// and allows you to set the expiration date of the lock.
+/// <see cref="SemaphoreDual"/> adds an expiration date to the lock feature.<br/>
+/// It requires two steps of Enter() and TryLock() to actually acquire a lock.
 /// </summary>
-public class SemaphoreToken
+public class SemaphoreDual
 {
     private object SyncObject => this; // lock (this) is a bad practice but...
 
     private long enteredTime = 0;
+    private long lockLimit;
     private int waitCount;
     private int countOfWaitersPulsedToWake;
     private TaskNode? head;
     private TaskNode? tail;
 
-    public SemaphoreToken()
+    public SemaphoreDual(int lockLimitInMilliseconds)
     {
+        if (lockLimitInMilliseconds > 0)
+        {
+            this.lockLimit = Stopwatch.Frequency * lockLimitInMilliseconds / 1_000;
+        }
     }
 
     public bool IsFree => Volatile.Read(ref this.enteredTime) == 0;
@@ -96,6 +140,8 @@ public class SemaphoreToken
             }
             else
             {
+                SemaphoreDualTask.Add(this);
+
                 var node = new TaskNode();
 
                 if (this.head == null)
@@ -185,6 +231,19 @@ public class SemaphoreToken
             }
 
             return true;
+        }
+    }
+
+    internal void ExitIfExpired(long currentTime)
+    {
+        if (this.enteredTime == 0)
+        {
+            return;
+        }
+
+        lock (this.SyncObject)
+        {
+
         }
     }
 
