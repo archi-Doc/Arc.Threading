@@ -4,6 +4,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -26,10 +27,10 @@ internal static class SemaphoreDualTask
         while (await core.Delay(IntervalInMilliseconds))
         {
             var array = Dictionary.Keys.ToArray();
-            Dictionary.Clear();
-
             if (array.Length != 0)
             {
+                Dictionary.Clear();
+
                 var currentTime = Stopwatch.GetTimestamp();
                 foreach (var x in array)
                 {
@@ -48,7 +49,7 @@ internal static class SemaphoreDualTask
 
 /// <summary>
 /// <see cref="SemaphoreDual"/> adds an expiration date to the lock feature.<br/>
-/// It requires two steps of Enter() and TryLock() to actually acquire a lock.
+/// It requires two steps of Enter1() and Enter2() to actually acquire a lock.
 /// </summary>
 public class SemaphoreDual
 {
@@ -56,8 +57,6 @@ public class SemaphoreDual
 
     private long enteredTime = 0;
     private long lockLimit;
-    private int waitCount;
-    private int countOfWaitersPulsedToWake;
     private TaskNode? head;
     private TaskNode? tail;
 
@@ -69,107 +68,22 @@ public class SemaphoreDual
         }
     }
 
-    public bool IsFree => Volatile.Read(ref this.enteredTime) == 0;
+    public bool CanEnter1 => Volatile.Read(ref this.enteredTime) == 0;
 
-    public bool IsLocked => Volatile.Read(ref this.enteredTime) != 0;
+    public Task<long> Enter1Async()
+        => this.Enter1Async(-1, default);
 
-    public long Enter()
+    public Task<long> Enter1Async(int millisecondsTimeout)
+        => this.Enter1Async(millisecondsTimeout, default);
+
+    public Task<long> Enter1Async(int millisecondsTimeout, CancellationToken cancellationToken)
     {
-        var lockTaken = false;
-        long time = 0;
-        Task<long>? task = null;
+        TaskNode node;
 
-        try
-        {
-            if (this.IsLocked)
-            {
-                var spinCount = SemaphoreLock.DefaultSpinCountBeforeWait; // SpinWait.SpinCountforSpinBeforeWait * 4
-                SpinWait spinner = default;
-                while (spinner.Count < spinCount)
-                {
-                    spinner.SpinOnce(sleep1Threshold: -1);
-                    if (this.IsFree)
-                    {
-                        break;
-                    }
-                }
-            }
-
-            Monitor.Enter(this.SyncObject, ref lockTaken);
-            this.waitCount++;
-
-            if (this.head is not null)
-            {// Async waiters.
-                task = this.EnterAsync();
-            }
-            else
-            {// No async waiters.
-                while (this.IsLocked)
-                {
-                    Monitor.Wait(this.SyncObject);
-                    if (this.countOfWaitersPulsedToWake != 0)
-                    {
-                        this.countOfWaitersPulsedToWake--;
-                    }
-                }
-
-                this.enteredTime = Stopwatch.GetTimestamp();
-                time = this.enteredTime;
-            }
-        }
-        finally
-        {
-            if (lockTaken)
-            {
-                this.waitCount--;
-                Monitor.Exit(this.SyncObject);
-            }
-        }
-
-        return task == null ? time : task.GetAwaiter().GetResult();
-    }
-
-    public Task<long> EnterAsync()
-    {
         lock (this.SyncObject)
         {
-            if (this.IsFree)
-            {
-                this.enteredTime = Stopwatch.GetTimestamp();
-                return Task.FromResult(this.enteredTime);
-            }
-            else
-            {
-                SemaphoreDualTask.Add(this);
-
-                var node = new TaskNode();
-
-                if (this.head == null)
-                {
-                    this.head = node;
-                    this.tail = node;
-                }
-                else
-                {
-                    this.tail!.Next = node;
-                    node.Prev = this.tail;
-                    this.tail = node;
-                }
-
-                return node.Task;
-            }
-        }
-    }
-
-    public Task<long> EnterAsync(int millisecondsTimeout)
-        => this.EnterAsync(millisecondsTimeout, default);
-
-    public Task<long> EnterAsync(int millisecondsTimeout, CancellationToken cancellationToken)
-    {
-        lock (this.SyncObject)
-        {
-            if (this.IsFree)
-            {
+            if (this.CanEnter1)
+            {// Can enter
                 this.enteredTime = Stopwatch.GetTimestamp();
                 return Task.FromResult(this.enteredTime);
             }
@@ -180,8 +94,7 @@ public class SemaphoreDual
                     return Task.FromResult(0L);
                 }
 
-                var node = new TaskNode();
-
+                node = new TaskNode();
                 if (this.head == null)
                 {
                     this.head = node;
@@ -193,57 +106,96 @@ public class SemaphoreDual
                     node.Prev = this.tail;
                     this.tail = node;
                 }
-
-                return this.WaitUntilCountOrTimeoutAsync(node, millisecondsTimeout, cancellationToken);
             }
         }
+
+        // Enter task added.
+        SemaphoreDualTask.Add(this);
+        return this.WaitUntilCountOrTimeoutAsync(node, millisecondsTimeout, cancellationToken);
     }
 
-    public bool Exit(long time)
+    public bool Exit1(long time)
     {
         lock (this.SyncObject)
         {
-            if (this.IsFree)
-            {
-                throw new SynchronizationLockException();
-            }
-            else if (this.enteredTime != time)
+            if (this.CanEnter1 || this.enteredTime != time)
             {
                 return false;
             }
 
-            var waitersToNotify = Math.Min(1, this.waitCount) - this.countOfWaitersPulsedToWake;
-            if (waitersToNotify == 1)
-            {
-                this.countOfWaitersPulsedToWake += 1;
-                Monitor.Pulse(this.SyncObject);
-            }
-
-            if (this.head is not null && this.waitCount == 0)
-            {
-                var waiterTask = this.head;
-                this.RemoveAsyncWaiter(waiterTask);
-                waiterTask.TrySetResult(result: Stopwatch.GetTimestamp());
-            }
-            else
-            {
-                this.enteredTime = 0;
-            }
-
+            this.ExitInternal();
             return true;
         }
     }
 
+    public bool Enter2(long time)
+    {
+        var ret = false;
+        if (Volatile.Read(ref this.enteredTime) != time)
+        {
+            return ret;
+        }
+
+        bool taken = false;
+        try
+        {
+            Monitor.Enter(this.SyncObject, ref taken);
+            if (taken && this.enteredTime == time)
+            {
+                ret = true;
+            }
+        }
+        finally
+        {
+            if (taken && !ret)
+            {
+                Monitor.Exit(this.SyncObject);
+            }
+        }
+
+        return ret;
+    }
+
+    public bool Exit2(long time)
+    {
+        if (Volatile.Read(ref this.enteredTime) != time)
+        {
+            return false;
+        }
+
+        Monitor.Exit(this.SyncObject);
+        return true;
+    }
+
     internal void ExitIfExpired(long currentTime)
     {
-        if (this.enteredTime == 0)
+        if (this.CanEnter1)
         {
             return;
         }
 
         lock (this.SyncObject)
         {
+            if ((this.enteredTime + this.lockLimit) < currentTime)
+            {// Exit
+                this.ExitInternal();
+            }
+        }
+    }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void ExitInternal()
+    {
+        if (this.head is not null)
+        {
+            var waiterTask = this.head;
+            this.RemoveAsyncWaiter(waiterTask);
+            this.enteredTime = Stopwatch.GetTimestamp();
+            waiterTask.TrySetResult(result: this.enteredTime);
+        }
+        else
+        {
+            this.enteredTime = 0;
         }
     }
 

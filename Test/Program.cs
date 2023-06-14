@@ -15,6 +15,7 @@ internal class TestLock
     public SemaphoreSlim semaphoreSlim = new(1, 1);
     public SemaphoreLock semaphoreLock = new();
     public BinarySemaphore binarySemaphore = new();
+    public SemaphoreDual semaphoreDual = new(1_000);
 
     public async Task Run(string name, Action<TestLock> action)
     {
@@ -198,6 +199,20 @@ internal class Program
             finally
             {
                 test.semaphoreLock.Exit();
+            }
+        });
+
+        await testLock.Run("SemaphoreDual Async", async test =>
+        {
+            long time = 0;
+            try
+            {
+                time = await test.semaphoreDual.Enter1Async();
+                test.x++;
+            }
+            finally
+            {
+                test.semaphoreDual.Exit1(time);
             }
         });
 
