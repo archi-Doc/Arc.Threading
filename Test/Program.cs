@@ -97,12 +97,28 @@ internal class Program
             ThreadCore.Root.Terminate(); // Send a termination signal to the root.
         };
 
-        await TestLock();
+        await TestSemaphoreDual();
+        // await TestLock();
         // await TestThreadCore_Termination();
         // await TestAsyncPulseEvent();
 
         await ThreadCore.Root.WaitForTerminationAsync(-1); // Wait for the termination infinitely.
         ThreadCore.Root.TerminationEvent.Set(); // The termination process is complete (#1).
+    }
+
+    private static async Task TestSemaphoreDual()
+    {
+        var semaphore = new SemaphoreDual(1_000);
+        var time = await semaphore.Enter1Async();
+        await Console.Out.WriteLineAsync("Enter1");
+
+        await Console.Out.WriteLineAsync($"Enter2: {semaphore.Enter2(time).ToString()}");
+        await Console.Out.WriteLineAsync($"Exit2: {semaphore.Exit2(time).ToString()}");
+
+        var time2 = await semaphore.Enter1Async();
+        await Console.Out.WriteLineAsync("Enter1");
+
+        semaphore.Exit1(time);
     }
 
     private static async Task TestLock()
