@@ -13,7 +13,7 @@ namespace Arc.Threading;
 
 internal static class SemaphoreDualTask
 {
-    private const int IntervalInMilliseconds = 1_000;
+    internal const int IntervalInMilliseconds = 200;
 
     static SemaphoreDualTask()
     {
@@ -30,20 +30,24 @@ internal static class SemaphoreDualTask
             {
                 Dictionary.Clear();
 
-                var currentTime = Stopwatch.GetTimestamp();
                 foreach (var x in array)
                 {
-                    x.ExitIfExpired(currentTime);
+                    x.ExitIfExpired();
                 }
             }
+
+            currentCount++;
         }
     }
 
     public static void Add(SemaphoreDual semaphore)
         => Dictionary.TryAdd(semaphore, 0);
 
+    public static uint CurrentCount => currentCount;
+
     private static readonly TaskCore Core;
     private static readonly ConcurrentDictionary<SemaphoreDual, int> Dictionary = new();
+    private static volatile uint currentCount;
 }
 
 /// <summary>
@@ -54,34 +58,44 @@ public class SemaphoreDual
 {
     private object SyncObject => this; // lock (this) is a bad practice but...
 
-    private long enteredTime = 0;
-    private long lockLimit;
+    private readonly uint countLimit;
+    private uint nextId = 1;
+    private uint reservedId = 0;
+    private uint reservedCount;
     private TaskNode? head;
     private TaskNode? tail;
 
     public SemaphoreDual(int lockLimitInMilliseconds)
     {
-        if (lockLimitInMilliseconds > 0)
+        if (lockLimitInMilliseconds >= 0)
         {
-            this.lockLimit = Stopwatch.Frequency * lockLimitInMilliseconds / 1_000;
+            this.countLimit = (uint)(lockLimitInMilliseconds / SemaphoreDualTask.IntervalInMilliseconds);
+            if (this.countLimit == 0)
+            {
+                this.countLimit = 1;
+            }
+        }
+        else
+        {
+            this.countLimit = uint.MaxValue;
         }
     }
 
-    public bool CanEnter1 => Volatile.Read(ref this.enteredTime) == 0;
+    public bool CanReserve => Volatile.Read(ref this.reservedId) == 0;
 
-    public ValueTask<long> Enter1Async()
-        => this.Enter1Async(-1, default);
+    public ValueTask<long> ReserveAsync()
+        => this.ReserveAsync(-1, default);
 
-    public ValueTask<long> Enter1Async(int millisecondsTimeout)
-        => this.Enter1Async(millisecondsTimeout, default);
+    public ValueTask<long> ReserveAsync(int millisecondsTimeout)
+        => this.ReserveAsync(millisecondsTimeout, default);
 
-    public ValueTask<long> Enter1Async(int millisecondsTimeout, CancellationToken cancellationToken)
+    public ValueTask<long> ReserveAsync(int millisecondsTimeout, CancellationToken cancellationToken)
     {
         TaskNode node;
 
         lock (this.SyncObject)
         {
-            if (this.CanEnter1)
+            if (this.CanReserve)
             {// Can enter
                 this.enteredTime = Stopwatch.GetTimestamp();
                 return ValueTask.FromResult(this.enteredTime);
@@ -117,7 +131,7 @@ public class SemaphoreDual
     {
         lock (this.SyncObject)
         {
-            if (this.CanEnter1 || this.enteredTime != time)
+            if (this.CanReserve || this.enteredTime != time)
             {
                 return false;
             }
@@ -168,7 +182,7 @@ public class SemaphoreDual
 
     internal void ExitIfExpired(long currentTime)
     {
-        if (this.CanEnter1)
+        if (this.CanReserve)
         {
             return;
         }
