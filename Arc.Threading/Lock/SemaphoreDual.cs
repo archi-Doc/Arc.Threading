@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 
 namespace Arc.Threading;
 
-internal static class SemaphoreDualTask
+/*internal static class SemaphoreDualTask
 {
     private const int IntervalInMilliseconds = 1_000;
 
@@ -271,4 +271,4 @@ public class SemaphoreDual
         {
         }
     }
-}
+}*/

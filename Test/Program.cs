@@ -15,7 +15,7 @@ internal class TestLock
     public SemaphoreSlim semaphoreSlim = new(1, 1);
     public SemaphoreLock semaphoreLock = new();
     public BinarySemaphore binarySemaphore = new();
-    public SemaphoreDual semaphoreDual = new(1_000);
+    // public SemaphoreDual semaphoreDual = new(1_000);
 
     public async Task Run(string name, Action<TestLock> action)
     {
@@ -97,8 +97,8 @@ internal class Program
             ThreadCore.Root.Terminate(); // Send a termination signal to the root.
         };
 
-        await TestSemaphoreDual();
-        // await TestLock();
+        // await TestSemaphoreDual();
+        await TestLock();
         // await TestThreadCore_Termination();
         // await TestAsyncPulseEvent();
 
@@ -106,7 +106,7 @@ internal class Program
         ThreadCore.Root.TerminationEvent.Set(); // The termination process is complete (#1).
     }
 
-    private static async Task TestSemaphoreDual()
+    /*private static async Task TestSemaphoreDual()
     {
         var semaphore = new SemaphoreDual(1_000);
         var time = await semaphore.Enter1Async();
@@ -119,7 +119,7 @@ internal class Program
         await Console.Out.WriteLineAsync("Enter1");
 
         semaphore.Exit1(time);
-    }
+    }*/
 
     private static async Task TestLock()
     {
@@ -218,7 +218,7 @@ internal class Program
             }
         });
 
-        await testLock.Run("SemaphoreDual Async", async test =>
+        /*await testLock.Run("SemaphoreDual Async", async test =>
         {
             long time = 0;
             try
@@ -230,7 +230,7 @@ internal class Program
             {
                 test.semaphoreDual.Exit1(time);
             }
-        });
+        });*/
 
         await testLock.Run("BinarySemaphore Async", async test =>
         {
