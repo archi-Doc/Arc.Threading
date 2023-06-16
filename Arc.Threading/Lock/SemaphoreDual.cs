@@ -83,28 +83,29 @@ public class SemaphoreDual
 
     public bool CanReserve => Volatile.Read(ref this.reservedId) == 0;
 
-    public ValueTask<long> ReserveAsync()
+    public ValueTask<uint> ReserveAsync()
         => this.ReserveAsync(-1, default);
 
-    public ValueTask<long> ReserveAsync(int millisecondsTimeout)
+    public ValueTask<uint> ReserveAsync(int millisecondsTimeout)
         => this.ReserveAsync(millisecondsTimeout, default);
 
-    public ValueTask<long> ReserveAsync(int millisecondsTimeout, CancellationToken cancellationToken)
+    public ValueTask<uint> ReserveAsync(int millisecondsTimeout, CancellationToken cancellationToken)
     {
         TaskNode node;
 
         lock (this.SyncObject)
         {
             if (this.CanReserve)
-            {// Can enter
-                this.enteredTime = Stopwatch.GetTimestamp();
-                return ValueTask.FromResult(this.enteredTime);
+            {// Can reserve
+                this.reservedId = this.nextId++;
+                this.reservedCount = SemaphoreDualTask.CurrentCount;
+                return ValueTask.FromResult(this.reservedId);
             }
             else
             {
                 if (millisecondsTimeout == 0)
                 {// No waiting
-                    return ValueTask.FromResult(0L);
+                    return ValueTask.FromResult(0u);
                 }
 
                 node = new TaskNode();
@@ -122,16 +123,16 @@ public class SemaphoreDual
             }
         }
 
-        // Enter task added.
+        // Reserve task added.
         SemaphoreDualTask.Add(this);
         return this.WaitUntilCountOrTimeoutAsync(node, millisecondsTimeout, cancellationToken);
     }
 
-    public bool Exit1(long time)
+    public bool Release(uint reservationId)
     {
         lock (this.SyncObject)
         {
-            if (this.CanReserve || this.enteredTime != time)
+            if (this.CanReserve || this.reservedId != reservationId)
             {
                 return false;
             }
@@ -141,7 +142,7 @@ public class SemaphoreDual
         }
     }
 
-    public bool Enter2(long time)
+    public bool Enter(uint id)
     {
         var ret = false;
         if (Volatile.Read(ref this.enteredTime) != time)
@@ -169,7 +170,7 @@ public class SemaphoreDual
         return ret;
     }
 
-    public bool Exit2(long time)
+    public bool Exit(long time)
     {
         if (Volatile.Read(ref this.enteredTime) != time)
         {
@@ -180,7 +181,7 @@ public class SemaphoreDual
         return true;
     }
 
-    internal void ExitIfExpired(long currentTime)
+    internal void ExitIfExpired()
     {
         if (this.CanReserve)
         {
@@ -189,7 +190,7 @@ public class SemaphoreDual
 
         lock (this.SyncObject)
         {
-            if ((this.enteredTime + this.lockLimit) < currentTime)
+            if ((this.reservedCount + this.countLimit) < SemaphoreDualTask.CurrentCount)
             {// Exit
                 this.ExitInternal();
             }
