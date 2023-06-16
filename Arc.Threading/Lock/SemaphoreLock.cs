@@ -1,7 +1,6 @@
 // Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
-using System.Diagnostics.Contracts;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -14,7 +13,7 @@ namespace Arc.Threading;
 /// </summary>
 public class SemaphoreLock : ILockable, IAsyncLockable
 {
-    private const int DefaultSpinCountBeforeWait = 35 * 4;
+    internal const int DefaultSpinCountBeforeWait = 35 * 4;
 
     private object SyncObject => this; // lock (this) is a bad practice but...
 
