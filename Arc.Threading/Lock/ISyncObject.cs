@@ -2,7 +2,7 @@
 
 namespace Arc.Threading;
 
-public interface ISyncObjec
+public interface ISyncObject
 {
     /// <summary>
     /// Gets the object on which to acquire the monitor lock.
