@@ -32,7 +32,7 @@ public class SemaphoreLock : ILockable, IAsyncLockable
 
     public bool IsLocked => this.entered;
 
-    public bool TryFastEnter()
+    /*public bool TryFastEnter()
     {
         lock (this.SyncObject)
         {
@@ -46,7 +46,7 @@ public class SemaphoreLock : ILockable, IAsyncLockable
                 return true;
             }
         }
-    }
+    }*/
 
     public bool Enter()
     {
