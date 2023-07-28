@@ -32,6 +32,22 @@ public class SemaphoreLock : ILockable, IAsyncLockable
 
     public bool IsLocked => this.entered;
 
+    public bool TryFastEnter()
+    {
+        lock (this.SyncObject)
+        {
+            if (this.entered)
+            {
+                return false;
+            }
+            else
+            {
+                this.entered = true;
+                return true;
+            }
+        }
+    }
+
     public bool Enter()
     {
         var lockTaken = false;
