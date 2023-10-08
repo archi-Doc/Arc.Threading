@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 namespace Arc.Threading;
 
 /// <summary>
-/// <see cref="SemaphoreLock"/> is a simplified version of <see cref="SemaphoreSlim"/>.<br/>
+/// <see cref="SemaphoreLock"/> is a simplified version of <see cref="SemaphoreSlim"/> (no <see cref="OperationCanceledException"/>).<br/>
 /// Used for object mutual exclusion and can also be used in code that includes await syntax.<br/>
 /// An instance of <see cref="SemaphoreLock"/> should be a private member since it uses `lock (this)` statement to reduce memory usage.
 /// </summary>
@@ -48,6 +48,10 @@ public class SemaphoreLock : ILockable, IAsyncLockable
         }
     }*/
 
+    /// <summary>
+    /// Blocks the current thread until it can enter the <see cref="SemaphoreLock"/>.
+    /// </summary>
+    /// <returns><see langword="true"/>; Entered.</returns>
     public bool Enter()
     {
         var lockTaken = false;
@@ -104,6 +108,10 @@ public class SemaphoreLock : ILockable, IAsyncLockable
         return task == null ? result : task.GetAwaiter().GetResult();
     }
 
+    /// <summary>
+    /// Asynchronously waits to enter the <see cref="SemaphoreLock"/>.
+    /// </summary>
+    /// <returns><see langword="true"/>; Entered.</returns>
     public Task<bool> EnterAsync()
     {
         lock (this.SyncObject)
@@ -134,9 +142,22 @@ public class SemaphoreLock : ILockable, IAsyncLockable
         }
     }
 
+    /// <summary>
+    /// Asynchronously waits to enter the <see cref="SemaphoreLock"/>.
+    /// </summary>
+    /// <param name="millisecondsTimeout">The duration in milliseconds to wait: -1 for infinite wait, 0 for no wait.</param>
+    /// <returns><see langword="true"/>; Entered.<br/>
+    /// <see langword="false"/>; Not entered (timeout).</returns>
     public Task<bool> EnterAsync(int millisecondsTimeout)
         => this.EnterAsync(millisecondsTimeout, default);
 
+    /// <summary>
+    /// Asynchronously waits to enter the <see cref="SemaphoreLock"/>.
+    /// </summary>
+    /// <param name="millisecondsTimeout">The duration in milliseconds to wait: -1 for infinite wait, 0 for no wait.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns><see langword="true"/>; Entered.<br/>
+    /// <see langword="false"/>; Not entered (timeout/canceled).</returns>
     public Task<bool> EnterAsync(int millisecondsTimeout, CancellationToken cancellationToken)
     {
         lock (this.SyncObject)
@@ -224,7 +245,7 @@ public class SemaphoreLock : ILockable, IAsyncLockable
         {
             if (this.RemoveAsyncWaiter(taskNode))
             {
-                cancellationToken.ThrowIfCancellationRequested();
+                // cancellationToken.ThrowIfCancellationRequested();
                 return false;
             }
         }
