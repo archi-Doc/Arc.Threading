@@ -178,6 +178,27 @@ internal class Program
         semaphore.Exit();
         Console.WriteLine($"Exited");
 
+        Console.WriteLine();
+
+        result = await semaphore.EnterAsync(1000);
+        Console.WriteLine($"Try enter {result.ToString()}");
+
+        result = await semaphore.EnterAsync(1000);
+        Console.WriteLine($"Try enter {result.ToString()}");
+
+        var cts = new CancellationTokenSource();
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(100);
+            cts.Cancel();
+        });
+
+        result = await semaphore.EnterAsync(1000, cts.Token);
+        Console.WriteLine($"Try enter {result.ToString()}");
+
+        semaphore.Exit();
+        Console.WriteLine($"Exited");
+
         /*Monitor.Enter(semaphore);
         Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId}");
         Console.WriteLine($"Lock");
