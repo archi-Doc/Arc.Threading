@@ -297,4 +297,24 @@ internal class Program
         private AsyncPulseEvent pulseEvent;
         private int index;
     }
+
+    private class ExampleTask : TaskCore
+    {
+        public ExampleTask(object parent)
+            : base(null, Process)
+        {
+            this.parent = parent;
+        }
+
+        private static async Task Process(object? parameter)
+        {
+            var core = (ExampleTask)parameter!;
+
+            while (await core.Delay(1000).ConfigureAwait(false))
+            {
+            }
+        }
+
+        private readonly object parent;
+    }
 }
