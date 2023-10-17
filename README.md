@@ -1,9 +1,7 @@
 ## Arc.Threading
 ![Nuget](https://img.shields.io/nuget/v/Arc.Threading) ![Build and Test](https://github.com/archi-Doc/Arc.Threading/workflows/Build%20and%20Test/badge.svg)
 
-Arc.Threading is a support library for Task/Thread.
-
-This document may be inaccurate. It would be greatly appreciated if anyone could make additions and corrections.
+**Arc.Threading** is a support library for Task/Thread.
 
 
 
@@ -138,6 +136,32 @@ internal class CustomCore : ThreadCore
     public int CustomPropertyIfYouNeed { get; set; }
 }
 ```
+
+
+
+```csharp
+private class ExampleTask : TaskCore
+{
+    public ExampleTask(object parent)
+        : base(null, Process)
+    {
+        this.parent = parent;
+    }
+
+    private static async Task Process(object? parameter)
+    {
+        var core = (ExampleTask)parameter!;
+
+        while (await core.Delay(1000).ConfigureAwait(false))
+        {
+        }
+    }
+
+    private readonly object parent;
+}
+```
+
+
 
 
 
