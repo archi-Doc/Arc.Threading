@@ -296,22 +296,27 @@ public class ThreadCoreBase : IDisposable
     /// </summary>
     /// <param name="newParent">The new parent.</param>
     /// <returns><see langword="true"/>: The parent is successfully changed.</returns>
-    public bool ChangeParent(ThreadCoreBase newParent)
+    public bool ChangeParent(ThreadCoreBase? newParent)
     {
         lock (TreeSync)
         {// checked
-            if (this.parent != null && newParent != null && !newParent.IsTerminated)
-            {
-                this.parent.hashSet.Remove(this);
-
-                this.parent = newParent;
-                newParent.hashSet.Add(this);
-                return true;
-            }
-            else
-            {
+            if (newParent is not null && newParent.IsTerminated)
+            {// Terminated
                 return false;
             }
+
+            if (this.parent is not null)
+            {
+                this.parent.hashSet.Remove(this);
+            }
+
+            this.parent = newParent;
+            if (newParent is not null)
+            {
+                newParent.hashSet.Add(this);
+            }
+
+            return true;
         }
     }
 
