@@ -104,8 +104,9 @@ internal class Program
 
         Console.WriteLine("Sandbox.");
 
+        await TestSingleTask();
         // await TestBinarySemaphore();
-        await TestSemaphoreLock();
+        // await TestSemaphoreLock();
         // await TestUniqueCore();
         // TestThreadCore();
         // TestThreadWorker();
@@ -116,6 +117,51 @@ internal class Program
 
         await ThreadCore.Root.WaitForTerminationAsync(-1); // Wait for the termination infinitely.
         ThreadCore.Root.TerminationEvent.Set(); // The termination process is complete (#1).
+    }
+
+    private static async Task TestSingleTask()
+    {
+        var singleTask = new SingleTask();
+
+        var task = singleTask.TryRun(() =>
+        {
+            Thread.Sleep(500);
+            Console.WriteLine("1");
+            Thread.Sleep(500);
+        });
+
+        Console.WriteLine($"task: {task is not null}");
+
+        var task2 = singleTask.TryRun(() =>
+        {
+            Thread.Sleep(500);
+            Console.WriteLine("2");
+            Thread.Sleep(500);
+        });
+
+        if (task2 is not null)
+        {
+            await task2;
+        }
+
+        Console.WriteLine($"task2: {task2 is not null}");
+
+        if (task is not null)
+        {
+            await task;
+        }
+
+        var task3 = singleTask.TryRun(async () =>
+        {
+            Thread.Sleep(500);
+            Console.WriteLine("3");
+            Thread.Sleep(500);
+        });
+
+        if (task3 is not null)
+        {
+            await task3;
+        }
     }
 
     private static async Task TestBinarySemaphore()
