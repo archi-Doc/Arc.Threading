@@ -429,7 +429,7 @@ public class ThreadCoreBase : IDisposable
 
         while (true)
         {
-            lock (TreeSync)
+            //lock (TreeSync)
             {
                 this.Clean(out var numberOfActiveObjects);
 

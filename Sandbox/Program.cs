@@ -113,6 +113,13 @@ internal class Program
         // await TestTaskWorker();
         // await TestTaskWorker2();
 
+        var taskcore = new TaskCore(ThreadCore.Root, async core =>
+        {
+            Console.WriteLine("TaskCore: Start");
+            await Task.Delay(1_000);
+            Console.WriteLine("TaskCore: End");
+        });
+
         Console.WriteLine("Terminated.");
 
         await ThreadCore.Root.WaitForTerminationAsync(-1); // Wait for the termination infinitely.
