@@ -1,6 +1,7 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Arc.Threading;
@@ -104,7 +105,7 @@ internal class Program
 
         Console.WriteLine("Sandbox.");
 
-        await TestSingleTask();
+        // await TestSingleTask();
         // await TestBinarySemaphore();
         // await TestSemaphoreLock();
         // await TestUniqueCore();
@@ -112,6 +113,7 @@ internal class Program
         // TestThreadWorker();
         // await TestTaskWorker();
         // await TestTaskWorker2();
+        await TestMicroSleep();
 
         var taskcore = new TaskCore(ThreadCore.Root, async core =>
         {
@@ -124,6 +126,21 @@ internal class Program
 
         await ThreadCore.Root.WaitForTerminationAsync(-1); // Wait for the termination infinitely.
         ThreadCore.Root.TerminationEvent.Set(); // The termination process is complete (#1).
+    }
+
+    private static async Task TestMicroSleep()
+    {
+        var microSleep = new MicroSleep();
+        var stopwatch = new Stopwatch();
+        
+        Console.WriteLine(microSleep.CurrentMode);
+
+        stopwatch.Start();
+        microSleep.Sleep(1_000);
+        var mics = (double)stopwatch.ElapsedTicks / Stopwatch.Frequency * 1_000_000;
+        Console.WriteLine(mics);
+
+        microSleep.Dispose();
     }
 
     private static async Task TestSingleTask()
