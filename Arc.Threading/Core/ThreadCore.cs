@@ -94,7 +94,6 @@ public class ThreadCore : ThreadCoreBase
         internal long tv_nsec; // Nanoseconds.
 #pragma warning restore SA1307 // Accessible fields should begin with upper-case letter
 #pragma warning restore SA1310 // Field names should not contain underscore
-
     }
 
     [System.Runtime.InteropServices.DllImport("libc")]
