@@ -132,7 +132,7 @@ internal class Program
     {
         var microSleep = new MicroSleep();
         var stopwatch = new Stopwatch();
-        
+
         Console.WriteLine(microSleep.CurrentMode);
 
         stopwatch.Start();
@@ -186,27 +186,6 @@ internal class Program
         {
             await task3;
         }
-    }
-
-    private static async Task TestBinarySemaphore()
-    {
-        var semaphore = new BinarySemaphore();
-
-        semaphore.Enter();
-        Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId}, {Task.CurrentId}, {TaskId.Get()}");
-        Console.WriteLine($"Lock");
-
-        await Task.Run(async () =>
-        {
-            AsyncLocalInstance.Value = 3;
-            var a = Task.Delay(100);
-            var b = Task.Delay(100);
-            var c = Task.Delay(100);
-            await Task.WhenAll(new Task[] { a, b, c, });
-            Console.WriteLine($"{Thread.CurrentThread.ManagedThreadId}, {Task.CurrentId}, {TaskId.Get()}");
-            semaphore.Exit();
-            Console.WriteLine($"Unlock");
-        });
     }
 
     private static async Task TestSemaphoreLock()

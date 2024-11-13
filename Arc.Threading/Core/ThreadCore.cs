@@ -578,7 +578,7 @@ public class ThreadCoreBase : IDisposable
     public ThreadCoreBase? GetParent() => this.parent;
 
     internal void Clean(out int numberOfActiveObjects)
-    {// lock(TreeSync) required
+    {// lock (TreeSync) required
         numberOfActiveObjects = 0;
         CleanCore(this, ref numberOfActiveObjects);
 

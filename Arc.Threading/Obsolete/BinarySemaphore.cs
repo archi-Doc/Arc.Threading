@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 
 namespace Arc.Threading;
 
+/*
 /// <summary>
 /// <see cref="BinarySemaphore"/> is a simplified version of <see cref="SemaphoreSlim"/>.<br/>
 /// Used for object mutual exclusion and can also be used in code that includes await syntax.<br/>
@@ -194,4 +195,4 @@ public class BinarySemaphore : ILockable
         {
         }
     }
-}
+}*/

@@ -15,8 +15,6 @@ public class LockBenchmarkSlim
     private Semaphore semaphore = new(1, 1);
     private SemaphoreSlim semaphoreSlim = new(1, 1);
     private SemaphoreLock semaphoreLock = new();
-    private SemaphoreLock2 semaphoreLock2 = new();
-    private BinarySemaphore binarySemaphore = new();
 
     public LockBenchmarkSlim()
     {
