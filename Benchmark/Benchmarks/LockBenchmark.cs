@@ -3,20 +3,18 @@
 using System.Threading;
 using System.Threading.Tasks;
 using Arc.Threading;
-using Benchmark;
 using BenchmarkDotNet.Attributes;
 
-namespace PerformanceUpToDate;
+namespace Benchmark;
 
 [Config(typeof(BenchmarkConfig))]
 public class LockBenchmark
 {
     private object syncObject = new();
+    private Lock lockObject = new();
     private Semaphore semaphore = new(1, 1);
     private SemaphoreSlim semaphoreSlim = new(1, 1);
     private SemaphoreLock semaphoreLock = new();
-    private SemaphoreLock2 semaphoreLock2 = new();
-    private BinarySemaphore binarySemaphore = new();
 
     public LockBenchmark()
     {
@@ -27,26 +25,30 @@ public class LockBenchmark
     {
     }
 
-    /*[Benchmark]
-    public object CreateObject()
-        => new();
+    [Benchmark]
+    public object NewObject() => new object();
 
     [Benchmark]
-    public Semaphore CreateSemaphore()
-        => new(1, 1);
+    public Lock NewLock() => new Lock();
 
     [Benchmark]
-    public SemaphoreSlim CreateSemaphoreSlim()
-        => new(1, 1);
+    public SemaphoreLock NewSemaphoreLock() => new SemaphoreLock();
 
     [Benchmark]
-    public SemaphoreLock CreateSemaphoreLock()
-        => new();*/
+    public SemaphoreSlim NewSemaphoreSlim() => new SemaphoreSlim(1, 1);
 
-    // [Benchmark]
+    [Benchmark]
     public void Lock()
     {
         lock (this.syncObject)
+        {
+        }
+    }
+
+    [Benchmark]
+    public void LockObject()
+    {
+        using (this.lockObject.EnterScope())
         {
         }
     }
@@ -111,7 +113,7 @@ public class LockBenchmark
         }
     }
 
-    // [Benchmark]
+    [Benchmark]
     public void SemaphoreLock_Using()
     {
         using (((ILockable)this.semaphoreLock).Lock())
@@ -170,40 +172,6 @@ public class LockBenchmark
             if (lockTaken)
             {
                 this.semaphoreLock.Exit();
-            }
-        }
-    }
-
-    [Benchmark]
-    public async Task SemaphoreLock2_EnterAsync()
-    {
-        var lockTaken = false;
-        try
-        {
-            lockTaken = await this.semaphoreLock2.EnterAsync();
-        }
-        finally
-        {
-            if (lockTaken)
-            {
-                this.semaphoreLock2.Exit();
-            }
-        }
-    }
-
-    // [Benchmark]
-    public async Task BinarySemaphoreEnterAsyncExit()
-    {
-        var lockTaken = false;
-        try
-        {
-            lockTaken = await this.binarySemaphore.EnterAsync();
-        }
-        finally
-        {
-            if (lockTaken)
-            {
-                this.binarySemaphore.Exit();
             }
         }
     }

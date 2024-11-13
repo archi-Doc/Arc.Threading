@@ -10,7 +10,6 @@ using System.Reflection;
 using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Running;
-using PerformanceUpToDate;
 
 namespace Benchmark;
 
@@ -31,7 +30,8 @@ public class Program
         {
             typeof(AsyncLocalBenchmark),
             typeof(LockBenchmark),
-            typeof(Test.TemplateBenchmark),
+            typeof(LockBenchmarkSlim),
+            typeof(TemplateBenchmark),
         });
         switcher.Run(args);
     }
