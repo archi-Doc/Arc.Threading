@@ -17,7 +17,7 @@ public class SemaphoreLock : ILockable, IAsyncLockable
 
     private object SyncObject => this; // lock (this) is a bad practice but...
 
-    private volatile bool entered = false;
+    private bool entered = false;
     private int waitCount;
     private int countOfWaitersPulsedToWake;
     private TaskNode? head;
@@ -30,7 +30,7 @@ public class SemaphoreLock : ILockable, IAsyncLockable
     public LockStruct Lock()
         => new LockStruct(this);
 
-    public bool IsLocked => this.entered;
+    public bool IsLocked => Volatile.Read(ref this.entered);
 
     /*public bool TryFastEnter()
     {
@@ -60,14 +60,14 @@ public class SemaphoreLock : ILockable, IAsyncLockable
 
         try
         {
-            if (this.entered)
+            if (Volatile.Read(ref this.entered))
             {
                 var spinCount = DefaultSpinCountBeforeWait; // SpinWait.SpinCountforSpinBeforeWait * 4
                 SpinWait spinner = default;
                 while (spinner.Count < spinCount)
                 {
                     spinner.SpinOnce(sleep1Threshold: -1);
-                    if (!this.entered)
+                    if (!Volatile.Read(ref this.entered))
                     {
                         break;
                     }
@@ -83,7 +83,7 @@ public class SemaphoreLock : ILockable, IAsyncLockable
             }
             else
             {// No async waiters.
-                while (this.entered)
+                while (Volatile.Read(ref this.entered))
                 {
                     Monitor.Wait(this.SyncObject);
                     if (this.countOfWaitersPulsedToWake != 0)
@@ -92,7 +92,7 @@ public class SemaphoreLock : ILockable, IAsyncLockable
                     }
                 }
 
-                this.entered = true;
+                Volatile.Write(ref this.entered, true);
                 result = true;
             }
         }
@@ -116,9 +116,9 @@ public class SemaphoreLock : ILockable, IAsyncLockable
     {
         lock (this.SyncObject)
         {
-            if (!this.entered)
+            if (!Volatile.Read(ref this.entered))
             {
-                this.entered = true;
+                Volatile.Write(ref this.entered, true);
                 return Task.FromResult(true);
             }
             else
@@ -162,9 +162,9 @@ public class SemaphoreLock : ILockable, IAsyncLockable
     {
         lock (this.SyncObject)
         {
-            if (!this.entered)
+            if (!Volatile.Read(ref this.entered))
             {
-                this.entered = true;
+                Volatile.Write(ref this.entered, true);
                 return Task.FromResult(true);
             }
             else
@@ -197,7 +197,7 @@ public class SemaphoreLock : ILockable, IAsyncLockable
     {
         lock (this.SyncObject)
         {
-            if (!this.entered)
+            if (!Volatile.Read(ref this.entered))
             {
                 throw new SynchronizationLockException();
             }
@@ -217,7 +217,7 @@ public class SemaphoreLock : ILockable, IAsyncLockable
             }
             else
             {
-                this.entered = false;
+                Volatile.Write(ref this.entered, false);
             }
         }
     }
