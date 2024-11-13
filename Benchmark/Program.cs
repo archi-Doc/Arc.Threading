@@ -30,6 +30,7 @@ public class Program
         {
             typeof(AsyncLocalBenchmark),
             typeof(LockBenchmark),
+            typeof(LockBenchmarkSlim),
             typeof(TemplateBenchmark),
         });
         switcher.Run(args);

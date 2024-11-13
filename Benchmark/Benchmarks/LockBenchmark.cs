@@ -27,22 +27,6 @@ public class LockBenchmark
     {
     }
 
-    /*[Benchmark]
-    public object CreateObject()
-        => new();
-
-    [Benchmark]
-    public Semaphore CreateSemaphore()
-        => new(1, 1);
-
-    [Benchmark]
-    public SemaphoreSlim CreateSemaphoreSlim()
-        => new(1, 1);
-
-    [Benchmark]
-    public SemaphoreLock CreateSemaphoreLock()
-        => new();*/
-
     [Benchmark]
     public object NewObject() => new object();
 
@@ -51,6 +35,9 @@ public class LockBenchmark
 
     [Benchmark]
     public SemaphoreLock NewSemaphoreLock() => new SemaphoreLock();
+
+    [Benchmark]
+    public SemaphoreSlim NewSemaphoreSlim() => new SemaphoreSlim(1, 1);
 
     [Benchmark]
     public void Lock()
