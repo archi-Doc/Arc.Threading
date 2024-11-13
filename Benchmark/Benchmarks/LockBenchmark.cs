@@ -12,6 +12,7 @@ namespace PerformanceUpToDate;
 public class LockBenchmark
 {
     private object syncObject = new();
+    private Lock lockObject = new();
     private Semaphore semaphore = new(1, 1);
     private SemaphoreSlim semaphoreSlim = new(1, 1);
     private SemaphoreLock semaphoreLock = new();
@@ -43,10 +44,27 @@ public class LockBenchmark
     public SemaphoreLock CreateSemaphoreLock()
         => new();*/
 
-    // [Benchmark]
+    [Benchmark]
+    public object NewObject() => new object();
+
+    [Benchmark]
+    public Lock NewLock() => new Lock();
+
+    [Benchmark]
+    public SemaphoreLock NewSemaphoreLock() => new SemaphoreLock();
+
+    [Benchmark]
     public void Lock()
     {
         lock (this.syncObject)
+        {
+        }
+    }
+
+    [Benchmark]
+    public void LockObject()
+    {
+        using (this.lockObject.EnterScope())
         {
         }
     }
