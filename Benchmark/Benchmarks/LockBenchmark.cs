@@ -3,10 +3,9 @@
 using System.Threading;
 using System.Threading.Tasks;
 using Arc.Threading;
-using Benchmark;
 using BenchmarkDotNet.Attributes;
 
-namespace PerformanceUpToDate;
+namespace Benchmark;
 
 [Config(typeof(BenchmarkConfig))]
 public class LockBenchmark
@@ -129,7 +128,7 @@ public class LockBenchmark
         }
     }
 
-    // [Benchmark]
+    [Benchmark]
     public void SemaphoreLock_Using()
     {
         using (((ILockable)this.semaphoreLock).Lock())
@@ -192,7 +191,7 @@ public class LockBenchmark
         }
     }
 
-    [Benchmark]
+    // [Benchmark]
     public async Task SemaphoreLock2_EnterAsync()
     {
         var lockTaken = false;
