@@ -122,6 +122,7 @@ internal class Program
 
     private static async Task TestLock()
     {
+        var lockObject = new Lock();
         var obj = new object();
         Monitor.Enter(obj);
         // await Task.Delay(1000); // Error
@@ -152,6 +153,14 @@ internal class Program
         await testLock.Run("lock", test =>
         {
             lock (test)
+            {
+                test.x++;
+            }
+        });
+
+        await testLock.Run("Lock", test =>
+        {
+            using (lockObject.EnterScope())
             {
                 test.x++;
             }

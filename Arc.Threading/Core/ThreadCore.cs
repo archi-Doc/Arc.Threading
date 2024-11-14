@@ -235,7 +235,7 @@ public class ThreadCoreBase : IDisposable
     protected void Prepare(ThreadCoreBase? parent)
     {
         this.CancellationToken = this.cancellationTokenSource.Token;
-        lock (TreeSync)
+        using (TreeLock.EnterScope())
         {
             if (++cleanupCount >= CleanupThreshold)
             {
@@ -296,7 +296,7 @@ public class ThreadCoreBase : IDisposable
     /// <returns><see langword="true"/>: The parent is successfully changed.</returns>
     public bool ChangeParent(ThreadCoreBase? newParent)
     {
-        lock (TreeSync)
+        using (TreeLock.EnterScope())
         {// checked
             if (newParent is not null && newParent.IsTerminated)
             {// Terminated
@@ -332,7 +332,7 @@ public class ThreadCoreBase : IDisposable
 
     /*public void LockTreeSync()
     {// Check deadlock
-        lock (TreeSync)
+        using (TreeLock.EnterScope())
         {// checked
         }
     }*/
@@ -348,7 +348,7 @@ public class ThreadCoreBase : IDisposable
         }
 
         List<CancellationTokenSource>? ctsToCancel = null;
-        lock (TreeSync)
+        using (TreeLock.EnterScope())
         {// checked
             TerminateCore(this);
         }
@@ -391,7 +391,7 @@ public class ThreadCoreBase : IDisposable
 
         while (true)
         {
-            lock (TreeSync)
+            using (TreeLock.EnterScope())
             {
                 this.Clean(out var numberOfActiveObjects);
 
@@ -427,7 +427,7 @@ public class ThreadCoreBase : IDisposable
 
         while (true)
         {
-            lock (TreeSync)
+            using (TreeLock.EnterScope())
             {
                 this.Clean(out var numberOfActiveObjects);
 
@@ -524,7 +524,7 @@ public class ThreadCoreBase : IDisposable
     /// </summary>
     public void Pause()
     {
-        lock (TreeSync)
+        using (TreeLock.EnterScope())
         {// checked
             PauseCore(this);
         }
@@ -544,7 +544,7 @@ public class ThreadCoreBase : IDisposable
     /// </summary>
     public void Resume()
     {
-        lock (TreeSync)
+        using (TreeLock.EnterScope())
         {// checked
             ResumeCore(this);
         }
@@ -565,7 +565,7 @@ public class ThreadCoreBase : IDisposable
     /// <returns>An array of child objects.</returns>
     public ThreadCoreBase[] GetChildren()
     {
-        lock (TreeSync)
+        using (TreeLock.EnterScope())
         {// checked
             return this.hashSet.ToArray();
         }
@@ -578,7 +578,7 @@ public class ThreadCoreBase : IDisposable
     public ThreadCoreBase? GetParent() => this.parent;
 
     internal void Clean(out int numberOfActiveObjects)
-    {// lock (TreeSync) required
+    {// using (TreeLock.EnterScope()) required
         numberOfActiveObjects = 0;
         CleanCore(this, ref numberOfActiveObjects);
 
@@ -624,7 +624,7 @@ public class ThreadCoreBase : IDisposable
 
     protected const int CleanupThreshold = 16;
 
-    private static object TreeSync { get; } = new object();
+    private static Lock TreeLock { get; } = new();
 
     private static int cleanupCount = 0;
 
@@ -672,7 +672,7 @@ public class ThreadCoreBase : IDisposable
                     this.Terminate();
                 }
 
-                lock (TreeSync)
+                using (TreeLock.EnterScope())
                 {// checked
                     if (this.parent != null)
                     {
