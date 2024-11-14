@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Threading;
 using System.Threading.Tasks;
 
 #pragma warning disable SA1401 // Fields should be private
@@ -218,7 +219,7 @@ public class TaskWorker<TWork> : TaskCore
                 while (true)
                 {
                     TaskWorkInterface<TWork>? workInterface;
-                    lock (worker.syncObject)
+                    using (worker.lockObject.EnterScope())
                     {
                         workInterface = worker.standbyList.FirstOrDefault();
                         if (workInterface == null)
@@ -246,7 +247,7 @@ public class TaskWorker<TWork> : TaskCore
             }
             else
             {// Start a new task for each work.
-                lock (worker.syncObject)
+                using (worker.lockObject.EnterScope())
                 {
                     while (true)
                     {
@@ -306,7 +307,7 @@ public class TaskWorker<TWork> : TaskCore
         }
 
         TaskWorkInterface<TWork>? workInterface;
-        lock (this.syncObject)
+        using (this.lockObject.EnterScope())
         {
             if (this.workToInterface.TryGetValue(work, out workInterface))
             {
@@ -335,7 +336,7 @@ public class TaskWorker<TWork> : TaskCore
         }
 
         TaskWorkInterface<TWork>? workInterface;
-        lock (this.syncObject)
+        using (this.lockObject.EnterScope())
         {
             if (this.workToInterface.TryGetValue(work, out workInterface))
             {
@@ -380,7 +381,7 @@ public class TaskWorker<TWork> : TaskCore
         while (!this.IsTerminated)
         {
             Task? task;
-            lock (this.syncObject)
+            using (this.lockObject.EnterScope())
             {// Get a standby or working task.
                 task = this.standbyList.LastOrDefault()?.task ?? this.workingList.LastOrDefault()?.task;
                 if (task == null)
@@ -458,7 +459,7 @@ public class TaskWorker<TWork> : TaskCore
 
     internal void FinishWork2(TaskWorkInterface<TWork> workInterface)
     {
-        lock (this.syncObject)
+        using (this.lockObject.EnterScope())
         {
             this.workToInterface.Remove(workInterface.Work);
             var node = workInterface.node;
@@ -471,7 +472,7 @@ public class TaskWorker<TWork> : TaskCore
 
     internal void FinishWork(TaskWorkInterface<TWork> workInterface)
     {
-        lock (this.syncObject)
+        using (this.lockObject.EnterScope())
         {
             this.workToInterface.Remove(workInterface.Work);
             var node = workInterface.node;
@@ -502,7 +503,7 @@ public class TaskWorker<TWork> : TaskCore
 
     internal WorkDelegate method;
     internal CanStartConcurrentlyDelegate? canStartConcurrently;
-    private object syncObject = new();
+    private Lock lockObject = new();
     private Dictionary<TWork, TaskWorkInterface<TWork>> workToInterface = new();
     private LinkedList<TaskWorkInterface<TWork>> standbyList = new();
     private LinkedList<TaskWorkInterface<TWork>> workingList = new();
