@@ -32,21 +32,28 @@ public class SemaphoreLock : ILockable, IAsyncLockable
 
     public bool IsLocked => Volatile.Read(ref this.entered);
 
-    /*public bool TryFastEnter()
+    /// <summary>
+    /// Attempts to acquires an exclusive lock without blocking.<br/>
+    /// If an exclusive lock is already held by another thread, return <see langword="false"/> without waiting.
+    /// </summary>
+    /// <returns>
+    /// <see langword="true"/> if the lock was successfully acquired; otherwise, <see langword="false"/>.
+    /// </returns>
+    public bool TryEnter()
     {
         lock (this.SyncObject)
         {
-            if (this.entered)
+            if (!Volatile.Read(ref this.entered))
             {
-                return false;
+                Volatile.Write(ref this.entered, true);
+                return true;
             }
             else
             {
-                this.entered = true;
-                return true;
+                return false;
             }
         }
-    }*/
+    }
 
     /// <summary>
     /// Blocks the current thread until it can enter the <see cref="SemaphoreLock"/>.
