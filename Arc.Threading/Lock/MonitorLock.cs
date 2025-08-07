@@ -9,7 +9,7 @@ namespace Arc.Threading;
 /// </summary>
 public class MonitorLock : ILockable
 {
-    public LockStruct Lock()
+    public LockStruct EnterScope()
         => new LockStruct(this);
 
     public bool IsLocked

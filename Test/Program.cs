@@ -133,7 +133,7 @@ internal class Program
         await Task.Delay(100);
         semaphore.Exit();
 
-        using (semaphore.Lock())
+        using (semaphore.EnterScope())
         {
             await Task.Delay(100);
         }
@@ -194,7 +194,7 @@ internal class Program
 
         await testLock.Run("SemaphoreLock.Lock()", test =>
         {
-            using (test.semaphoreLock.Lock())
+            using (test.semaphoreLock.EnterScope())
             {
                 test.x++;
             }

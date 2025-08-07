@@ -10,7 +10,7 @@ public interface IAsyncLockable : ILockable
     /// Create a <see cref="LockStruct"/> from an <see cref="ILockable"/> object for using statement.
     /// </summary>
     /// <returns><see cref="LockStruct"/>.</returns>
-    async Task<LockStruct> LockAsync()
+    async Task<LockStruct> EnterScopeAsync()
     {
         var lockTaken = await this.EnterAsync().ConfigureAwait(false);
         return new(this, lockTaken);

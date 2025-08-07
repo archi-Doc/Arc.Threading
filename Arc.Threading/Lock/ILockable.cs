@@ -10,7 +10,7 @@ public interface ILockable
     ///  Create a <see cref="LockStruct"/> from an <see cref="ILockable"/> object for using statement.
     /// </summary>
     /// <returns><see cref="LockStruct"/>.</returns>
-    LockStruct Lock() => new LockStruct(this);
+    LockStruct EnterScope() => new LockStruct(this);
 
     /// <summary>
     /// Acquires an exclusive lock.
