@@ -52,7 +52,7 @@ public class LockBenchmarkSlim
     [Benchmark]
     public void SemaphoreLock_Using()
     {
-        using (((ILockable)this.semaphoreLock).Lock())
+        using (((ILockable)this.semaphoreLock).EnterScope())
         {
         }
     }

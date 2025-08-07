@@ -27,7 +27,7 @@ public class SemaphoreLock : ILockable, IAsyncLockable
     {
     }
 
-    public LockStruct Lock()
+    public LockStruct EnterScope()
         => new LockStruct(this);
 
     public bool IsLocked => Volatile.Read(ref this.entered);

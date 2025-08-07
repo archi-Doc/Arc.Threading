@@ -116,7 +116,7 @@ public class LockBenchmark
     [Benchmark]
     public void SemaphoreLock_Using()
     {
-        using (((ILockable)this.semaphoreLock).Lock())
+        using (((ILockable)this.semaphoreLock).EnterScope())
         {
         }
     }
@@ -154,7 +154,7 @@ public class LockBenchmark
     // [Benchmark]
     public async Task SemaphoreLock_UsingAsync()
     {
-        using (await ((IAsyncLockable)this.semaphoreLock).LockAsync().ConfigureAwait(false))
+        using (await ((IAsyncLockable)this.semaphoreLock).EnterScopeAsync().ConfigureAwait(false))
         {
         }
     }
