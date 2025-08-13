@@ -24,10 +24,11 @@ public class Program
         // Test.ThreadWorkerBenchmark.Benchmark();
         // ThreadPool.SetMaxThreads(workerThreads, completionPortThreads);
 
-        DebugRun<LockBenchmark>();
+        DebugRun<SourcePrimitiveBenchmark>();
 
         var switcher = new BenchmarkSwitcher(new[]
         {
+            typeof(SourcePrimitiveBenchmark),
             typeof(AsyncLocalBenchmark),
             typeof(LockBenchmark),
             typeof(LockBenchmarkSlim),
