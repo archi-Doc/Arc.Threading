@@ -8,6 +8,7 @@ using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Arc.Threading;
@@ -18,6 +19,8 @@ namespace Benchmark;
 [Config(typeof(BenchmarkConfig))]
 public class SourcePrimitiveBenchmark
 {
+    private static readonly AsyncLocal<uint> taskIdentifier = new();
+
     public SourcePrimitiveBenchmark()
     {
     }
@@ -27,7 +30,7 @@ public class SourcePrimitiveBenchmark
     {
     }
 
-    [Benchmark]
+    /*[Benchmark]
     public TaskCompletionSource Create_TaskCompletionSource()
     {
         return new();
@@ -49,8 +52,31 @@ public class SourcePrimitiveBenchmark
     public ReaderWriterLockSlim Create_ReaderWriterLockSlim()
     {
         return new();
+    }*/
+
+    [Benchmark]
+    public uint Get_TaskIdentifier()
+    {
+        taskIdentifier.Value = 12345;
+        return taskIdentifier.Value;
     }
 
+    [Benchmark]
+    public uint Get_ExecutionId()
+        => this.GetExecutionId();
+
+    private uint GetExecutionId()
+    {
+        if (Thread.CurrentThread.ExecutionContext is { } executionContext)
+        {
+            RuntimeHelpers.GetHashCode(executionContext);
+            return (uint)Thread.CurrentThread.ExecutionContext.GetHashCode();
+        }
+        else
+        {
+            return 0;
+        }
+    }
     /*[Benchmark]
     public async Task<int> Test_TaskCompletionSource()
     {

@@ -113,7 +113,8 @@ internal class Program
         // TestThreadWorker();
         // await TestTaskWorker();
         // await TestTaskWorker2();
-        await TestMicroSleep();
+        // await TestMicroSleep();
+        await TestSemaphoreLock2();
 
         var taskcore = new TaskCore(ThreadCore.Root, async core =>
         {
@@ -153,6 +154,11 @@ internal class Program
         Console.WriteLine(mics);
 
         microSleep.Dispose();
+    }
+
+    private static async Task TestSemaphoreLock2()
+    {
+        var semaphoreLock = new SemaphoreLock();
     }
 
     private static async Task TestSingleTask()
