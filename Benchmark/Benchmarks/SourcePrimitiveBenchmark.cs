@@ -10,6 +10,7 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using Arc.Threading;
 using BenchmarkDotNet.Attributes;
 
 namespace Benchmark;
@@ -39,6 +40,18 @@ public class SourcePrimitiveBenchmark
     }
 
     [Benchmark]
+    public SemaphoreLock Create_SemaphoreLock()
+    {
+        return new();
+    }
+
+    [Benchmark]
+    public ReaderWriterLockSlim Create_ReaderWriterLockSlim()
+    {
+        return new();
+    }
+
+    /*[Benchmark]
     public async Task<int> Test_TaskCompletionSource()
     {
         var tcs = new TaskCompletionSource<int>();
@@ -72,5 +85,5 @@ public class SourcePrimitiveBenchmark
         cts.Token.Register(static s => ((TaskCompletionSource<object?>)s!).TrySetResult(null), tcs);
         await tcs.Task;
         return 42;
-    }
+    }*/
 }
