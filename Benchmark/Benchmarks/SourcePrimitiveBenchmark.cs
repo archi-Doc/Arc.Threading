@@ -57,6 +57,12 @@ public class SourcePrimitiveBenchmark
     [Benchmark]
     public uint Get_TaskIdentifier()
     {
+        var id = Task.CurrentId;
+        Task.Run(() =>
+        {
+            Console.WriteLine(Task.CurrentId);
+        }).Wait();
+        Console.WriteLine(Task.CurrentId);
         taskIdentifier.Value = 12345;
         return taskIdentifier.Value;
     }
