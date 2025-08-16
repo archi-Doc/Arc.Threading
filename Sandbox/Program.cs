@@ -122,6 +122,18 @@ internal class Program
             Console.WriteLine("TaskCore: End");
         });
 
+        Console.WriteLine();
+
+        var semaphoreLock = new SemaphoreLock();
+        Console.WriteLine($"EnterAsync: {await semaphoreLock.EnterAsync(500)}");
+        semaphoreLock.Exit();
+        Console.WriteLine($"Exit");
+
+        Console.WriteLine($"EnterAsync: {await semaphoreLock.EnterAsync(500)}");
+        Console.WriteLine($"EnterAsync: {await semaphoreLock.EnterAsync(500)}");
+        semaphoreLock.Exit();
+        Console.WriteLine($"Exit");
+
         Console.WriteLine("Terminated.");
 
         await ThreadCore.Root.WaitForTerminationAsync(-1); // Wait for the termination infinitely.
