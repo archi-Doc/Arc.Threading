@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 namespace Arc.Threading;
 
 /// <summary>
-/// <see cref="SemaphoreLock"/> is a simplified version of <see cref="SemaphoreSlim"/> (no <see cref="OperationCanceledException"/>).<br/>
+/// <see cref="SemaphoreLock"/> is a simplified version of <see cref="SemaphoreSlim"/>.<br/>
 /// Used for object mutual exclusion and can also be used in code that includes await syntax.<br/>
 /// An instance of <see cref="SemaphoreLock"/> should be a private member since it uses `lock (this)` statement to reduce memory usage.
 /// </summary>
@@ -150,22 +150,44 @@ public class SemaphoreLock : ILockable, IAsyncLockable
     }
 
     /// <summary>
-    /// Asynchronously waits to enter the <see cref="SemaphoreLock"/>.
+    /// Asynchronously waits to enter the <see cref="SemaphoreLock"/> with a specified timeout and cancellation token.
     /// </summary>
-    /// <param name="millisecondsTimeout">The duration in milliseconds to wait: -1 for infinite wait, 0 for no wait.</param>
-    /// <returns><see langword="true"/>; Entered.<br/>
-    /// <see langword="false"/>; Not entered (timeout).</returns>
-    public Task<bool> EnterAsync(int millisecondsTimeout)
-        => this.EnterAsync(millisecondsTimeout, default);
+    /// <param name="timeoutInMilliseconds">The duration in milliseconds to wait: -1 for infinite wait, 0 for no wait.</param>
+    /// <returns>
+    /// A task that returns <see langword="true"/> if the lock was acquired; otherwise, <see langword="false"/> if the timeout elapsed or the operation was canceled.
+    /// </returns>
+    public Task<bool> EnterAsync(int timeoutInMilliseconds)
+        => this.EnterAsync(TimeSpan.FromMilliseconds(timeoutInMilliseconds), default);
 
     /// <summary>
-    /// Asynchronously waits to enter the <see cref="SemaphoreLock"/>.
+    /// Asynchronously waits to enter the <see cref="SemaphoreLock"/> with a specified timeout and cancellation token.
     /// </summary>
-    /// <param name="millisecondsTimeout">The duration in milliseconds to wait: -1 for infinite wait, 0 for no wait.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns><see langword="true"/>; Entered.<br/>
-    /// <see langword="false"/>; Not entered (timeout/canceled).</returns>
-    public Task<bool> EnterAsync(int millisecondsTimeout, CancellationToken cancellationToken)
+    /// <param name="timeout">The maximum time to wait for the lock. If <see cref="TimeSpan.Zero"/>, the method returns immediately.</param>
+    /// <returns>
+    /// A task that returns <see langword="true"/> if the lock was acquired; otherwise, <see langword="false"/> if the timeout elapsed or the operation was canceled.
+    /// </returns>
+    public Task<bool> EnterAsync(TimeSpan timeout)
+        => this.EnterAsync(timeout, default);
+
+    /// <summary>
+    /// Asynchronously waits to enter the <see cref="SemaphoreLock"/> with a specified timeout and cancellation token.
+    /// </summary>
+    /// <param name="cancellationToken">A token to observe while waiting for the lock to be acquired.</param>
+    /// <returns>
+    /// A task that returns <see langword="true"/> if the lock was acquired; otherwise, <see langword="false"/> if the timeout elapsed or the operation was canceled.
+    /// </returns>
+    public Task<bool> EnterAsync(CancellationToken cancellationToken)
+        => this.EnterAsync(Timeout.InfiniteTimeSpan, cancellationToken);
+
+    /// <summary>
+    /// Asynchronously waits to enter the <see cref="SemaphoreLock"/> with a specified timeout and cancellation token.
+    /// </summary>
+    /// <param name="timeout">The maximum time to wait for the lock. If <see cref="TimeSpan.Zero"/>, the method returns immediately.</param>
+    /// <param name="cancellationToken">A token to observe while waiting for the lock to be acquired.</param>
+    /// <returns>
+    /// A task that returns <see langword="true"/> if the lock was acquired; otherwise, <see langword="false"/> if the timeout elapsed or the operation was canceled.
+    /// </returns>
+    public Task<bool> EnterAsync(TimeSpan timeout, CancellationToken cancellationToken)
     {
         lock (this.SyncObject)
         {
@@ -176,7 +198,7 @@ public class SemaphoreLock : ILockable, IAsyncLockable
             }
             else
             {
-                if (millisecondsTimeout == 0)
+                if (timeout == TimeSpan.Zero)
                 {// No waiting
                     return Task.FromResult(false);
                 }
@@ -195,7 +217,41 @@ public class SemaphoreLock : ILockable, IAsyncLockable
                     this.tail = node;
                 }
 
-                return this.WaitUntilCountOrTimeoutAsync(node, millisecondsTimeout, cancellationToken);
+                return (timeout == Timeout.InfiniteTimeSpan && !cancellationToken.CanBeCanceled) ?
+                    node.Task :
+                    this.WaitUntilCountOrTimeoutAsync(node, timeout, cancellationToken);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Releases the exclusive lock held by the current thread or task.
+    /// </summary>
+    public void Exit()
+    {
+        lock (this.SyncObject)
+        {
+            if (!Volatile.Read(ref this.entered))
+            {
+                throw new SynchronizationLockException();
+            }
+
+            var waitersToNotify = Math.Min(1, this.waitCount) - this.countOfWaitersPulsedToWake;
+            if (waitersToNotify == 1)
+            {
+                this.countOfWaitersPulsedToWake += 1;
+                Monitor.Pulse(this.SyncObject);
+            }
+
+            if (this.head is not null && this.waitCount == 0)
+            {
+                var waiterTask = this.head;
+                this.RemoveAsyncWaiter(waiterTask);
+                waiterTask.TrySetResult(result: true);
+            }
+            else
+            {
+                Volatile.Write(ref this.entered, false);
             }
         }
     }
@@ -235,73 +291,18 @@ public class SemaphoreLock : ILockable, IAsyncLockable
         }
     }*/
 
-    public void Exit()
+    /*private async Task<bool> WaitUntilCountOrTimeoutAsync(TaskNode taskNode, int timeoutInMilliseconds, CancellationToken cancellationToken)
     {
-        lock (this.SyncObject)
+        if (timeoutInMilliseconds < -1)
         {
-            if (!Volatile.Read(ref this.entered))
-            {
-                throw new SynchronizationLockException();
-            }
-
-            var waitersToNotify = Math.Min(1, this.waitCount) - this.countOfWaitersPulsedToWake;
-            if (waitersToNotify == 1)
-            {
-                this.countOfWaitersPulsedToWake += 1;
-                Monitor.Pulse(this.SyncObject);
-            }
-
-            if (this.head is not null && this.waitCount == 0)
-            {
-                var waiterTask = this.head;
-                this.RemoveAsyncWaiter(waiterTask);
-                waiterTask.TrySetResult(result: true);
-            }
-            else
-            {
-                Volatile.Write(ref this.entered, false);
-            }
-        }
-    }
-
-    private async Task<bool> WaitUntilCountOrTimeoutAsync(TaskNode taskNode, int millisecondsTimeout, CancellationToken cancellationToken)
-    {
-        if (millisecondsTimeout < -1)
-        {
-            millisecondsTimeout = -1;
+            timeoutInMilliseconds = -1;
         }
 
         using (var cts = cancellationToken.CanBeCanceled ?
             CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, default) :
             new CancellationTokenSource())
         {
-            var waitCompleted = Task.WhenAny(taskNode.Task, Task.Delay(millisecondsTimeout, cts.Token));
-            if (taskNode.Task == await waitCompleted.ConfigureAwait(false))
-            {
-                cts.Cancel();
-                return true;
-            }
-        }
-
-        lock (this.SyncObject)
-        {
-            if (this.RemoveAsyncWaiter(taskNode))
-            {
-                // cancellationToken.ThrowIfCancellationRequested();
-                return false;
-            }
-        }
-
-        return await taskNode.Task.ConfigureAwait(false);
-    }
-
-    /*private async Task<bool> WaitUntilCountOrTimeoutAsync(TaskNode taskNode, TimeSpan timeout, CancellationToken cancellationToken)
-    {
-        using (var cts = cancellationToken.CanBeCanceled ?
-            CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, default) :
-            new CancellationTokenSource())
-        {
-            var waitCompleted = Task.WhenAny(taskNode.Task, Task.Delay(timeout, cts.Token));
+            var waitCompleted = Task.WhenAny(taskNode.Task, Task.Delay(timeoutInMilliseconds, cts.Token));
             if (taskNode.Task == await waitCompleted.ConfigureAwait(false))
             {
                 cts.Cancel();
@@ -320,6 +321,32 @@ public class SemaphoreLock : ILockable, IAsyncLockable
 
         return await taskNode.Task.ConfigureAwait(false);
     }*/
+
+    private async Task<bool> WaitUntilCountOrTimeoutAsync(TaskNode asyncWaiter, TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        await ((Task)asyncWaiter.Task.WaitAsync(timeout, cancellationToken)).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
+        }
+
+        if (asyncWaiter.Task.IsCompleted)
+        {
+            return true;
+        }
+
+        lock (this.SyncObject)
+        {
+            if (this.RemoveAsyncWaiter(asyncWaiter))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return false;
+            }
+        }
+
+        return await asyncWaiter.Task.ConfigureAwait(false);
+    }
 
     private bool RemoveAsyncWaiter(TaskNode task)
     {

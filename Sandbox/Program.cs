@@ -260,7 +260,7 @@ internal class Program
             cts.Cancel();
         });
 
-        result = await semaphore.EnterAsync(1000, cts.Token);
+        result = await semaphore.EnterAsync(TimeSpan.FromMilliseconds(1000), cts.Token);
         Console.WriteLine($"Try enter {result.ToString()}");
 
         semaphore.Exit();
