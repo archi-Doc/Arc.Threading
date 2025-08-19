@@ -200,6 +200,41 @@ public class SemaphoreLock : ILockable, IAsyncLockable
         }
     }
 
+    /* public Task<bool> EnterAsync(TimeSpan timeout, CancellationToken cancellationToken)
+    {// A TimeSpan version of the function, but since it eventually just works in milliseconds internallyÅc oh well.
+        lock (this.SyncObject)
+        {
+            if (!Volatile.Read(ref this.entered))
+            {
+                Volatile.Write(ref this.entered, true);
+                return Task.FromResult(true);
+            }
+            else
+            {
+                if (timeout == TimeSpan.Zero)
+                {// No waiting
+                    return Task.FromResult(false);
+                }
+
+                var node = new TaskNode();
+
+                if (this.head == null)
+                {
+                    this.head = node;
+                    this.tail = node;
+                }
+                else
+                {
+                    this.tail!.Next = node;
+                    node.Prev = this.tail;
+                    this.tail = node;
+                }
+
+                return this.WaitUntilCountOrTimeoutAsync(node, timeout, cancellationToken);
+            }
+        }
+    }*/
+
     public void Exit()
     {
         lock (this.SyncObject)
@@ -259,6 +294,32 @@ public class SemaphoreLock : ILockable, IAsyncLockable
 
         return await taskNode.Task.ConfigureAwait(false);
     }
+
+    /*private async Task<bool> WaitUntilCountOrTimeoutAsync(TaskNode taskNode, TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        using (var cts = cancellationToken.CanBeCanceled ?
+            CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, default) :
+            new CancellationTokenSource())
+        {
+            var waitCompleted = Task.WhenAny(taskNode.Task, Task.Delay(timeout, cts.Token));
+            if (taskNode.Task == await waitCompleted.ConfigureAwait(false))
+            {
+                cts.Cancel();
+                return true;
+            }
+        }
+
+        lock (this.SyncObject)
+        {
+            if (this.RemoveAsyncWaiter(taskNode))
+            {
+                // cancellationToken.ThrowIfCancellationRequested();
+                return false;
+            }
+        }
+
+        return await taskNode.Task.ConfigureAwait(false);
+    }*/
 
     private bool RemoveAsyncWaiter(TaskNode task)
     {
