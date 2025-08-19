@@ -137,11 +137,17 @@ internal static class ExclusiveControl
 
     public static async Task Test()
     {
+        var cancellationTokenSource = new CancellationTokenSource();
+        var cancellationToken = cancellationTokenSource.Token;
+        int timeoutInMilliseconds = 10_000;
+
         var objectBenchmark = new Benchmark("object", () => Monitor.Enter(syncObject), () => Monitor.Exit(syncObject));
         // var objectBenchmark2 = new Benchmark2("object", () => { Monitor.Enter(syncObject); return Task.CompletedTask; }, () => Monitor.Exit(syncObject));
         var lockBenchmark = new Benchmark("Lock", () => lockObject.Enter(), () => lockObject.Exit());
         var semaphoreSlimBenchmark = new Benchmark2("SemaphoreSlim", () => semaphoreSlim.WaitAsync(), () => semaphoreSlim.Release());
+        var semaphoreSlimBenchmark2 = new Benchmark2("SemaphoreSlim2", () => semaphoreSlim.WaitAsync(timeoutInMilliseconds, cancellationToken), () => semaphoreSlim.Release());
         var semaphoreLockBenchmark = new Benchmark2("SemaphoreLock", () => semaphoreLock.EnterAsync(), () => semaphoreLock.Exit());
+        var semaphoreLockBenchmark2 = new Benchmark2("SemaphoreLock", () => semaphoreLock.EnterAsync(timeoutInMilliseconds, cancellationToken), () => semaphoreLock.Exit());
         var readerWriterLockSlimBenchmark = new Benchmark("ReaderWriterLockSlim", () => readerWriterLockSlim.EnterWriteLock(), () => readerWriterLockSlim.ExitWriteLock());
         var asyncLockBenchmark = new Benchmark3("AsyncLock", () => asyncLock.LockAsync());
 
@@ -151,6 +157,7 @@ internal static class ExclusiveControl
         await semaphoreSlimBenchmark.Run();
         await semaphoreLockBenchmark.Run();
         await readerWriterLockSlimBenchmark.Run();
-        await asyncLockBenchmark.Run();
+        await semaphoreSlimBenchmark2.Run();
+        await semaphoreLockBenchmark2.Run();
     }
 }
