@@ -24,6 +24,8 @@ public class Program
         // Test.ThreadWorkerBenchmark.Benchmark();
         // ThreadPool.SetMaxThreads(workerThreads, completionPortThreads);
 
+        await ExclusiveControl.Test();
+
         DebugRun<SourcePrimitiveBenchmark>();
 
         var switcher = new BenchmarkSwitcher(new[]

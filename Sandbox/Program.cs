@@ -113,7 +113,8 @@ internal class Program
         // TestThreadWorker();
         // await TestTaskWorker();
         // await TestTaskWorker2();
-        await TestMicroSleep();
+        // await TestMicroSleep();
+        await TestSemaphoreLock2();
 
         var taskcore = new TaskCore(ThreadCore.Root, async core =>
         {
@@ -121,6 +122,18 @@ internal class Program
             await Task.Delay(1_000);
             Console.WriteLine("TaskCore: End");
         });
+
+        Console.WriteLine();
+
+        var semaphoreLock = new SemaphoreLock();
+        Console.WriteLine($"EnterAsync: {await semaphoreLock.EnterAsync(500)}");
+        semaphoreLock.Exit();
+        Console.WriteLine($"Exit");
+
+        Console.WriteLine($"EnterAsync: {await semaphoreLock.EnterAsync(500)}");
+        Console.WriteLine($"EnterAsync: {await semaphoreLock.EnterAsync(500)}");
+        semaphoreLock.Exit();
+        Console.WriteLine($"Exit");
 
         Console.WriteLine("Terminated.");
 
@@ -141,6 +154,11 @@ internal class Program
         Console.WriteLine(mics);
 
         microSleep.Dispose();
+    }
+
+    private static async Task TestSemaphoreLock2()
+    {
+        var semaphoreLock = new SemaphoreLock();
     }
 
     private static async Task TestSingleTask()
@@ -242,7 +260,7 @@ internal class Program
             cts.Cancel();
         });
 
-        result = await semaphore.EnterAsync(1000, cts.Token);
+        result = await semaphore.EnterAsync(TimeSpan.FromMilliseconds(1000), cts.Token);
         Console.WriteLine($"Try enter {result.ToString()}");
 
         semaphore.Exit();
