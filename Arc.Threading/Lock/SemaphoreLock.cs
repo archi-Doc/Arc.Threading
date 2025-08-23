@@ -162,7 +162,10 @@ public class SemaphoreLock : ILockable, IAsyncLockable
     /// <summary>
     /// Asynchronously waits to enter the <see cref="SemaphoreLock"/> with a specified timeout and cancellation token.
     /// </summary>
-    /// <param name="timeout">The maximum time to wait for the lock. If <see cref="TimeSpan.Zero"/>, the method returns immediately.</param>
+    /// <param name="timeout">The maximum time to wait for the lock.<br/>
+    /// <see cref="TimeSpan.Zero"/>: The method returns immediately.<br/>
+    /// <see cref="Timeout.InfiniteTimeSpan"/>: The method waits indefinitely until the lock is acquired.
+    /// </param>
     /// <returns>
     /// A task that returns <see langword="true"/> if the lock was acquired; otherwise, <see langword="false"/> if the timeout elapsed or the operation was canceled.
     /// </returns>
@@ -170,7 +173,7 @@ public class SemaphoreLock : ILockable, IAsyncLockable
         => this.EnterAsync(timeout, default);
 
     /// <summary>
-    /// Asynchronously waits to enter the <see cref="SemaphoreLock"/> with a specified timeout and cancellation token.
+    /// Asynchronously waits to enter the <see cref="SemaphoreLock"/> with a specified cancellation token.
     /// </summary>
     /// <param name="cancellationToken">A token to observe while waiting for the lock to be acquired.</param>
     /// <returns>
@@ -182,7 +185,10 @@ public class SemaphoreLock : ILockable, IAsyncLockable
     /// <summary>
     /// Asynchronously waits to enter the <see cref="SemaphoreLock"/> with a specified timeout and cancellation token.
     /// </summary>
-    /// <param name="timeout">The maximum time to wait for the lock. If <see cref="TimeSpan.Zero"/>, the method returns immediately.</param>
+    /// <param name="timeout">The maximum time to wait for the lock.<br/>
+    /// <see cref="TimeSpan.Zero"/>: The method returns immediately.<br/>
+    /// <see cref="Timeout.InfiniteTimeSpan"/>: The method waits indefinitely until the lock is acquired.
+    /// </param>
     /// <param name="cancellationToken">A token to observe while waiting for the lock to be acquired.</param>
     /// <returns>
     /// A task that returns <see langword="true"/> if the lock was acquired; otherwise, <see langword="false"/> if the timeout elapsed or the operation was canceled.
