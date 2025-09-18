@@ -83,7 +83,7 @@ public class LockBenchmark
         }
     }
 
-    // [Benchmark]
+    [Benchmark]
     public void SemaphoreSlim_WaitRelease()
     {
         try
@@ -96,7 +96,7 @@ public class LockBenchmark
         }
     }
 
-    // [Benchmark]
+    [Benchmark]
     public void SemaphoreLock_EnterExit()
     {
         var lockTaken = false;
@@ -113,7 +113,7 @@ public class LockBenchmark
         }
     }
 
-    [Benchmark]
+    // [Benchmark]
     public void SemaphoreLock_Using()
     {
         using (((ILockable)this.semaphoreLock).EnterScope())
@@ -138,7 +138,7 @@ public class LockBenchmark
         }
     }
 
-    // [Benchmark]
+    [Benchmark]
     public async Task SemaphoreSlim_WaitAsync()
     {
         try

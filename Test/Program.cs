@@ -96,6 +96,8 @@ internal class Program
             ThreadCore.Root.Terminate(); // Send a termination signal to the root.
         };
 
+        Console.WriteLine(EstimateSize.Class<SemaphoreLock>());
+
         // await TestSemaphoreDual();
         await TestLock();
         // await TestThreadCore_Termination();
@@ -225,20 +227,6 @@ internal class Program
                 test.semaphoreLock.Exit();
             }
         });
-
-        /*await testLock.Run("SemaphoreDual Async", async test =>
-        {
-            long time = 0;
-            try
-            {
-                time = await test.semaphoreDual.Enter1Async();
-                test.x++;
-            }
-            finally
-            {
-                test.semaphoreDual.Exit1(time);
-            }
-        });*/
 
         await testLock.Run("SemaphoreSlim Sync+Async",
             test =>
