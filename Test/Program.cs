@@ -97,6 +97,8 @@ internal class Program
             ThreadCore.Root.Terminate(); // Send a termination signal to the root.
         };
 
+        Console.WriteLine(EstimateSize.Class<SemaphoreLock2>());
+
         // await TestSemaphoreDual();
         await TestLock();
         // await TestThreadCore_Termination();
