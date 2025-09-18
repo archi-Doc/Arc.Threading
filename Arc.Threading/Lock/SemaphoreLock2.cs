@@ -10,7 +10,7 @@ namespace Arc.Threading;
 /// <see cref="SemaphoreLock2"/> is a simplified version of <see cref="SemaphoreSlim"/>.<br/>
 /// Used for object mutual exclusion and can also be used in code that includes await syntax.<br/>
 /// An instance of <see cref="SemaphoreLock2"/> should be a private member since it uses `lock (this)` statement to reduce memory usage.<br/>
-/// The size of this struct is 40 bytes (39 bytes internally).
+/// The size of this struct is 40 bytes (37 bytes internally).
 /// </summary>
 public class SemaphoreLock2 : ILockable, IAsyncLockable
 {// object:16, 1+2+2+8+8 -> 37
@@ -19,8 +19,8 @@ public class SemaphoreLock2 : ILockable, IAsyncLockable
     private object SyncObject => this; // lock (this) is a bad practice but...
 
     private bool entered = false;
-    private short countOfWaitersPulsedToWake; // int -> short
-    private short waitCount; // int -> short
+    private ushort countOfWaitersPulsedToWake; // int -> ushort
+    private ushort waitCount; // int -> ushort
     private TaskNode? head;
     private TaskNode? tail;
 
@@ -241,9 +241,9 @@ public class SemaphoreLock2 : ILockable, IAsyncLockable
                 throw new SynchronizationLockException();
             }
 
-            var waitersToNotify = Math.Min((short)1, this.waitCount) - this.countOfWaitersPulsedToWake;
-            if (waitersToNotify == 1)
-            {
+            var waitersToNotify = Math.Min((ushort)1, this.waitCount) - this.countOfWaitersPulsedToWake;
+            if (waitersToNotify > 0)
+            {// waitersToNotify == 1
                 this.countOfWaitersPulsedToWake++;
                 Monitor.Pulse(this.SyncObject);
             }
