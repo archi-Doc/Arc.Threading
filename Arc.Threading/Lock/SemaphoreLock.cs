@@ -10,17 +10,17 @@ namespace Arc.Threading;
 /// <see cref="SemaphoreLock"/> is a simplified version of <see cref="SemaphoreSlim"/>.<br/>
 /// Used for object mutual exclusion and can also be used in code that includes await syntax.<br/>
 /// An instance of <see cref="SemaphoreLock"/> should be a private member since it uses `lock (this)` statement to reduce memory usage.<br/>
-/// The size of this struct is 40 bytes (39 bytes internally).
+/// The size of this struct is 40 bytes (37 bytes internally).
 /// </summary>
 public class SemaphoreLock : ILockable, IAsyncLockable
-{// object:16, 1+2+4+8+8 -> 39
+{// object:16, 1+2+2+8+8 -> 37
     internal const int DefaultSpinCountBeforeWait = 35 * 4;
 
     private object SyncObject => this; // lock (this) is a bad practice but...
 
     private bool entered = false;
-    private short countOfWaitersPulsedToWake; // int -> short
-    private int waitCount;
+    private ushort countOfWaitersPulsedToWake; // int -> ushort
+    private ushort waitCount; // int -> ushort
     private TaskNode? head;
     private TaskNode? tail;
 
@@ -63,7 +63,6 @@ public class SemaphoreLock : ILockable, IAsyncLockable
     public bool Enter()
     {
         var lockTaken = false;
-        var result = false;
         Task<bool>? task = null;
 
         try
@@ -101,7 +100,6 @@ public class SemaphoreLock : ILockable, IAsyncLockable
                 }
 
                 Volatile.Write(ref this.entered, true);
-                result = true;
             }
         }
         finally
@@ -113,7 +111,7 @@ public class SemaphoreLock : ILockable, IAsyncLockable
             }
         }
 
-        return task == null ? result : task.GetAwaiter().GetResult();
+        return task == null ? true : task.GetAwaiter().GetResult();
     }
 
     /// <summary>
@@ -243,9 +241,9 @@ public class SemaphoreLock : ILockable, IAsyncLockable
                 throw new SynchronizationLockException();
             }
 
-            var waitersToNotify = Math.Min(1, this.waitCount) - this.countOfWaitersPulsedToWake;
-            if (waitersToNotify == 1)
-            {
+            var waitersToNotify = Math.Min((ushort)1, this.waitCount) - this.countOfWaitersPulsedToWake;
+            if (waitersToNotify > 0)
+            {// waitersToNotify == 1
                 this.countOfWaitersPulsedToWake++;
                 Monitor.Pulse(this.SyncObject);
             }
@@ -262,72 +260,6 @@ public class SemaphoreLock : ILockable, IAsyncLockable
             }
         }
     }
-
-    /* public Task<bool> EnterAsync(TimeSpan timeout, CancellationToken cancellationToken)
-    {// A TimeSpan version of the function, but since it eventually just works in milliseconds internallyÅc oh well.
-        lock (this.SyncObject)
-        {
-            if (!Volatile.Read(ref this.entered))
-            {
-                Volatile.Write(ref this.entered, true);
-                return Task.FromResult(true);
-            }
-            else
-            {
-                if (timeout == TimeSpan.Zero)
-                {// No waiting
-                    return Task.FromResult(false);
-                }
-
-                var node = new TaskNode();
-
-                if (this.head == null)
-                {
-                    this.head = node;
-                    this.tail = node;
-                }
-                else
-                {
-                    this.tail!.Next = node;
-                    node.Prev = this.tail;
-                    this.tail = node;
-                }
-
-                return this.WaitUntilCountOrTimeoutAsync(node, timeout, cancellationToken);
-            }
-        }
-    }*/
-
-    /*private async Task<bool> WaitUntilCountOrTimeoutAsync(TaskNode taskNode, int timeoutInMilliseconds, CancellationToken cancellationToken)
-    {
-        if (timeoutInMilliseconds < -1)
-        {
-            timeoutInMilliseconds = -1;
-        }
-
-        using (var cts = cancellationToken.CanBeCanceled ?
-            CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, default) :
-            new CancellationTokenSource())
-        {
-            var waitCompleted = Task.WhenAny(taskNode.Task, Task.Delay(timeoutInMilliseconds, cts.Token));
-            if (taskNode.Task == await waitCompleted.ConfigureAwait(false))
-            {
-                cts.Cancel();
-                return true;
-            }
-        }
-
-        lock (this.SyncObject)
-        {
-            if (this.RemoveAsyncWaiter(taskNode))
-            {
-                // cancellationToken.ThrowIfCancellationRequested();
-                return false;
-            }
-        }
-
-        return await taskNode.Task.ConfigureAwait(false);
-    }*/
 
     private async Task<bool> WaitUntilCountOrTimeoutAsync(TaskNode asyncWaiter, TimeSpan timeout, CancellationToken cancellationToken)
     {
@@ -357,7 +289,7 @@ public class SemaphoreLock : ILockable, IAsyncLockable
 
     private bool RemoveAsyncWaiter(TaskNode task)
     {
-        var wasInList = this.head == task || task.Prev != null;
+        var wasInList = this.head == task || task.Prev != null; // True if the task was in the list.
 
         if (task.Next is not null)
         {

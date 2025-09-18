@@ -15,7 +15,6 @@ public class LockBenchmark
     private Semaphore semaphore = new(1, 1);
     private SemaphoreSlim semaphoreSlim = new(1, 1);
     private SemaphoreLock semaphoreLock = new();
-    private SemaphoreLock2 semaphoreLock2 = new();
 
     public LockBenchmark()
     {
@@ -34,9 +33,6 @@ public class LockBenchmark
 
     [Benchmark]
     public SemaphoreLock NewSemaphoreLock() => new SemaphoreLock();
-
-    [Benchmark]
-    public SemaphoreLock2 NewSemaphoreLock2() => new SemaphoreLock2();
 
     [Benchmark]
     public SemaphoreSlim NewSemaphoreSlim() => new SemaphoreSlim(1, 1);
@@ -117,23 +113,6 @@ public class LockBenchmark
         }
     }
 
-    [Benchmark]
-    public void SemaphoreLock2_EnterExit()
-    {
-        var lockTaken = false;
-        try
-        {
-            lockTaken = this.semaphoreLock2.Enter();
-        }
-        finally
-        {
-            if (lockTaken)
-            {
-                this.semaphoreLock2.Exit();
-            }
-        }
-    }
-
     // [Benchmark]
     public void SemaphoreLock_Using()
     {
@@ -193,23 +172,6 @@ public class LockBenchmark
             if (lockTaken)
             {
                 this.semaphoreLock.Exit();
-            }
-        }
-    }
-
-    [Benchmark]
-    public async Task SemaphoreLock2_EnterAsync()
-    {
-        var lockTaken = false;
-        try
-        {
-            lockTaken = await this.semaphoreLock2.EnterAsync();
-        }
-        finally
-        {
-            if (lockTaken)
-            {
-                this.semaphoreLock2.Exit();
             }
         }
     }

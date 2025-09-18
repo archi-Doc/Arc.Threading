@@ -14,7 +14,6 @@ internal class TestLock
 
     public SemaphoreSlim semaphoreSlim = new(1, 1);
     public SemaphoreLock semaphoreLock = new();
-    public SemaphoreLock2 semaphoreLock2 = new();
     // public SemaphoreDual semaphoreDual = new(1_000);
 
     public async Task Run(string name, Action<TestLock> action)
@@ -97,7 +96,7 @@ internal class Program
             ThreadCore.Root.Terminate(); // Send a termination signal to the root.
         };
 
-        Console.WriteLine(EstimateSize.Class<SemaphoreLock2>());
+        Console.WriteLine(EstimateSize.Class<SemaphoreLock>());
 
         // await TestSemaphoreDual();
         await TestLock();
@@ -195,19 +194,6 @@ internal class Program
             }
         });
 
-        await testLock.Run("SemaphoreLock2", test =>
-        {
-            try
-            {
-                test.semaphoreLock2.Enter();
-                test.x++;
-            }
-            finally
-            {
-                test.semaphoreLock2.Exit();
-            }
-        });
-
         await testLock.Run("SemaphoreLock.Lock()", test =>
         {
             using (test.semaphoreLock.EnterScope())
@@ -239,19 +225,6 @@ internal class Program
             finally
             {
                 test.semaphoreLock.Exit();
-            }
-        });
-
-        await testLock.Run("SemaphoreLock2 Async", async test =>
-        {
-            try
-            {
-                await test.semaphoreLock2.EnterAsync();
-                test.x++;
-            }
-            finally
-            {
-                test.semaphoreLock2.Exit();
             }
         });
 
@@ -306,32 +279,6 @@ internal class Program
                     test.semaphoreLock.Exit();
                 }
             });
-
-        await testLock.Run("SemaphoreLock2 Sync+Async",
-           test =>
-           {
-               try
-               {
-                   test.semaphoreLock2.Enter();
-                   test.x++;
-               }
-               finally
-               {
-                   test.semaphoreLock2.Exit();
-               }
-           },
-           async test =>
-           {
-               try
-               {
-                   await test.semaphoreLock2.EnterAsync();
-                   test.x++;
-               }
-               finally
-               {
-                   test.semaphoreLock2.Exit();
-               }
-           });
     }
 
 

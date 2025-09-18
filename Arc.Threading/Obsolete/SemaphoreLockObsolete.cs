@@ -6,25 +6,26 @@ using System.Threading.Tasks;
 
 namespace Arc.Threading;
 
+/*
 /// <summary>
-/// <see cref="SemaphoreLock2"/> is a simplified version of <see cref="SemaphoreSlim"/>.<br/>
+/// <see cref="SemaphoreLockObsolete"/> is a simplified version of <see cref="SemaphoreSlim"/>.<br/>
 /// Used for object mutual exclusion and can also be used in code that includes await syntax.<br/>
-/// An instance of <see cref="SemaphoreLock2"/> should be a private member since it uses `lock (this)` statement to reduce memory usage.<br/>
-/// The size of this struct is 40 bytes (37 bytes internally).
+/// An instance of <see cref="SemaphoreLockObsolete"/> should be a private member since it uses `lock (this)` statement to reduce memory usage.<br/>
+/// The size of this struct is 40 bytes (39 bytes internally).
 /// </summary>
-public class SemaphoreLock2 : ILockable, IAsyncLockable
-{// object:16, 1+2+2+8+8 -> 37
+public class SemaphoreLockObsolete : ILockable, IAsyncLockable
+{// object:16, 1+2+4+8+8 -> 39
     internal const int DefaultSpinCountBeforeWait = 35 * 4;
 
     private object SyncObject => this; // lock (this) is a bad practice but...
 
     private bool entered = false;
-    private ushort countOfWaitersPulsedToWake; // int -> ushort
-    private ushort waitCount; // int -> ushort
+    private short countOfWaitersPulsedToWake; // int -> short
+    private int waitCount;
     private TaskNode? head;
     private TaskNode? tail;
 
-    public SemaphoreLock2()
+    public SemaphoreLockObsolete()
     {
     }
 
@@ -57,12 +58,13 @@ public class SemaphoreLock2 : ILockable, IAsyncLockable
     }
 
     /// <summary>
-    /// Blocks the current thread until it can enter the <see cref="SemaphoreLock2"/>.
+    /// Blocks the current thread until it can enter the <see cref="SemaphoreLockObsolete"/>.
     /// </summary>
     /// <returns><see langword="true"/>; Entered.</returns>
     public bool Enter()
     {
         var lockTaken = false;
+        var result = false;
         Task<bool>? task = null;
 
         try
@@ -100,6 +102,7 @@ public class SemaphoreLock2 : ILockable, IAsyncLockable
                 }
 
                 Volatile.Write(ref this.entered, true);
+                result = true;
             }
         }
         finally
@@ -111,11 +114,11 @@ public class SemaphoreLock2 : ILockable, IAsyncLockable
             }
         }
 
-        return task == null ? true : task.GetAwaiter().GetResult();
+        return task == null ? result : task.GetAwaiter().GetResult();
     }
 
     /// <summary>
-    /// Asynchronously waits to enter the <see cref="SemaphoreLock2"/>.
+    /// Asynchronously waits to enter the <see cref="SemaphoreLockObsolete"/>.
     /// </summary>
     /// <returns><see langword="true"/>; Entered.</returns>
     public Task<bool> EnterAsync()
@@ -149,7 +152,7 @@ public class SemaphoreLock2 : ILockable, IAsyncLockable
     }
 
     /// <summary>
-    /// Asynchronously waits to enter the <see cref="SemaphoreLock2"/> with a specified timeout and cancellation token.
+    /// Asynchronously waits to enter the <see cref="SemaphoreLockObsolete"/> with a specified timeout and cancellation token.
     /// </summary>
     /// <param name="timeoutInMilliseconds">The duration in milliseconds to wait: -1 for infinite wait, 0 for no wait.</param>
     /// <returns>
@@ -159,7 +162,7 @@ public class SemaphoreLock2 : ILockable, IAsyncLockable
         => this.EnterAsync(TimeSpan.FromMilliseconds(timeoutInMilliseconds), default);
 
     /// <summary>
-    /// Asynchronously waits to enter the <see cref="SemaphoreLock2"/> with a specified timeout and cancellation token.
+    /// Asynchronously waits to enter the <see cref="SemaphoreLockObsolete"/> with a specified timeout and cancellation token.
     /// </summary>
     /// <param name="timeout">The maximum time to wait for the lock.<br/>
     /// <see cref="TimeSpan.Zero"/>: The method returns immediately.<br/>
@@ -172,7 +175,7 @@ public class SemaphoreLock2 : ILockable, IAsyncLockable
         => this.EnterAsync(timeout, default);
 
     /// <summary>
-    /// Asynchronously waits to enter the <see cref="SemaphoreLock2"/> with a specified cancellation token.
+    /// Asynchronously waits to enter the <see cref="SemaphoreLockObsolete"/> with a specified cancellation token.
     /// </summary>
     /// <param name="cancellationToken">A token to observe while waiting for the lock to be acquired.</param>
     /// <returns>
@@ -182,7 +185,7 @@ public class SemaphoreLock2 : ILockable, IAsyncLockable
         => this.EnterAsync(Timeout.InfiniteTimeSpan, cancellationToken);
 
     /// <summary>
-    /// Asynchronously waits to enter the <see cref="SemaphoreLock2"/> with a specified timeout and cancellation token.
+    /// Asynchronously waits to enter the <see cref="SemaphoreLockObsolete"/> with a specified timeout and cancellation token.
     /// </summary>
     /// <param name="timeout">The maximum time to wait for the lock.<br/>
     /// <see cref="TimeSpan.Zero"/>: The method returns immediately.<br/>
@@ -241,9 +244,9 @@ public class SemaphoreLock2 : ILockable, IAsyncLockable
                 throw new SynchronizationLockException();
             }
 
-            var waitersToNotify = Math.Min((ushort)1, this.waitCount) - this.countOfWaitersPulsedToWake;
-            if (waitersToNotify > 0)
-            {// waitersToNotify == 1
+            var waitersToNotify = Math.Min(1, this.waitCount) - this.countOfWaitersPulsedToWake;
+            if (waitersToNotify == 1)
+            {
                 this.countOfWaitersPulsedToWake++;
                 Monitor.Pulse(this.SyncObject);
             }
@@ -289,7 +292,7 @@ public class SemaphoreLock2 : ILockable, IAsyncLockable
 
     private bool RemoveAsyncWaiter(TaskNode task)
     {
-        var wasInList = this.head == task || task.Prev != null; // True if the task was in the list.
+        var wasInList = this.head == task || task.Prev != null;
 
         if (task.Next is not null)
         {
@@ -329,4 +332,4 @@ public class SemaphoreLock2 : ILockable, IAsyncLockable
         {
         }
     }
-}
+}*/
