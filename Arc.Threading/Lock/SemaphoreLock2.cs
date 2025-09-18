@@ -63,7 +63,6 @@ public class SemaphoreLock2 : ILockable, IAsyncLockable
     public bool Enter()
     {
         var lockTaken = false;
-        var result = false;
         Task<bool>? task = null;
 
         try
@@ -101,7 +100,6 @@ public class SemaphoreLock2 : ILockable, IAsyncLockable
                 }
 
                 Volatile.Write(ref this.entered, true);
-                result = true;
             }
         }
         finally
@@ -113,7 +111,7 @@ public class SemaphoreLock2 : ILockable, IAsyncLockable
             }
         }
 
-        return task == null ? result : task.GetAwaiter().GetResult();
+        return task == null ? true : task.GetAwaiter().GetResult();
     }
 
     /// <summary>
