@@ -89,22 +89,6 @@ internal class Program
 {
     public static readonly AsyncLocal<int> AsyncLocalInstance = new();
 
-    public static int EstimateSize<TClass>()
-        where TClass : class, new()
-    {
-        const int N = 1000;
-        long before = GC.GetAllocatedBytesForCurrentThread();
-
-        for (int i = 0; i < N; i++)
-        {
-            var obj = new TClass();
-        }
-
-        long after = GC.GetAllocatedBytesForCurrentThread();
-
-        return (int)((after - before) / N);
-    }
-
     public static async Task Main(string[] args)
     {
         AppDomain.CurrentDomain.ProcessExit += (s, e) =>
@@ -120,7 +104,7 @@ internal class Program
         };
 
         Console.WriteLine("Sandbox.");
-        Console.WriteLine($"{EstimateSize<SemaphoreLock>()}");
+        Console.WriteLine($"{EstimateSize.Class<SemaphoreLock>()}");
 
         // await TestSingleTask();
         // await TestBinarySemaphore();
