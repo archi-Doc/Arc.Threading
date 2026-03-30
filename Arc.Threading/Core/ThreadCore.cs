@@ -454,8 +454,37 @@ public class ThreadCoreBase : IDisposable
     /// Suspends the current thread/task for the specified amount of time (<see cref="Task.Delay(int)"/>).
     /// </summary>
     /// <param name="millisecondsToWait">The number of milliseconds to wait.</param>
+    /// <param name="cancellationToken">An additional cancellation token that can be used to cancel the delay.</param>
     /// <returns><see langword="true"/> if the time successfully elapsed, <see langword="false"/> if the thread/task is terminated.</returns>
-    public Task<bool> Delay(int millisecondsToWait) => this.Delay(TimeSpan.FromMilliseconds(millisecondsToWait));
+    public Task<bool> Delay(int millisecondsToWait, CancellationToken cancellationToken)
+        => this.Delay(TimeSpan.FromMilliseconds(millisecondsToWait), cancellationToken);
+
+    /// <summary>
+    /// Wait for the specified time (<see cref="Task.Delay(TimeSpan)"/>).
+    /// </summary>
+    /// <param name="timeToWait">The TimeSpan to wait.</param>
+    /// <param name="cancellationToken">An additional cancellation token that can be used to cancel the delay.</param>
+    /// <returns><see langword="true"/> if the time successfully elapsed, <see langword="false"/> if the thread/task is terminated.</returns>
+    public async Task<bool> Delay(TimeSpan timeToWait, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(timeToWait, cancellationToken).WaitAsync(this.CancellationToken);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Suspends the current thread/task for the specified amount of time (<see cref="Task.Delay(int)"/>).
+    /// </summary>
+    /// <param name="millisecondsToWait">The number of milliseconds to wait.</param>
+    /// <returns><see langword="true"/> if the time successfully elapsed, <see langword="false"/> if the thread/task is terminated.</returns>
+    public Task<bool> Delay(int millisecondsToWait)
+        => this.Delay(TimeSpan.FromMilliseconds(millisecondsToWait));
 
     /// <summary>
     /// Wait for the specified time (<see cref="Task.Delay(TimeSpan)"/>).
