@@ -70,7 +70,7 @@ internal class ThreadWorkerBenchmark
 
     internal static void Benchmark()
     {
-        /*Console.WriteLine($"ThreadWorker");
+        Console.WriteLine($"ThreadWorker");
         var worker2 = new ThreadWorker<TestWork>(ThreadCore.Root, EmptyMethod2);
         BenchWorker2(N, worker2);
         worker2.Dispose();
@@ -80,7 +80,7 @@ internal class ThreadWorkerBenchmark
         var taskWorkerSlim = new TaskWorkerSlim<TestTaskWorkSlim>(ThreadCore.Root, EmptyMethodTaskSlim);
         BenchWorkerTaskSlim(N, taskWorkerSlim);
         taskWorkerSlim.Dispose();
-        Console.WriteLine();*/
+        Console.WriteLine();
 
         Console.WriteLine($"TaskWorker");
         var taskWorker = new TaskWorker<TestTaskWork>(ThreadCore.Root, EmptyMethodTask);
@@ -95,7 +95,7 @@ internal class ThreadWorkerBenchmark
         taskWorker2.Dispose();
         Console.WriteLine(Count.ToString());*/
 
-        /*Console.WriteLine($"TaskWorkerSlim heavy");
+        Console.WriteLine($"TaskWorkerSlim heavy");
         var taskWorkerSlim2 = new TaskWorkerSlim<TestTaskWorkSlim>(ThreadCore.Root, HeavyMethodTaskSlim);
         BenchWorkerTaskSlim(N2, taskWorkerSlim2);
         taskWorkerSlim2.Dispose();
@@ -109,12 +109,12 @@ internal class ThreadWorkerBenchmark
 
         Console.WriteLine($"TaskWorker heavy");
         var taskWorkerHeavy = new TaskWorker<TestTaskWork>(ThreadCore.Root, HeavyMethodTask);
-        taskWorkerHeavy.ConcurrentTasks = 4;
+        taskWorkerHeavy.NumberOfConcurrentTasks = 4;
         BenchWorkerTask(N2, taskWorkerHeavy);
         taskWorkerHeavy.Dispose();
         Console.WriteLine(Count.ToString());
 
-        Console.WriteLine($"TaskWorker2 heavy");
+        /*Console.WriteLine($"TaskWorker2 heavy");
         var taskWorker2Heavy = new TaskWorker2<TestTaskWork>(ThreadCore.Root, HeavyMethodTask2);
         BenchWorkerTask2(N2, taskWorker2Heavy);
         taskWorker2Heavy.Dispose();
