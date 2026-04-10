@@ -8,71 +8,15 @@ using Arc.Collections;
 
 namespace Arc.Threading;
 
-public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
+public class ReusableTaskWorker<TJob> : TaskCore, IDisposable
     where TJob : ReusableJobBase, new()
 {
     private const int DefaultQueueCapacity = 32;
     private const int MillisecondsTimeout = 1_000;
 
-    private static async void Process(object? parameter)
+    private static async Task Process(object? parameter)
     {
-        var worker = (ReusableJobWorker<TJob>)parameter!;
-        while (!worker.IsTerminated)
-        {
-            try
-            {
-                if (worker.addedEvent?.Wait(MillisecondsTimeout, worker.CancellationToken) == true)
-                {
-                    worker.addedEvent?.Reset();
-                }
-            }
-            catch
-            {
-                return;
-            }
-
-            worker.working = true;
-            while (worker.pendingJobs.TryDequeue(out var job))
-            {
-                if (worker.IsTerminated)
-                {// Terminated
-                    worker.working = false;
-                    return;
-                }
-
-                if (worker.NumberOfConcurrentTasks <= 1)
-                {
-                    job.State = ReusableJobState.Running;
-                    worker.processJob(job);
-                    job.State = ReusableJobState.Completed;
-                    job.SetInternal();
-                }
-                else
-                {
-                    job.State = ReusableJobState.Running;
-                    worker.processJob(job);
-                    job.State = ReusableJobState.Completed;
-                    job.SetInternal();
-                }
-
-            }
-
-            worker.working = false;
-
-
-            /*_ = Task.Run(() =>
-            {//
-                job.State = ReusableJobState.Running;
-                worker.processJob(job);
-                job.State = ReusableJobState.Completed;
-                job.SetInternal();
-            });*/
-        }
-    }
-
-    /*private static async Task Process(object? parameter)
-    {
-        var worker = (ReusableJobWorker<TJob>)parameter!;
+        var worker = (ReusableTaskWorker<TJob>)parameter!;
         while (!worker.IsTerminated)
         {
             var updateEvent = worker.updateEvent;
@@ -103,20 +47,15 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
                 job.SetInternal();
             }
         }
-    }*/
-
-    public int NumberOfConcurrentTasks { get; set; } = 1;
+    }
 
     private readonly Action<TJob> processJob;
     private readonly ObjectPool<TJob> freeJobs;
     private readonly CircularQueue<TJob> pendingJobs;
 
-    // private AsyncPulseEvent? updateEvent = new();
-    private ManualResetEventSlim? addedEvent = new(false);
-    private bool working;
-    private int numberOfActiveTasks;
+    private AsyncPulseEvent? updateEvent = new();
 
-    public ReusableJobWorker(Action<TJob> processJob, int queueCapacity = DefaultQueueCapacity, bool startImmediately = true)
+    public ReusableTaskWorker(Action<TJob> processJob, int queueCapacity = DefaultQueueCapacity, bool startImmediately = true)
         : base(ThreadCore.Root, Process, startImmediately)
     {
         this.processJob = processJob;
@@ -156,8 +95,7 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
         }
 
         job.State = ReusableJobState.Pending;
-        this.addedEvent?.Set();
-        // this.updateEvent?.Pulse();
+        this.updateEvent?.Pulse();
     }
 
     public bool TryAdd(TJob job)
@@ -169,8 +107,7 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
         }
 
         job.State = ReusableJobState.Pending;
-        this.addedEvent?.Set();
-        // this.updateEvent?.Pulse();
+        this.updateEvent?.Pulse();
         return true;
     }
 
@@ -189,7 +126,7 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
         var end = Stopwatch.GetTimestamp() + (long)(millisecondsTimeout * (double)Stopwatch.Frequency / 1000);
         while (!this.IsTerminated)
         {
-            if (this.pendingJobs.Count == 0 && !this.working)
+            if (this.pendingJobs.Count == 0)
             {// Complete
                 return true;
             }
@@ -216,8 +153,7 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
         {
             if (disposing)
             {
-                this.addedEvent = null;
-                // this.updateEvent = null;
+                this.updateEvent = null;
             }
 
             base.Dispose(disposing);
