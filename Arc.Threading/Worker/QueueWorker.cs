@@ -6,6 +6,7 @@ using Arc.Collections;
 
 namespace Arc.Threading;
 
+#pragma warning disable SA1304 // Non-private readonly fields should begin with upper-case letter
 #pragma warning disable SA1401 // Fields should be private
 
 public sealed class QueueWorker<TWork> : ThreadWorkerBase
@@ -13,20 +14,21 @@ public sealed class QueueWorker<TWork> : ThreadWorkerBase
 {
     public abstract class Work
     {
-        internal readonly ManualResetEventSlim eventSlim = new(false);
+        internal readonly ManualResetEventSlim EventSlim = new(false);
 
         public Work()
         {
         }
 
-        public abstract void Process(TWork);
+        public abstract void Process(TWork work);
     }
 
     private readonly Func<TWork> workFactory;
+    private readonly Action<TWork> workProcess;
     private readonly ObjectPool<TWork> freeQueue;
     private readonly CircularQueue<TWork> pendingQueue;
 
-    public QueueWorker(Func<TWork> workFactory, int maxPendingWorks, Action<TWork>)
+    public QueueWorker(Func<TWork> workFactory, int maxPendingWorks, Action<TWork> workProcess)
         : base(ThreadCore.Root, )
     {
         this.workFactory = workFactory;
@@ -41,7 +43,7 @@ public sealed class QueueWorker<TWork> : ThreadWorkerBase
 
     public bool Return(TWork work)
     {
-        work.eventSlim.Reset();
+        work.EventSlim.Reset();
         this.freeQueue.Return(work);
         return true;
     }
