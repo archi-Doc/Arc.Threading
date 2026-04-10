@@ -3,99 +3,9 @@
 using System;
 using System.Diagnostics;
 using System.Threading;
-using System.Threading.Tasks;
 using Arc.Collections;
 
 namespace Arc.Threading;
-
-#pragma warning disable SA1214 // Readonly fields should appear before non-readonly fields
-#pragma warning disable SA1304 // Non-private readonly fields should begin with upper-case letter
-#pragma warning disable SA1401 // Fields should be private
-
-public enum ReusableJobState : byte
-{
-    /// <summary>
-    /// Initial state. The job has been created but not yet queued or scheduled.
-    /// </summary>
-    Created,
-
-    /// <summary>
-    /// Waiting state. The job is queued and waiting to be processed.
-    /// </summary>
-    Pending,
-
-    /// <summary>
-    /// Processing state. The job is currently being executed.
-    /// </summary>
-    Running,
-
-    /// <summary>
-    /// Completed state. The job has finished execution.
-    /// </summary>
-    Completed,
-}
-
-public abstract class ReusableJobBase
-{
-    public ReusableJobState State { get; internal set; }
-
-    public ReusableJobBase()
-    {
-    }
-
-    internal abstract void SetInternal();
-
-    internal abstract void ResetInternal();
-}
-
-public class ReusableThreadJob : ReusableJobBase
-{
-    private readonly ManualResetEventSlim eventSlim;
-
-    public ReusableThreadJob()
-    {
-        this.eventSlim = new(false);
-    }
-
-    public void Wait(CancellationToken cancellationToken = default)
-    {
-        this.eventSlim.Wait(cancellationToken);
-    }
-
-    internal override void SetInternal()
-    {
-        this.eventSlim.Set();
-    }
-
-    internal override void ResetInternal()
-    {
-        this.eventSlim.Reset();
-    }
-}
-
-public class ReusableTaskJob : ReusableJobBase
-{
-    private readonly AsyncPulseEvent pulseEvent;
-
-    public ReusableTaskJob()
-    {
-        this.pulseEvent = new();
-    }
-
-    public Task Wait(CancellationToken cancellationToken = default)
-    {
-        return this.pulseEvent.WaitAsync(cancellationToken);
-    }
-
-    internal override void SetInternal()
-    {
-        this.pulseEvent.Pulse();
-    }
-
-    internal override void ResetInternal()
-    {
-    }
-}
 
 public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
     where TJob : ReusableJobBase, new()
@@ -170,11 +80,12 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
         }
     }*/
 
-    // private AsyncPulseEvent? updateEvent = new();
-    private ManualResetEventSlim? addedEvent = new(false);
     private readonly Action<TJob> processJob;
     private readonly ObjectPool<TJob> freeJobs;
     private readonly CircularQueue<TJob> pendingJobs;
+
+    // private AsyncPulseEvent? updateEvent = new();
+    private ManualResetEventSlim? addedEvent = new(false);
 
     public ReusableJobWorker(Action<TJob> processJob, int queueCapacity = DefaultQueueCapacity, bool startImmediately = true)
         : base(ThreadCore.Root, Process, startImmediately)
@@ -193,6 +104,11 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
 
     public bool Return(TJob job)
     {
+        if (job.State != ReusableJobState.Completed)
+        {
+            return false;
+        }
+
         job.ResetInternal();
         this.freeJobs.Return(job);
         return true;
@@ -200,8 +116,13 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
 
     public void Add(TJob job)
     {
-        while (!this.pendingJobs.TryEnqueue(job))
+        if (job.State != ReusableJobState.Created)
         {
+            return;
+        }
+
+        while (!this.pendingJobs.TryEnqueue(job))
+        {//
             Thread.Sleep(10);
         }
 
@@ -212,7 +133,8 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
 
     public bool TryAdd(TJob job)
     {
-        if (!this.pendingJobs.TryEnqueue(job))
+        if (job.State != ReusableJobState.Created ||
+            !this.pendingJobs.TryEnqueue(job))
         {
             return false;
         }

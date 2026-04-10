@@ -106,12 +106,6 @@ internal class ThreadWorkerBenchmark
         jobWorker.Dispose();
         Console.WriteLine(Count.ToString());
 
-        /*Console.WriteLine($"TaskWorker2");
-        var taskWorker2 = new TaskWorker2<TestTaskWork>(ThreadCore.Root, EmptyMethodTask2);
-        BenchWorkerTask2(N, taskWorker2);
-        taskWorker2.Dispose();
-        Console.WriteLine(Count.ToString());*/
-
         Console.WriteLine($"TaskWorkerSlim heavy");
         var taskWorkerSlim2 = new TaskWorkerSlim<TestTaskWorkSlim>(ThreadCore.Root, HeavyMethodTaskSlim);
         BenchWorkerTaskSlim(N2, taskWorkerSlim2);
@@ -129,6 +123,12 @@ internal class ThreadWorkerBenchmark
         taskWorkerHeavy.NumberOfConcurrentTasks = 4;
         BenchWorkerTask(N2, taskWorkerHeavy);
         taskWorkerHeavy.Dispose();
+        Console.WriteLine(Count.ToString());
+
+        Console.WriteLine($"ReusableJobWorker heavy");
+        var jobWorker2 = new ReusableJobWorker<TestJob>(HeavyMethod3, N2);
+        BenchWorker3(N2, jobWorker2);
+        jobWorker2.Dispose();
         Console.WriteLine(Count.ToString());
 
         /*Console.WriteLine($"TaskWorker2 heavy");
@@ -752,6 +752,23 @@ internal class ThreadWorkerBenchmark
         Thread.Sleep(1);
         Interlocked.Increment(ref Count);
         return AbortOrComplete.Complete;
+    }
+
+    private static void HeavyMethod3(TestJob job)
+    {
+        unchecked
+        {
+            long x = 0;
+            for (var i = 0; i < (job.Id & 0xFFFF); i++)
+            {
+                x += i;
+            }
+
+            job.Result = x;
+        }
+
+        Thread.Sleep(1);
+        Interlocked.Increment(ref Count);
     }
 
     private static async Task EmptyMethodTask(TaskWorker<TestTaskWork> worker, TestTaskWork work)

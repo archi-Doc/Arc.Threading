@@ -171,7 +171,7 @@ public class ThreadWorker<T> : ThreadWorkerBase
                 {// Standby -> Working
                     worker.workInProgress = work;
                     if (worker.method(worker, work) == AbortOrComplete.Complete)
-                    {// Copmplete
+                    {// Complete
                         work.state = ThreadWork.StateToInt(ThreadWorkState.Complete);
                     }
                     else
