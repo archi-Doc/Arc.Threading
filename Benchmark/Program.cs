@@ -26,7 +26,7 @@ public class Program
 
         // await ExclusiveControl.Test();
 
-        DebugRun<SourcePrimitiveBenchmark>();
+        DebugRun<WorkerBenchmark>();
 
         var switcher = new BenchmarkSwitcher(new[]
         {
