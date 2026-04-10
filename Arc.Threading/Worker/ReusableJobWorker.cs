@@ -1,6 +1,7 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Arc.Collections;
@@ -220,6 +221,42 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
         this.addedEvent?.Set();
         // this.updateEvent?.Pulse();
         return true;
+    }
+
+    /// <summary>
+    /// Waits for the completion of all jobs.
+    /// </summary>
+    /// <param name="millisecondsTimeout">The number of milliseconds to wait, or -1 to wait indefinitely.</param>
+    /// <returns><see langword="true"/>: All works are complete.<br/><see langword="false"/>: Timeout or cancelled.</returns>
+    public bool WaitForCompletion(int millisecondsTimeout)
+    {
+        if (this.disposed)
+        {
+            throw new ObjectDisposedException(null);
+        }
+
+        var end = Stopwatch.GetTimestamp() + (long)(millisecondsTimeout * (double)Stopwatch.Frequency / 1000);
+        while (!this.IsTerminated)
+        {
+            if (this.pendingJobs.Count == 0)
+            {// Complete
+                return true;
+            }
+            else if (millisecondsTimeout >= 0 && Stopwatch.GetTimestamp() >= end)
+            {// Timeout
+                return false;
+            }
+            else
+            {// Wait
+                var cancelled = this.CancellationToken.WaitHandle.WaitOne(10);
+                if (cancelled)
+                {
+                    return false;
+                }
+            }
+        }
+
+        return false;
     }
 
     protected override void Dispose(bool disposing)
