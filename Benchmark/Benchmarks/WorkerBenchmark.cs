@@ -56,4 +56,4 @@ public class WorkerBenchmark
         return AbortOrComplete.Complete;
     }
 }
-w
+

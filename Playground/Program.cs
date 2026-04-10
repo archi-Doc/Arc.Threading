@@ -6,7 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Arc.Threading;
 
-namespace Sandbox;
+namespace Playground;
 
 internal class CustomCore : ThreadCore
 {
