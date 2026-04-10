@@ -72,6 +72,30 @@ public class ReusableThreadJob : ReusableJobBase
     }
 }
 
+public class ReusableTaskJob : ReusableJobBase
+{
+    private readonly AsyncPulseEvent pulseEvent;
+
+    public ReusableTaskJob()
+    {
+        this.pulseEvent = new();
+    }
+
+    public Task Wait(CancellationToken cancellationToken = default)
+    {
+        return this.pulseEvent.WaitAsync(cancellationToken);
+    }
+
+    internal override void SetInternal()
+    {
+        this.pulseEvent.Pulse();
+    }
+
+    internal override void ResetInternal()
+    {
+    }
+}
+
 public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
     where TJob : ReusableJobBase, new()
 {
