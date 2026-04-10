@@ -10,7 +10,7 @@ class Program
     {
         Console.WriteLine("Hello World!");
 
-        var worker = new ReusableJobWorker<ReusableWork>(10, x => { });
+        var worker = new ReusableJobWorker<ReusableThreadJob>(10, x => { });
         var job = worker.Rent();
         worker.Add(job);
         job.Wait();

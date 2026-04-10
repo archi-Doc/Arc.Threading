@@ -17,16 +17,16 @@ public abstract class ReusableJobBase
     {
     }
 
-    internal virtual void ResetInternal()
-    {
-    }
+    internal abstract void SetInternal();
+
+    internal abstract void ResetInternal();
 }
 
-public class ReusableWork
+public class ReusableThreadJob : ReusableJobBase
 {
     private readonly ManualResetEventSlim eventSlim;
 
-    public ReusableWork()
+    public ReusableThreadJob()
     {
         this.eventSlim = new(false);
     }
@@ -36,26 +36,38 @@ public class ReusableWork
         this.eventSlim.Wait(cancellationToken);
     }
 
-    internal void SetInternal()
+    internal override void SetInternal()
     {
         this.eventSlim.Set();
     }
 
-    internal void ResetInternal()
+    internal override void ResetInternal()
     {
         this.eventSlim.Reset();
     }
 }
 
 public class ReusableJobWorker<TJob> : TaskCore, IDisposable
-    where TJob : ReusableWork, new()
+    where TJob : ReusableJobBase, new()
 {
     private static async Task Process(object? parameter)
     {
         var worker = (ReusableJobWorker<TJob>)parameter!;
         while (!worker.IsTerminated)
         {
-            var updateEvent = worker.updateEvent;
+            try
+            {
+                if (worker.addedEvent?.Wait(ThreadCore.DefaultInterval, worker.CancellationToken) == true)
+                {
+                    worker.addedEvent?.Reset();
+                }
+            }
+            catch
+            {
+                return;
+            }
+
+            /*var updateEvent = worker.updateEvent;
             if (updateEvent == null)
             {// Disposed
                 return;
@@ -68,7 +80,7 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
             catch
             {
                 return;
-            }
+            }*/
 
             while (worker.pendingJobs.TryDequeue(out var job))
             {
@@ -83,17 +95,16 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
         }
     }
 
-    private AsyncPulseEvent? updateEvent = new();
-    // private readonly Func<TWork> workFactory;
+    // private AsyncPulseEvent? updateEvent = new();
+    private ManualResetEventSlim? addedEvent = new(false);
     private readonly Action<TJob> processJob;
     private readonly ObjectPool<TJob> freeJobs;
     private readonly CircularQueue<TJob> pendingJobs;
 
-    public ReusableJobWorker(int maxPendingWorks, Action<TJob> workProcess, bool startImmediately = true)
+    public ReusableJobWorker(int maxPendingWorks, Action<TJob> processJob, bool startImmediately = true)
         : base(ThreadCore.Root, Process, startImmediately)
     {
-        // this.workFactory = workFactory;
-        this.processJob = workProcess;
+        this.processJob = processJob;
         this.freeJobs = new(() => new TJob(), 32);
         this.pendingJobs = new(maxPendingWorks);
     }
@@ -117,7 +128,8 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
             Thread.Sleep(10);
         }
 
-        this.updateEvent?.Pulse();
+        this.addedEvent?.Set();
+        // this.updateEvent?.Pulse();
     }
 
     protected override void Dispose(bool disposing)
@@ -126,7 +138,8 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
         {
             if (disposing)
             {
-                this.updateEvent = null;
+                this.addedEvent = null;
+                // this.updateEvent = null;
             }
 
             base.Dispose(disposing);
