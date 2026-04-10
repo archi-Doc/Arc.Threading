@@ -2,7 +2,7 @@
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
   </Folder>
-  <Project Path="../SimpleCommandLine/Playground/Playground.csproj" />
+  <Project Path="Playground/Playground.csproj" />
   <Project Path="Arc.Threading/Arc.Threading.csproj" />
   <Project Path="Benchmark/Benchmark.csproj" />
   <Project Path="QuickStart/QuickStart.csproj" />
