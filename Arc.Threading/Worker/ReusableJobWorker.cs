@@ -188,7 +188,6 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
         var job = this.freeJobs.Rent();
         job.State = ReusableJobState.Created;
         return job;
-
     }
 
     public bool Return(TJob job)
@@ -206,7 +205,6 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
         }
 
         job.State = ReusableJobState.Pending;
-
         this.addedEvent?.Set();
         // this.updateEvent?.Pulse();
     }
