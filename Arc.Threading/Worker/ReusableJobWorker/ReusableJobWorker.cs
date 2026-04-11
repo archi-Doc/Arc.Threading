@@ -65,7 +65,15 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
                                         }
 
                                         job.State = ReusableJobState.Running;
-                                        worker.Process(job);
+                                        if (worker.processJob is null)
+                                        {
+                                            worker.Process(job);
+                                        }
+                                        else
+                                        {
+                                            worker.processJob(job);
+                                        }
+
                                         job.State = ReusableJobState.Completed;
                                         job.SetInternal();
                                     }
@@ -80,7 +88,15 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
                 }
 
                 job.State = ReusableJobState.Running;
-                worker.Process(job);
+                if (worker.processJob is null)
+                {
+                    worker.Process(job);
+                }
+                else
+                {
+                    worker.processJob(job);
+                }
+
                 job.State = ReusableJobState.Completed;
                 job.SetInternal();
             }
