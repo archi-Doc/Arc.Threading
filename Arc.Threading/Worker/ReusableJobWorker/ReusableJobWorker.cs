@@ -9,9 +9,18 @@ using Arc.Collections;
 
 namespace Arc.Threading;
 
+#pragma warning disable SA1629 // Documentation text should end with a period
+
 /// <summary>
 /// Provides a reusable, pooled job worker that processes <typeparamref name="TJob"/> instances on a background thread.<br/>
-/// To process the actual job, either override ProcessJob (recommended, preferred) or provide processJob in the constructor.
+/// To process the actual job, either override ProcessJob (recommended, preferred) or provide processJob in the constructor.<br/>
+/// <br/>
+/// Example: <br/>
+/// var job = worker.Rent();<br/>
+/// job.Initialize(10);<br/>
+/// worker.Add(job);<br/>
+/// job.Wait();<br/>
+/// worker.Return(job);
 /// </summary>
 /// <typeparam name="TJob">
 /// The reusable job type handled by this worker. The type must inherit from <see cref="ReusableJobBase"/>
