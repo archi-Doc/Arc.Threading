@@ -11,11 +11,11 @@ namespace Arc.Threading;
 /// </summary>
 public record class ReusableTaskJob : ReusableJobBase
 {
-    private readonly AsyncPulseEvent pulseEvent;
+    private readonly SemaphoreSlim pulseEvent;
 
     public ReusableTaskJob()
     {
-        this.pulseEvent = new();
+        this.pulseEvent = new(0, 1);
     }
 
     /// <summary>
@@ -51,7 +51,7 @@ public record class ReusableTaskJob : ReusableJobBase
 
     internal override void SetInternal()
     {
-        this.pulseEvent.Pulse();
+        this.pulseEvent.Release();
     }
 
     internal override void ResetInternal()
