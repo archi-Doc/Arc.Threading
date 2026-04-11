@@ -19,7 +19,8 @@ public class TaskWorkSlim
     /// Wait until the work is completed.
     /// </summary>
     /// <returns><see langword="true"/>: The work is complete<br/><see langword="false"/>: Not complete.</returns>
-    public Task<bool> WaitForCompletionAsync() => this.WaitForCompletionAsync(TimeSpan.MinValue, false);
+    public Task<bool> WaitForCompletionAsync()
+        => this.WaitForCompletionAsync(TimeSpan.MinValue, false);
 
     /// <summary>
     /// Wait for the specified time until the work is completed.
@@ -27,7 +28,8 @@ public class TaskWorkSlim
     /// <param name="millisecondsToWait">The number of milliseconds to wait, or -1 to wait indefinitely.</param>
     /// <param name="abortIfTimeout">Abort the work if the specified time is elapsed.</param>
     /// <returns><see langword="true"/>: The work is complete<br/><see langword="false"/>: Not complete.</returns>
-    public Task<bool> WaitForCompletionAsync(int millisecondsToWait, bool abortIfTimeout = true) => this.WaitForCompletionAsync(TimeSpan.FromMilliseconds(millisecondsToWait), abortIfTimeout);
+    public Task<bool> WaitForCompletionAsync(int millisecondsToWait, bool abortIfTimeout = true)
+        => this.WaitForCompletionAsync(TimeSpan.FromMilliseconds(millisecondsToWait), abortIfTimeout);
 
     /// <summary>
     /// Wait for the specified time until the work is completed.
