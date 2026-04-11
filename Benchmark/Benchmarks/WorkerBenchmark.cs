@@ -28,6 +28,21 @@ internal class TestReusableJob : ReusableThreadJob // ReusableTaskJob
     }
 }
 
+internal class TestReusableWorker : ReusableJobWorker<TestReusableJob>
+{
+    private int count;
+
+    public TestReusableWorker(ThreadCoreBase? parent)
+        : base(parent)
+    {
+    }
+
+    public override void Process(TestReusableJob job)
+    {
+        Interlocked.Increment(ref this.count);
+    }
+}
+
 [Config(typeof(BenchmarkConfig))]
 public class WorkerBenchmark
 {
@@ -35,12 +50,14 @@ public class WorkerBenchmark
     private readonly ThreadWorker<TestWork> threadWorker;
     private readonly TaskWorkerSlim<TestTaskWorkSlim> taskWorkerSlim;
     private readonly ReusableJobWorker<TestReusableJob> jobWorker;
+    private readonly TestReusableWorker jobWorker2;
 
     public WorkerBenchmark()
     {
         this.threadWorker = new ThreadWorker<TestWork>(ThreadCore.Root, EmptyMethod2);
         this.taskWorkerSlim = new TaskWorkerSlim<TestTaskWorkSlim>(ThreadCore.Root, EmptyMethodTaskSlim);
         this.jobWorker = new(ThreadCore.Root, job => { Interlocked.Increment(ref WorkerBenchmark.count); });
+        this.jobWorker2 = new(ThreadCore.Root);
     }
 
     [Benchmark]
@@ -73,9 +90,11 @@ public class WorkerBenchmark
     [Benchmark]
     public int ReusableJobWorker2()
     {
-        var job = new TestReusableJob(10);
-        this.jobWorker.Add(job);
+        var job = this.jobWorker2.Rent();
+        job.Initialize(10);
+        this.jobWorker2.Add(job);
         job.Wait();
+        this.jobWorker2.Return(job);
         return job.Id;
     }
 

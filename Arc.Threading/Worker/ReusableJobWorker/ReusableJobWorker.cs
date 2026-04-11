@@ -13,7 +13,8 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
     where TJob : ReusableJobBase, new()
 {
     private const int DefaultPoolCapacity = 32;
-    private const int MillisecondsTimeout = 1_000;
+    private const int WaitTimeout = 100;
+    private const int EventTimeout = 1_000;
 
     private static async void Process(object? parameter)
     {
@@ -22,7 +23,7 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
         {
             try
             {
-                if (worker.addedEvent?.Wait(MillisecondsTimeout, worker.CancellationToken) == true)
+                if (worker.addedEvent?.Wait(EventTimeout, worker.CancellationToken) == true)
                 {
                     worker.addedEvent?.Reset();
                 }
@@ -64,7 +65,7 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
                                         }
 
                                         job.State = ReusableJobState.Running;
-                                        worker.processJob(job);
+                                        worker.Process(job);
                                         job.State = ReusableJobState.Completed;
                                         job.SetInternal();
                                     }
@@ -79,7 +80,7 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
                 }
 
                 job.State = ReusableJobState.Running;
-                worker.processJob(job);
+                worker.Process(job);
                 job.State = ReusableJobState.Completed;
                 job.SetInternal();
             }
@@ -92,9 +93,8 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
 
     public int NumberOfPendingJobs => this.numberOfPendingJobs;
 
-    private readonly Action<TJob> processJob;
+    private readonly Action<TJob>? processJob;
     private readonly ObjectPool<TJob> freeJobs;
-    // private readonly CircularQueue<TJob> pendingJobs;
     private readonly ConcurrentQueue<TJob> pendingJobs;
     private int numberOfPendingJobs;
 
@@ -102,13 +102,16 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
     private bool working;
     private int numberOfActiveTasks;
 
-    public ReusableJobWorker(ThreadCoreBase? parent, Action<TJob> processJob, int poolCapacity = DefaultPoolCapacity, bool startImmediately = true)
+    public ReusableJobWorker(ThreadCoreBase? parent, Action<TJob>? processJob = default, int poolCapacity = DefaultPoolCapacity, bool startImmediately = true)
         : base(parent, Process, startImmediately)
     {
         this.processJob = processJob;
         this.freeJobs = new(() => new TJob(), poolCapacity);
         this.pendingJobs = new();
-        // this.pendingJobs = new(poolCapacity);
+    }
+
+    public virtual void Process(TJob job)
+    {
     }
 
     public TJob Rent()
@@ -142,7 +145,6 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
 
         job.State = ReusableJobState.Pending;
         this.addedEvent?.Set();
-        // this.updateEvent?.Pulse();
     }
 
     /// <summary>
@@ -170,7 +172,7 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
             }
             else
             {// Wait
-                var cancelled = this.CancellationToken.WaitHandle.WaitOne(10);
+                var cancelled = this.CancellationToken.WaitHandle.WaitOne(WaitTimeout);
                 if (cancelled)
                 {
                     return false;
@@ -188,7 +190,6 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
             if (disposing)
             {
                 this.addedEvent = null;
-                // this.updateEvent = null;
             }
 
             base.Dispose(disposing);
