@@ -349,7 +349,7 @@ internal class ThreadWorkerBenchmark
                 worker.Add(job);
             }
 
-            worker.WaitForCompletion(-1);
+            worker.WaitForCompletion(-1).Wait();
             benchTimer.Stop();
         }
 
@@ -369,7 +369,7 @@ internal class ThreadWorkerBenchmark
                 }
             });
 
-            worker.WaitForCompletion(-1);
+            worker.WaitForCompletion(-1).Wait();
             benchTimer.Stop();
         }
 
@@ -386,7 +386,7 @@ internal class ThreadWorkerBenchmark
                 worker.Add(job);
             }
 
-            worker.WaitForCompletion(-1);
+            worker.WaitForCompletion(-1).Wait();
             benchTimer.Stop();
         }
 
@@ -406,7 +406,7 @@ internal class ThreadWorkerBenchmark
                 }
             });
 
-            worker.WaitForCompletion(-1);
+            worker.WaitForCompletion(-1).Wait();
             benchTimer.Stop();
         }
 
@@ -426,7 +426,7 @@ internal class ThreadWorkerBenchmark
                 }
             });
 
-            worker.WaitForCompletion(-1);
+            worker.WaitForCompletion(-1).Wait();
             benchTimer.Stop();
         }
 

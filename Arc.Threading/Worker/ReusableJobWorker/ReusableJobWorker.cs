@@ -238,9 +238,23 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
     /// <summary>
     /// Waits for the completion of all jobs.
     /// </summary>
-    /// <param name="millisecondsTimeout">The number of milliseconds to wait, or -1 to wait indefinitely.</param>
+    /// <param name="timeout">The time span to wait.</param>
+    /// <param name="cancellationToken">
+    /// A cancellation token that can be used to cancel the wait operation.
+    /// </param>
     /// <returns><see langword="true"/>: All works are complete.<br/><see langword="false"/>: Timeout or cancelled.</returns>
-    public bool WaitForCompletion(int millisecondsTimeout)
+    public Task<bool> WaitForCompletion(TimeSpan timeout, CancellationToken cancellationToken = default)
+        => this.WaitForCompletion((int)timeout.TotalMilliseconds, cancellationToken);
+
+    /// <summary>
+    /// Waits for the completion of all jobs.
+    /// </summary>
+    /// <param name="millisecondsTimeout">The number of milliseconds to wait, or -1 to wait indefinitely.</param>
+    /// <param name="cancellationToken">
+    /// A cancellation token that can be used to cancel the wait operation.
+    /// </param>
+    /// <returns><see langword="true"/>: All works are complete.<br/><see langword="false"/>: Timeout or cancelled.</returns>
+    public async Task<bool> WaitForCompletion(int millisecondsTimeout, CancellationToken cancellationToken = default)
     {
         if (this.disposed)
         {
@@ -260,8 +274,7 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
             }
             else
             {// Wait
-                var cancelled = this.CancellationToken.WaitHandle.WaitOne(WaitTimeout);
-                if (cancelled)
+                if (await this.Delay(WaitTimeout, cancellationToken).ConfigureAwait(false) == false)
                 {
                     return false;
                 }
