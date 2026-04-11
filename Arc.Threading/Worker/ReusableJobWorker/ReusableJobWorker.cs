@@ -9,6 +9,20 @@ using Arc.Collections;
 
 namespace Arc.Threading;
 
+/// <summary>
+/// Provides a reusable, pooled job worker that processes <typeparamref name="TJob"/> instances on a background thread.<br/>
+/// To process the actual job, either override ProcessJob (recommended, preferred) or provide processJob in the constructor.
+/// </summary>
+/// <typeparam name="TJob">
+/// The reusable job type handled by this worker. The type must inherit from <see cref="ReusableJobBase"/>
+/// and expose a public parameterless constructor.
+/// </typeparam>
+/// <remarks>
+/// This worker combines an internal object pool with a pending queue to reduce allocations and support high-throughput scheduling.<br/>
+/// Jobs are expected to follow the lifecycle:<br/>
+/// <see cref="ReusableJobState.Created"/> -> <see cref="ReusableJobState.Pending"/> ->
+/// <see cref="ReusableJobState.Running"/> -> <see cref="ReusableJobState.Completed"/>.
+/// </remarks>
 public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
     where TJob : ReusableJobBase, new()
 {
