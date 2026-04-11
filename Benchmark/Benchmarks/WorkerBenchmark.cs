@@ -17,6 +17,11 @@ internal class TestReusableJob : ReusableThreadJob // ReusableTaskJob
     {
     }
 
+    public TestReusableJob(int id)
+    {
+        this.Id = id;
+    }
+
     public void Initialize(int id)
     {
         this.Id = id;
@@ -62,6 +67,15 @@ public class WorkerBenchmark
         this.jobWorker.Add(job);
         job.Wait();
         this.jobWorker.Return(job);
+        return job.Id;
+    }
+
+    [Benchmark]
+    public int ReusableJobWorker2()
+    {
+        var job = new TestReusableJob(10);
+        this.jobWorker.Add(job);
+        job.Wait();
         return job.Id;
     }
 
