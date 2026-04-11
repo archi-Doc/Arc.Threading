@@ -7,7 +7,7 @@ using BenchmarkDotNet.Attributes;
 
 namespace Benchmark;
 
-internal record class TestReusableJob : ReusableThreadJob // ReusableTaskJob
+internal record class TestReusableJob : ReusableThreadJob
 {
     public int Id { get; private set; }
 
@@ -20,6 +20,22 @@ internal record class TestReusableJob : ReusableThreadJob // ReusableTaskJob
     public TestReusableJob(int id)
     {
         this.Id = id;
+    }
+
+    public void Initialize(int id)
+    {
+        this.Id = id;
+    }
+}
+
+internal record class TestReusableJob2 : ReusableTaskJob
+{
+    public int Id { get; private set; }
+
+    public long Result { get; set; }
+
+    public TestReusableJob2()
+    {
     }
 
     public void Initialize(int id)
@@ -50,6 +66,7 @@ public class WorkerBenchmark
     private readonly ThreadWorker<TestWork> threadWorker;
     private readonly TaskWorkerSlim<TestTaskWorkSlim> taskWorkerSlim;
     private readonly ReusableJobWorker<TestReusableJob> jobWorker;
+    private readonly ReusableJobWorker<TestReusableJob2> jobWorker3;
     private readonly TestReusableWorker jobWorker2;
 
     public WorkerBenchmark()
@@ -58,6 +75,7 @@ public class WorkerBenchmark
         this.taskWorkerSlim = new TaskWorkerSlim<TestTaskWorkSlim>(ThreadCore.Root, EmptyMethodTaskSlim);
         this.jobWorker = new(ThreadCore.Root, job => { Interlocked.Increment(ref WorkerBenchmark.count); });
         this.jobWorker2 = new(ThreadCore.Root);
+        this.jobWorker3 = new(ThreadCore.Root, job => { Interlocked.Increment(ref WorkerBenchmark.count); });
     }
 
     [Benchmark]
@@ -98,16 +116,16 @@ public class WorkerBenchmark
         return job.Id;
     }
 
-    /*[Benchmark]
-    public async Task<int> ReusableJobWorker()
+    [Benchmark]
+    public async Task<int> ReusableJobWorker3()
     {
-        var job = this.jobWorker.Rent();
+        var job = this.jobWorker3.Rent();
         job.Initialize(10);
-        this.jobWorker.Add(job);
+        this.jobWorker3.Add(job);
         await job.Wait();
-        this.jobWorker.Return(job);
+        this.jobWorker3.Return(job);
         return job.Id;
-    }*/
+    }
 
     /*[GlobalCleanup]
     public void Cleanup()
