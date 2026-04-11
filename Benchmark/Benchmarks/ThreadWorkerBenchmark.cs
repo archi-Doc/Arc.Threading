@@ -36,7 +36,7 @@ internal class TestWork : ThreadWork
     public long Result { get; set; }
 }
 
-internal class TestJob : ReusableThreadJob
+internal record class TestJob : ReusableThreadJob
 {
     public TestJob()
     {

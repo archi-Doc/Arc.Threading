@@ -7,7 +7,7 @@ using BenchmarkDotNet.Attributes;
 
 namespace Benchmark;
 
-internal class TestReusableJob : ReusableThreadJob // ReusableTaskJob
+internal record class TestReusableJob : ReusableThreadJob // ReusableTaskJob
 {
     public int Id { get; private set; }
 

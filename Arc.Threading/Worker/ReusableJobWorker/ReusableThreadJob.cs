@@ -1,10 +1,11 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
+using System;
 using System.Threading;
 
 namespace Arc.Threading;
 
-public class ReusableThreadJob : ReusableJobBase
+public record class ReusableThreadJob : ReusableJobBase
 {
     private readonly ManualResetEventSlim eventSlim;
 
@@ -13,9 +14,30 @@ public class ReusableThreadJob : ReusableJobBase
         this.eventSlim = new(false);
     }
 
+    /// <summary>
+    /// Blocks the calling thread until this job is signaled as completed.
+    /// </summary>
+    /// <param name="cancellationToken">
+    /// A token that can be used to cancel the wait operation.
+    /// </param>
     public void Wait(CancellationToken cancellationToken = default)
     {
         this.eventSlim.Wait(cancellationToken);
+    }
+
+    /// <summary>
+    /// Blocks the calling thread until this job is signaled as completed, the timeout expires,
+    /// or the wait is canceled.
+    /// </summary>
+    /// <param name="timeout">
+    /// The maximum time to wait for the job to be signaled.
+    /// </param>
+    /// <param name="cancellationToken">
+    /// A token that can be used to cancel the wait operation.
+    /// </param>
+    public void Wait(TimeSpan timeout, CancellationToken cancellationToken = default)
+    {
+        this.eventSlim.Wait(timeout, cancellationToken);
     }
 
     internal override void SetInternal()
