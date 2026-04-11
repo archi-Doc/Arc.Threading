@@ -10,7 +10,7 @@ class Program
     {
         Console.WriteLine("Hello World!");
 
-        var worker = new ReusableJobWorker<ReusableThreadJob>(x => { });
+        var worker = new ReusableJobWorker<ReusableThreadJob>(ThreadCore.Root, x => { });
         var job = worker.Rent();
         worker.Add(job);
         job.Wait();

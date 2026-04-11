@@ -118,16 +118,16 @@ internal class ThreadWorkerBenchmark
         heavyWorker2.Dispose();
         Console.WriteLine();*/
 
-        Console.WriteLine($"TaskWorker heavy");
+        /*Console.WriteLine($"TaskWorker heavy");
         var taskWorkerHeavy = new TaskWorker<TestTaskWork>(ThreadCore.Root, HeavyMethodTask);
         taskWorkerHeavy.NumberOfConcurrentTasks = 4;
         BenchWorkerTask(N2, taskWorkerHeavy);
         taskWorkerHeavy.Dispose();
-        Console.WriteLine(Count.ToString());
+        Console.WriteLine(Count.ToString());*/
 
         Console.WriteLine($"ReusableJobWorker heavy");
         var jobWorker2 = new ReusableJobWorker<TestJob>(ThreadCore.Root, HeavyMethod3, N2);
-        jobWorker2.NumberOfConcurrentTasks = 4;
+        jobWorker2.NumberOfConcurrentTasks = 10;
         BenchWorker3(N2, jobWorker2);
         jobWorker2.Dispose();
         Console.WriteLine(Count.ToString());

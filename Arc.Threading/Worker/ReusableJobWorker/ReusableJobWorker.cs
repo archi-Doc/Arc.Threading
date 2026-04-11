@@ -52,85 +52,41 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
                         {
                             _ = Task.Run(() =>
                             {
-                                while (worker.pendingJobs.TryDequeue(out var job))
+                                try
                                 {
-                                    if (worker.IsTerminated)
-                                    {// Terminated
-                                        return;
-                                    }
+                                    while (worker.pendingJobs.TryDequeue(out var job))
+                                    {
+                                        Interlocked.Decrement(ref worker.numberOfPendingJobs);
 
-                                    job.State = ReusableJobState.Running;
-                                    worker.processJob(job);
-                                    job.State = ReusableJobState.Completed;
-                                    job.SetInternal();
+                                        if (worker.IsTerminated)
+                                        {// Terminated
+                                            return;
+                                        }
+
+                                        job.State = ReusableJobState.Running;
+                                        worker.processJob(job);
+                                        job.State = ReusableJobState.Completed;
+                                        job.SetInternal();
+                                    }
+                                }
+                                finally
+                                {
+                                    Interlocked.Decrement(ref worker.numberOfActiveTasks);
                                 }
                             });
                         }
                     }
                 }
 
-                if (worker.NumberOfConcurrentTasks <= 1)
-                {
-                    job.State = ReusableJobState.Running;
-                    worker.processJob(job);
-                    job.State = ReusableJobState.Completed;
-                    job.SetInternal();
-                }
-                else
-                {
-                    job.State = ReusableJobState.Running;
-                    worker.processJob(job);
-                    job.State = ReusableJobState.Completed;
-                    job.SetInternal();
-                }
+                job.State = ReusableJobState.Running;
+                worker.processJob(job);
+                job.State = ReusableJobState.Completed;
+                job.SetInternal();
             }
 
             worker.working = false;
-
-            /*_ = Task.Run(() =>
-            {//
-                job.State = ReusableJobState.Running;
-                worker.processJob(job);
-                job.State = ReusableJobState.Completed;
-                job.SetInternal();
-            });*/
         }
     }
-
-    /*private static async Task Process(object? parameter)
-    {
-        var worker = (ReusableJobWorker<TJob>)parameter!;
-        while (!worker.IsTerminated)
-        {
-            var updateEvent = worker.updateEvent;
-            if (updateEvent == null)
-            {// Disposed
-                return;
-            }
-
-            try
-            {
-                await updateEvent.WaitAsync(worker.CancellationToken).ConfigureAwait(false); // Add or Finish
-            }
-            catch
-            {
-                return;
-            }
-
-            while (worker.pendingJobs.TryDequeue(out var job))
-            {
-                if (worker.IsTerminated)
-                {// Terminated
-                    return;
-                }
-
-                job.State = ReusableJobState.Running;
-                worker.processJob(job);
-                job.State = ReusableJobState.Completed;
-                job.SetInternal();
-            }
-        }
-    }*/
 
     public int NumberOfConcurrentTasks { get; set; } = 1;
 
