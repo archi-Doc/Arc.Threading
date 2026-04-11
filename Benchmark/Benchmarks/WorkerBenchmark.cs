@@ -86,7 +86,7 @@ public class WorkerBenchmark
         return await work.WaitForCompletionAsync();
     }
 
-    /*[Benchmark]
+    [Benchmark]
     public bool ThreadWorker()
     {
         var work = new TestWork(2);
@@ -114,7 +114,7 @@ public class WorkerBenchmark
         job.Wait();
         this.jobWorker2.Return(job);
         return job.Id;
-    }*/
+    }
 
     [Benchmark]
     public async Task<int> ReusableJobWorker3()

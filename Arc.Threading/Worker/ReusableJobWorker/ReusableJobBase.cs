@@ -5,7 +5,7 @@ namespace Arc.Threading;
 /// <summary>
 /// Represents the base record class for reusable jobs that can be executed by a worker.<br/>
 /// Since this class does not provide a way to wait for completion, inherit from <br/>
-/// <see cref="ReusableThreadJob" /> (ManualResetEventSlim-based, recommended) or <see cref="ReusableTaskJob" /> (SemaphoreSlim-based).
+/// <see cref="ReusableThreadJob" /> (ManualResetEventSlim-based, recommended) or <see cref="ReusableTaskJob" /> (TaskCompletionSource-based).
 /// </summary>
 public abstract record class ReusableJobBase
 {

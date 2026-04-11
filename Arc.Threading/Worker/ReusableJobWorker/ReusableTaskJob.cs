@@ -11,11 +11,11 @@ namespace Arc.Threading;
 /// </summary>
 public record class ReusableTaskJob : ReusableJobBase
 {
-    private readonly SemaphoreSlim pulseEvent;
+    private TaskCompletionSource pulseEvent;
 
     public ReusableTaskJob()
     {
-        this.pulseEvent = new(0, 1);
+        this.pulseEvent = new();
     }
 
     /// <summary>
@@ -29,7 +29,7 @@ public record class ReusableTaskJob : ReusableJobBase
     /// </returns>
     public Task Wait(CancellationToken cancellationToken = default)
     {
-        return this.pulseEvent.WaitAsync(cancellationToken);
+        return this.pulseEvent.Task.WaitAsync(cancellationToken);
     }
 
     /// <summary>
@@ -46,15 +46,16 @@ public record class ReusableTaskJob : ReusableJobBase
     /// </returns>
     public Task WaitAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
     {
-        return this.pulseEvent.WaitAsync(timeout, cancellationToken);
+        return this.pulseEvent.Task.WaitAsync(timeout, cancellationToken);
     }
 
     internal override void SetInternal()
     {
-        this.pulseEvent.Release();
+        this.pulseEvent.SetResult();
     }
 
     internal override void ResetInternal()
     {
+        this.pulseEvent = new();
     }
 }
