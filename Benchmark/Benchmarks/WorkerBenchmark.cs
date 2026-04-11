@@ -37,7 +37,7 @@ internal class TestReusableWorker : ReusableJobWorker<TestReusableJob>
     {
     }
 
-    public override void Process(TestReusableJob job)
+    public override void ProcessJob(TestReusableJob job)
     {
         Interlocked.Increment(ref this.count);
     }

@@ -67,7 +67,7 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
                                         job.State = ReusableJobState.Running;
                                         if (worker.processJob is null)
                                         {
-                                            worker.Process(job);
+                                            worker.ProcessJob(job);
                                         }
                                         else
                                         {
@@ -90,7 +90,7 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
                 job.State = ReusableJobState.Running;
                 if (worker.processJob is null)
                 {
-                    worker.Process(job);
+                    worker.ProcessJob(job);
                 }
                 else
                 {
@@ -126,7 +126,7 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
         this.pendingJobs = new();
     }
 
-    public virtual void Process(TJob job)
+    public virtual void ProcessJob(TJob job)
     {
     }
 
