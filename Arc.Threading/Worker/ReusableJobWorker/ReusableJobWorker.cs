@@ -105,8 +105,20 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
         }
     }
 
+    /// <summary>
+    /// Gets or sets the maximum number of worker tasks allowed to process queued jobs concurrently.
+    /// </summary>
+    /// <value>
+    /// The concurrency limit for background processing. The default value is <c>1</c>.
+    /// </value>
+    /// <remarks>
+    /// Values greater than <c>1</c> allow additional task-based parallel processing when the queue has enough pending jobs.
+    /// </remarks>
     public int NumberOfConcurrentTasks { get; set; } = 1;
 
+    /// <summary>
+    /// Gets the current number of jobs waiting to be processed.
+    /// </summary>
     public int NumberOfPendingJobs => this.numberOfPendingJobs;
 
     private readonly Action<TJob>? processJob;
@@ -118,6 +130,17 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
     private bool working;
     private int numberOfActiveTasks;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ReusableJobWorker{TJob}"/> class.
+    /// </summary>
+    /// <param name="parent">The parent thread core used for lifecycle coordination, or <see langword="default"/>.</param>
+    /// <param name="processJob">
+    /// Optional delegate used to process each job. If <see langword="null"/>, <see cref="ProcessJob(TJob)"/> is invoked.
+    /// </param>
+    /// <param name="poolCapacity">Initial capacity of the reusable job object pool.</param>
+    /// <param name="startImmediately">
+    /// <see langword="true"/> to start the worker thread during construction; otherwise, manual start is required.
+    /// </param>
     public ReusableJobWorker(ThreadCoreBase? parent, Action<TJob>? processJob = default, int poolCapacity = DefaultPoolCapacity, bool startImmediately = true)
         : base(parent, Process, startImmediately)
     {
@@ -126,10 +149,22 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
         this.pendingJobs = new();
     }
 
+    /// <summary>
+    /// Processes a single job instance.<br/>
+    /// This method must be <b>thread-safe</b>.
+    /// </summary>
+    /// <param name="job">The job to process.</param>
+    /// <remarks>
+    /// Override this method when no processing delegate is provided to the constructor.
+    /// </remarks>
     public virtual void ProcessJob(TJob job)
     {
     }
 
+    /// <summary>
+    /// Rents a reusable job instance from the internal pool.
+    /// </summary>
+    /// <returns>A job in the <see cref="ReusableJobState.Created"/> state.</returns>
     public TJob Rent()
     {
         var job = this.freeJobs.Rent();
@@ -137,18 +172,32 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
         return job;
     }
 
-    public bool Return(TJob job)
+    /// <summary>
+    /// Returns a used job to the internal pool.<br/>
+    /// Since it will be reused, be sure to reset the job's internal state.
+    /// </summary>
+    /// <param name="job">The job to return.</param>
+    /// <remarks>
+    /// Only jobs in the <see cref="ReusableJobState.Completed"/> state are accepted.
+    /// </remarks>
+    public void Return(TJob job)
     {
         if (job.State != ReusableJobState.Completed)
         {
-            return false;
+            return;
         }
 
         job.ResetInternal();
         this.freeJobs.Return(job);
-        return true;
     }
 
+    /// <summary>
+    /// Enqueues a created job for background processing.
+    /// </summary>
+    /// <param name="job">The job to enqueue.</param>
+    /// <remarks>
+    /// Jobs not in the <see cref="ReusableJobState.Created"/> state are ignored.
+    /// </remarks>
     public void Add(TJob job)
     {
         if (job.State != ReusableJobState.Created)
