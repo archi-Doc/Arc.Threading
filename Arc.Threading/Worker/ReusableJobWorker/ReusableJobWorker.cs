@@ -13,7 +13,7 @@ namespace Arc.Threading;
 
 /// <summary>
 /// Provides a reusable, pooled job worker that processes <typeparamref name="TJob"/> instances on a background thread.<br/>
-/// To process the actual job, either override ProcessJob (recommended, preferred) or provide processJob in the constructor.<br/>
+/// To process the actual job, either override ProcessJob (recommended) or provide processJob in the constructor.<br/>
 /// <br/>
 /// Example: <br/>
 /// var job = worker.Rent();<br/>
