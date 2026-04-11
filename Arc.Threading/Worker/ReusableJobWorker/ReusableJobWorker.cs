@@ -35,11 +35,38 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
             worker.working = true;
             while (worker.pendingJobs.TryDequeue(out var job))
             {
-                Interlocked.Decrement(ref worker.numberOfPendingJobs);
+                var numberOfPendingJobs = Interlocked.Decrement(ref worker.numberOfPendingJobs);
                 if (worker.IsTerminated)
                 {// Terminated
                     worker.working = false;
                     return;
+                }
+
+                if (worker.NumberOfConcurrentTasks > 1)
+                {
+                    var current = Volatile.Read(ref worker.numberOfActiveTasks);
+                    if (current < worker.NumberOfConcurrentTasks &&
+                        current < numberOfPendingJobs * 2)
+                    {
+                        if (Interlocked.CompareExchange(ref worker.numberOfActiveTasks, current + 1, current) == current)
+                        {
+                            _ = Task.Run(() =>
+                            {
+                                while (worker.pendingJobs.TryDequeue(out var job))
+                                {
+                                    if (worker.IsTerminated)
+                                    {// Terminated
+                                        return;
+                                    }
+
+                                    job.State = ReusableJobState.Running;
+                                    worker.processJob(job);
+                                    job.State = ReusableJobState.Completed;
+                                    job.SetInternal();
+                                }
+                            });
+                        }
+                    }
                 }
 
                 if (worker.NumberOfConcurrentTasks <= 1)
@@ -119,8 +146,8 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
     private bool working;
     private int numberOfActiveTasks;
 
-    public ReusableJobWorker(Action<TJob> processJob, int poolCapacity = DefaultPoolCapacity, bool startImmediately = true)
-        : base(ThreadCore.Root, Process, startImmediately)
+    public ReusableJobWorker(ThreadCoreBase? parent, Action<TJob> processJob, int poolCapacity = DefaultPoolCapacity, bool startImmediately = true)
+        : base(parent, Process, startImmediately)
     {
         this.processJob = processJob;
         this.freeJobs = new(() => new TJob(), poolCapacity);

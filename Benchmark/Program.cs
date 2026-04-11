@@ -8,6 +8,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
+using Arc.Threading;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Running;
 
@@ -21,7 +22,7 @@ public class Program
     {
         // ThreadPool.GetMaxThreads(out var workerThreads, out var completionPortThreads);
         // ThreadPool.SetMaxThreads(100, completionPortThreads);
-        ThreadWorkerBenchmark.Benchmark();
+        // ThreadWorkerBenchmark.Benchmark();
         // ThreadPool.SetMaxThreads(workerThreads, completionPortThreads);
 
         // await ExclusiveControl.Test();
@@ -37,7 +38,10 @@ public class Program
             typeof(LockBenchmarkSlim),
             typeof(TemplateBenchmark),
         });
-        switcher.Run(args);
+
+        _ = switcher.Run(args);
+
+        ThreadCore.Root.Terminate();
     }
 
     public static void DebugRun<T>()

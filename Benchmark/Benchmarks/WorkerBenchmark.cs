@@ -7,7 +7,7 @@ using BenchmarkDotNet.Attributes;
 
 namespace Benchmark;
 
-internal class TestReusableJob : ReusableTaskJob // ReusableThreadJob
+internal class TestReusableJob : ReusableThreadJob // ReusableTaskJob
 {
     public int Id { get; private set; }
 
@@ -35,10 +35,10 @@ public class WorkerBenchmark
     {
         this.threadWorker = new ThreadWorker<TestWork>(ThreadCore.Root, EmptyMethod2);
         this.taskWorkerSlim = new TaskWorkerSlim<TestTaskWorkSlim>(ThreadCore.Root, EmptyMethodTaskSlim);
-        this.jobWorker = new(job => { });
+        this.jobWorker = new(ThreadCore.Root, job => { Interlocked.Increment(ref WorkerBenchmark.count); });
     }
 
-    /*[Benchmark]
+    [Benchmark]
     public async Task<bool> TaskWorkerSlim()
     {
         var work = new TestTaskWorkSlim(1);
@@ -63,9 +63,9 @@ public class WorkerBenchmark
         job.Wait();
         this.jobWorker.Return(job);
         return job.Id;
-    }*/
+    }
 
-    [Benchmark]
+    /*[Benchmark]
     public async Task<int> ReusableJobWorker()
     {
         var job = this.jobWorker.Rent();
@@ -74,7 +74,15 @@ public class WorkerBenchmark
         await job.Wait();
         this.jobWorker.Return(job);
         return job.Id;
-    }
+    }*/
+
+    /*[GlobalCleanup]
+    public void Cleanup()
+    {
+        this.taskWorkerSlim.Dispose();
+        this.threadWorker.Dispose();
+        this.jobWorker.Dispose();
+    }*/
 
     private static async Task<AbortOrComplete> EmptyMethodTaskSlim(TaskWorkerSlim<TestTaskWorkSlim> worker, TestTaskWorkSlim work)
     {
