@@ -37,7 +37,7 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
 {
     private const int DefaultPoolCapacity = 32;
     private const int WaitTimeout = 100;
-    private const int EventTimeout = 1_000;
+    private static readonly TimeSpan DefaultPollingInterval = TimeSpan.FromMilliseconds(1_000);
 
     private static async void Process(object? parameter)
     {
@@ -46,7 +46,7 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
         {
             try
             {
-                if (worker.addedEvent?.Wait(EventTimeout, worker.CancellationToken) == true)
+                if (worker.addedEvent?.Wait(worker.PollingInterval, worker.CancellationToken) == true)
                 {
                     worker.addedEvent?.Reset();
                 }
@@ -56,6 +56,7 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
                 goto Terminated;
             }
 
+            worker.OnBeforeProcessJob();
             worker.working = true;
             while (worker.pendingJobs.TryDequeue(out var job))
             {
@@ -125,6 +126,7 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
             }
 
             worker.working = false;
+            worker.OnAfterProcessJob();
         }
 
 Terminated:
@@ -135,7 +137,17 @@ Terminated:
             job.State = ReusableJobState.Aborted;
             job.SetInternal();
         }
+
+        worker.OnTerminated();
     }
+
+    /// <summary>
+    /// Gets or sets the time interval used to poll for new jobs when the queue is empty.
+    /// </summary>
+    /// <value>
+    /// A <see cref="TimeSpan"/> representing the polling interval. The default value is <c>1000 milliseconds</c>.
+    /// </value>
+    public TimeSpan PollingInterval { get; set; } = DefaultPollingInterval;
 
     /// <summary>
     /// Gets or sets the maximum number of worker tasks allowed to process queued jobs concurrently.
@@ -190,6 +202,27 @@ Terminated:
     /// Override this method when no processing delegate is provided to the constructor.
     /// </remarks>
     public virtual void ProcessJob(TJob job)
+    {
+    }
+
+    /// <summary>
+    /// Called before the worker begins draining the current batch of pending jobs.
+    /// </summary>
+    public virtual void OnBeforeProcessJob()
+    {
+    }
+
+    /// <summary>
+    /// Called after the worker finishes draining the current batch of pending jobs.
+    /// </summary>
+    public virtual void OnAfterProcessJob()
+    {
+    }
+
+    /// <summary>
+    /// Called once when the worker transitions to the terminated state.
+    /// </summary>
+    public virtual void OnTerminated()
     {
     }
 
