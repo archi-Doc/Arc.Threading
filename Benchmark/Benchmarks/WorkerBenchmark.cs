@@ -122,7 +122,7 @@ public class WorkerBenchmark
         var job = this.jobWorker3.Rent();
         job.Initialize(10);
         this.jobWorker3.Add(job);
-        await job.Wait();
+        await job.Task;
         this.jobWorker3.Return(job);
         return job.Id;
     }
