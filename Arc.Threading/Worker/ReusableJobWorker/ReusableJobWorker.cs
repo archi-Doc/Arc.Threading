@@ -53,18 +53,13 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
             }
             catch
             {
-                return;
+                goto Terminated;
             }
 
             worker.working = true;
             while (worker.pendingJobs.TryDequeue(out var job))
             {
                 var numberOfPendingJobs = Interlocked.Decrement(ref worker.numberOfPendingJobs);
-                if (worker.IsTerminated)
-                {// Terminated
-                    worker.working = false;
-                    return;
-                }
 
                 if (worker.NumberOfConcurrentTasks > 1)
                 {
@@ -82,11 +77,6 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
                                     {
                                         Interlocked.Decrement(ref worker.numberOfPendingJobs);
 
-                                        if (worker.IsTerminated)
-                                        {// Terminated
-                                            return;
-                                        }
-
                                         job.State = ReusableJobState.Running;
                                         if (worker.processJob is null)
                                         {
@@ -99,6 +89,11 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
 
                                         job.State = ReusableJobState.Completed;
                                         job.SetInternal();
+
+                                        if (worker.IsTerminated)
+                                        {// To prevent the job from freezing, complete the acquired job first, then check whether it has been terminated.
+                                            return;
+                                        }
                                     }
                                 }
                                 finally
@@ -122,9 +117,23 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
 
                 job.State = ReusableJobState.Completed;
                 job.SetInternal();
+
+                if (worker.IsTerminated)
+                {// To prevent the job from freezing, complete the acquired job first, then check whether it has been terminated.
+                    goto Terminated;
+                }
             }
 
             worker.working = false;
+        }
+
+Terminated:
+        worker.working = false;
+        while (worker.pendingJobs.TryDequeue(out var job))
+        {// Mark pending jobs as Aborted and return control.
+            Interlocked.Decrement(ref worker.numberOfPendingJobs);
+            job.State = ReusableJobState.Aborted;
+            job.SetInternal();
         }
     }
 

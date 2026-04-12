@@ -29,4 +29,9 @@ public enum ReusableJobState : byte
     /// Completed state. The job has finished execution.
     /// </summary>
     Completed,
+
+    /// <summary>
+    /// Aborted state. The job was terminated before completion.
+    /// </summary>
+    Aborted,
 }
