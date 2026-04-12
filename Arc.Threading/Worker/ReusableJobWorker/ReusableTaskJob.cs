@@ -11,51 +11,28 @@ namespace Arc.Threading;
 /// </summary>
 public record class ReusableTaskJob : ReusableJobBase
 {
-    private TaskCompletionSource pulseEvent;
+    private TaskCompletionSource tcs;
 
     public ReusableTaskJob()
     {
-        this.pulseEvent = new();
+        this.tcs = new();
     }
 
     /// <summary>
-    /// Asynchronously waits until this job is completed or the specified timeout interval elapses.
+    /// Gets the <see cref="System.Threading.Tasks.Task"/> associated with this reusable job.
     /// </summary>
-    /// <param name="cancellationToken">
-    /// A cancellation token that can be used to cancel the wait operation.
-    /// </param>
-    /// <returns>
-    /// A task that represents the asynchronous wait operation.
-    /// </returns>
-    public Task Wait(CancellationToken cancellationToken = default)
-    {
-        return this.pulseEvent.Task.WaitAsync(cancellationToken);
-    }
-
-    /// <summary>
-    /// Asynchronously waits until this job is completed or the specified timeout interval elapses.
-    /// </summary>
-    /// <param name="timeout">
-    /// The maximum amount of time to wait for a signal before the wait operation completes.
-    /// </param>
-    /// <param name="cancellationToken">
-    /// A cancellation token that can be used to cancel the wait operation.
-    /// </param>
-    /// <returns>
-    /// A task that represents the asynchronous wait operation.
-    /// </returns>
-    public Task WaitAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
-    {
-        return this.pulseEvent.Task.WaitAsync(timeout, cancellationToken);
-    }
+    /// <value>
+    /// The task that will complete when the job is done.
+    /// </value>
+    public Task Task => this.tcs.Task;
 
     internal override void SetInternal()
     {
-        this.pulseEvent.SetResult();
+        this.tcs.SetResult();
     }
 
     internal override void ResetInternal()
     {
-        this.pulseEvent = new();
+        this.tcs = new();
     }
 }
