@@ -31,8 +31,6 @@ class Program
         Console.WriteLine(DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss.fff"));
 
         await worker.WaitForCompletion(500);        
-        // job.Wait();
-        // worker.Return(job);
 
         Console.WriteLine(job.State);
         Console.WriteLine(DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss.fff"));

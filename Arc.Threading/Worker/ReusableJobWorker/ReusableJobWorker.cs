@@ -9,6 +9,7 @@ using Arc.Collections;
 
 namespace Arc.Threading;
 
+#pragma warning disable SA1124 // Do not use regions
 #pragma warning disable SA1629 // Documentation text should end with a period
 
 /// <summary>
@@ -57,7 +58,7 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
             }
 
             worker.OnBeforeProcessJob();
-            worker.working = true;
+            worker.State = ReusableJobWorkerState.Working;
             while (worker.pendingJobs.TryDequeue(out var job))
             {
                 var numberOfPendingJobs = Interlocked.Decrement(ref worker.numberOfPendingJobs);
@@ -125,12 +126,12 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
                 }
             }
 
-            worker.working = false;
+            worker.State = ReusableJobWorkerState.Idle;
             worker.OnAfterProcessJob();
         }
 
 Terminated:
-        worker.working = false;
+        worker.State = ReusableJobWorkerState.Terminated;
         while (worker.pendingJobs.TryDequeue(out var job))
         {// Mark pending jobs as Aborted and return control.
             Interlocked.Decrement(ref worker.numberOfPendingJobs);
@@ -140,6 +141,10 @@ Terminated:
 
         worker.OnTerminated();
     }
+
+    #region FieldAndProperty
+
+    public ReusableJobWorkerState State { get; private set; }
 
     /// <summary>
     /// Gets or sets the time interval used to poll for new jobs when the queue is empty.
@@ -171,8 +176,9 @@ Terminated:
     private int numberOfPendingJobs;
 
     private ManualResetEventSlim? addedEvent = new(false);
-    private bool working;
     private int numberOfActiveTasks;
+
+    #endregion
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ReusableJobWorker{TJob}"/> class.
@@ -206,14 +212,14 @@ Terminated:
     }
 
     /// <summary>
-    /// Called before the worker begins draining the current batch of pending jobs.
+    /// Called before the worker begins processing currently pending jobs.
     /// </summary>
     public virtual void OnBeforeProcessJob()
     {
     }
 
     /// <summary>
-    /// Called after the worker finishes draining the current batch of pending jobs.
+    /// Called after the worker finishes processing the current batch of pending jobs.
     /// </summary>
     public virtual void OnAfterProcessJob()
     {
@@ -275,6 +281,12 @@ Terminated:
 
         job.State = ReusableJobState.Pending;
         this.addedEvent?.Set();
+
+        if (this.State == ReusableJobWorkerState.Terminated)
+        {
+            job.State = ReusableJobState.Aborted;
+            job.SetInternal();
+        }
     }
 
     /// <summary>
@@ -306,9 +318,13 @@ Terminated:
         var end = Stopwatch.GetTimestamp() + (long)(millisecondsTimeout * (double)Stopwatch.Frequency / 1000);
         while (!this.IsTerminated)
         {
-            if (this.numberOfPendingJobs == 0 && !this.working)
+            if (this.numberOfPendingJobs == 0 && this.State == ReusableJobWorkerState.Idle)
             {// Complete
                 return true;
+            }
+            else if (this.State == ReusableJobWorkerState.Terminated)
+            {// Terminated
+                return false;
             }
             else if (millisecondsTimeout >= 0 && Stopwatch.GetTimestamp() >= end)
             {// Timeout
