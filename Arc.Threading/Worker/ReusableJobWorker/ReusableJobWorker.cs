@@ -200,46 +200,12 @@ Terminated:
     }
 
     /// <summary>
-    /// Processes a single job instance.<br/>
-    /// This method must be <b>thread-safe</b>.
-    /// </summary>
-    /// <param name="job">The job to process.</param>
-    /// <remarks>
-    /// Override this method when no processing delegate is provided to the constructor.
-    /// </remarks>
-    public virtual void ProcessJob(TJob job)
-    {
-    }
-
-    /// <summary>
-    /// Called before the worker begins processing currently pending jobs.
-    /// </summary>
-    public virtual void OnBeforeProcessJob()
-    {
-    }
-
-    /// <summary>
-    /// Called after the worker finishes processing the current batch of pending jobs.
-    /// </summary>
-    public virtual void OnAfterProcessJob()
-    {
-    }
-
-    /// <summary>
-    /// Called once when the worker transitions to the terminated state.
-    /// </summary>
-    public virtual void OnTerminated()
-    {
-    }
-
-    /// <summary>
     /// Rents a reusable job instance from the internal pool.
     /// </summary>
     /// <returns>A job in the <see cref="ReusableJobState.Created"/> state.</returns>
     public TJob Rent()
     {
         var job = this.freeJobs.Rent();
-        job.State = ReusableJobState.Created;
         return job;
     }
 
@@ -258,7 +224,9 @@ Terminated:
             return;
         }
 
+        job.State = ReusableJobState.Created;
         job.ResetInternal();
+        job.Reset();
         this.freeJobs.Return(job);
     }
 
@@ -340,6 +308,39 @@ Terminated:
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Processes a single job instance.<br/>
+    /// This method must be <b>thread-safe</b>.
+    /// </summary>
+    /// <param name="job">The job to process.</param>
+    /// <remarks>
+    /// Override this method when no processing delegate is provided to the constructor.
+    /// </remarks>
+    protected virtual void ProcessJob(TJob job)
+    {
+    }
+
+    /// <summary>
+    /// Called before the worker begins processing currently pending jobs.
+    /// </summary>
+    protected virtual void OnBeforeProcessJob()
+    {
+    }
+
+    /// <summary>
+    /// Called after the worker finishes processing the current batch of pending jobs.
+    /// </summary>
+    protected virtual void OnAfterProcessJob()
+    {
+    }
+
+    /// <summary>
+    /// Called once when the worker transitions to the terminated state.
+    /// </summary>
+    protected virtual void OnTerminated()
+    {
     }
 
     protected override void Dispose(bool disposing)

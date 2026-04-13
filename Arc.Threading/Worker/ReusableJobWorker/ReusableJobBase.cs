@@ -22,6 +22,15 @@ public abstract record class ReusableJobBase
     }
 
     /// <summary>
+    /// Resets the job to its initial state, allowing it to be reused for another execution.<br/>
+    /// This method is intended to be overridden by derived classes to reset custom user-defined state.<br/>
+    /// The base implementation is empty and does nothing.
+    /// </summary>
+    public virtual void Reset()
+    {
+    }
+
+    /// <summary>
     /// Sets the internal state when the job is being prepared for execution.
     /// </summary>
     internal abstract void SetInternal();

@@ -14,6 +14,11 @@ public class TestWorker : ReusableJobWorker<ReusableThreadJob>
         this.Add(job);
         job.Wait();
     }
+
+    protected override void OnAfterProcessJob()
+    {
+        Console.WriteLine("OnAfterProcessJob");
+    }
 }
 
 class Program
