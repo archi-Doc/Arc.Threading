@@ -26,6 +26,10 @@ internal record class TestReusableJob : ReusableThreadJob
     {
         this.Id = id;
     }
+
+    public override void Reset()
+    {
+    }
 }
 
 internal record class TestReusableJob2 : ReusableTaskJob
@@ -53,7 +57,7 @@ internal class TestReusableWorker : ReusableJobWorker<TestReusableJob>
     {
     }
 
-    public override void ProcessJob(TestReusableJob job)
+    protected override void ProcessJob(TestReusableJob job)
     {
         Interlocked.Increment(ref this.count);
     }

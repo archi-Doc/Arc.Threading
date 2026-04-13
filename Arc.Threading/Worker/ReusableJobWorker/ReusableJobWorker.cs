@@ -206,7 +206,6 @@ Terminated:
     public TJob Rent()
     {
         var job = this.freeJobs.Rent();
-        job.State = ReusableJobState.Created;
         return job;
     }
 
@@ -225,7 +224,9 @@ Terminated:
             return;
         }
 
+        job.State = ReusableJobState.Created;
         job.ResetInternal();
+        job.Reset();
         this.freeJobs.Return(job);
     }
 
