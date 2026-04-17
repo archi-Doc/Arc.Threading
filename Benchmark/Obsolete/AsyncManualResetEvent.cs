@@ -25,7 +25,7 @@ public class AsyncManualResetEvent
         {
             var tcs = this.tcs;
             if (!tcs.Task.IsCompleted ||
-                Interlocked.CompareExchange(ref this.tcs, new TaskCompletionSource(), tcs) == tcs)
+                Interlocked.CompareExchange(ref this.tcs, new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously), tcs) == tcs)
             {
                 return;
             }

@@ -15,7 +15,7 @@ public record class ReusableTaskJob : ReusableJobBase
 
     public ReusableTaskJob()
     {
-        this.tcs = new();
+        this.tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
     /// <summary>
@@ -33,6 +33,6 @@ public record class ReusableTaskJob : ReusableJobBase
 
     internal override void ResetInternal()
     {
-        this.tcs = new();
+        this.tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 }
