@@ -1,6 +1,7 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using Arc.Threading;
 
 namespace QuickStart;
@@ -99,9 +100,10 @@ internal class Program
         Console.WriteLine(EstimateSize.Class<SemaphoreLock>());
 
         // await TestSemaphoreDual();
-        await TestLock();
+        // await TestLock();
         // await TestThreadCore_Termination();
         // await TestAsyncPulseEvent();
+        await TestExecutionStack();
 
         await ThreadCore.Root.WaitForTerminationAsync(-1); // Wait for the termination infinitely.
         ThreadCore.Root.TerminationEvent.Set(); // The termination process is complete (#1).
@@ -121,6 +123,18 @@ internal class Program
 
         semaphore.Exit1(time);
     }*/
+
+    private static async Task TestExecutionStack()
+    {
+        /*var executionStack = new ExecutionStack();
+
+        executionStack.Peek();
+        using (var scope = executionStack.Add())
+        {
+            executionStack.CancelTop();
+            executionStack.CancelTop();
+        }*/
+    }
 
     private static async Task TestLock()
     {
