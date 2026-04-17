@@ -131,8 +131,8 @@ internal class Program
         executionStack.Peek();
         using (var scope = executionStack.Add())
         {
-            executionStack.Cancel();
-            executionStack.Cancel();
+            executionStack.CancelTop();
+            executionStack.CancelTop();
         }
     }
 
