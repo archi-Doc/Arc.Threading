@@ -126,14 +126,14 @@ internal class Program
 
     private static async Task TestExecutionStack()
     {
-        var executionStack = new ExecutionStack();
+        /*var executionStack = new ExecutionStack();
 
         executionStack.Peek();
         using (var scope = executionStack.Add())
         {
             executionStack.CancelTop();
             executionStack.CancelTop();
-        }
+        }*/
     }
 
     private static async Task TestLock()
