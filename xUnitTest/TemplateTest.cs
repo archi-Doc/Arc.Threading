@@ -2,7 +2,7 @@
 
 namespace xUnitTest;
 
-public class UnitTest1
+public class TemplateTest
 {
     [Fact]
     public void Test1()
