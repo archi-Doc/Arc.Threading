@@ -6,26 +6,51 @@ using System.Threading.Tasks;
 
 namespace Arc.Threading;
 
-public class AsyncPulseEvent2
+/// <summary>
+/// An async pulse event with a single waiter.
+/// A pulse is retained until it is consumed by one wait operation.
+/// If multiple pulses arrive before a wait, they are coalesced into one.
+/// </summary>
+public sealed class AsyncPulseEvent2
 {
+    private readonly object syncObject = new();
     private TaskCompletionSource<bool>? waiter;
+    private bool pulsed;
 
-    public AsyncPulseEvent2()
-    {
-        this.waiter = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    }
-
+    /// <summary>
+    /// Sends a pulse.<br/>
+    /// If a waiter exists, it is released..<br/>
+    /// Otherwise, the pulse is retained until the next wait.
+    /// </summary>
     public void Pulse()
     {
-        var waiter = Interlocked.Exchange(ref this.waiter, null);
-        waiter?.TrySetResult(true);
+        TaskCompletionSource<bool>? toRelease = null;
+        lock (this.syncObject)
+        {
+            if (this.waiter is null)
+            {
+                this.pulsed = true;
+            }
+            else
+            {
+                toRelease = this.waiter;
+                this.waiter = null;
+            }
+        }
+
+        _ = toRelease?.TrySetResult(true);
     }
 
+    /// <summary>
+    /// Waits until a pulse is received.
+    /// </summary>
     public Task Wait()
-    {
-        return this.Wait(CancellationToken.None);
-    }
+        => this.Wait(CancellationToken.None);
 
+    /// <summary>
+    /// Waits until a pulse is received, or until cancellation is requested.
+    /// Only one concurrent waiter is allowed.
+    /// </summary>
     public Task Wait(CancellationToken cancellationToken)
     {
         if (cancellationToken.IsCancellationRequested)
@@ -33,33 +58,83 @@ public class AsyncPulseEvent2
             return Task.FromCanceled(cancellationToken);
         }
 
-        var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        var prev = Interlocked.CompareExchange(ref this.waiter, tcs, null);
-        if (prev is not null)
+        TaskCompletionSource<bool>? localWaiter = null;
+        lock (this.syncObject)
         {
-            throw new InvalidOperationException();
-        }
-
-        if (cancellationToken.CanBeCanceled)
-        {
-            var reg = cancellationToken.Register(() =>
+            if (this.pulsed)
             {
-                var removed = Interlocked.CompareExchange(ref this.waiter, null, tcs);
-                if (removed == tcs)
-                {
-                    tcs.TrySetCanceled(cancellationToken);
-                }
-            });
+                this.pulsed = false;
+                return Task.CompletedTask;
+            }
 
-            tcs.Task.ContinueWith(
-                (_, r) => ((CancellationTokenRegistration)r!).Dispose(),
-                reg,
-                CancellationToken.None,
-                TaskContinuationOptions.ExecuteSynchronously,
-                TaskScheduler.Default);
+            if (this.waiter is not null)
+            {
+                throw new InvalidOperationException("Only one waiter is allowed at a time.");
+            }
+
+            localWaiter = new TaskCompletionSource<bool>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+
+            this.waiter = localWaiter;
         }
 
-        return tcs.Task;
+        if (!cancellationToken.CanBeCanceled)
+        {
+            return localWaiter.Task;
+        }
+
+        localWaiter.Task.WaitAsync(cancellationToken);
+        return this.WaitWithCancellationAsync(localWaiter, cancellationToken);
+    }
+
+    private async Task WaitWithCancellationAsync(TaskCompletionSource<bool> targetWaiter, CancellationToken cancellationToken)
+    {
+        using var registration = cancellationToken.Register(
+            static state =>
+            {
+                var tuple = (CancellationState)state!;
+                tuple.Owner.CancelWaiter(tuple.Waiter, tuple.CancellationToken);
+            },
+            new CancellationState(this, targetWaiter, cancellationToken));
+
+        await targetWaiter.Task.ConfigureAwait(false);
+    }
+
+    private void CancelWaiter(TaskCompletionSource<bool> targetWaiter, CancellationToken cancellationToken)
+    {
+        var shouldCancel = false;
+
+        lock (this.syncObject)
+        {
+            if (ReferenceEquals(this.waiter, targetWaiter))
+            {
+                this.waiter = null;
+                shouldCancel = true;
+            }
+        }
+
+        if (shouldCancel)
+        {
+            _ = targetWaiter.TrySetCanceled(cancellationToken);
+        }
+    }
+
+    private sealed class CancellationState
+    {
+        public CancellationState(
+            AsyncPulseEvent2 owner,
+            TaskCompletionSource<bool> waiter,
+            CancellationToken cancellationToken)
+        {
+            this.Owner = owner;
+            this.Waiter = waiter;
+            this.CancellationToken = cancellationToken;
+        }
+
+        public AsyncPulseEvent2 Owner { get; }
+
+        public TaskCompletionSource<bool> Waiter { get; }
+
+        public CancellationToken CancellationToken { get; }
     }
 }
