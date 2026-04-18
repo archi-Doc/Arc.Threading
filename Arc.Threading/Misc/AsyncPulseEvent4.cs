@@ -180,77 +180,48 @@ public sealed class AsyncPulseEvent4
         }
     }
 
-    private sealed record class CancellationState(
-        AsyncPulseEvent4 Owner,
-        TaskCompletionSource<bool> Waiter,
-        CancellationToken CancellationToken
-        );
-
-    private sealed record class TimeoutState(
-        AsyncPulseEvent4 Owner,
-        TaskCompletionSource<bool> Waiter);
-
-    private sealed record class CleanupState(
-        CancellationTokenRegistration CancellationRegistration,
-        CancellationTokenRegistration TimeoutRegistration,
-        CancellationTokenSource TimeoutCts);
-
-    /*
-    public Task WaitAsync(CancellationToken cancellationToken = default)
+    private sealed class CancellationState
     {
-        if (cancellationToken.IsCancellationRequested)
+        public AsyncPulseEvent4 Owner { get; }
+
+        public TaskCompletionSource<bool> Waiter { get; }
+
+        public CancellationToken CancellationToken { get; }
+
+        public CancellationState(AsyncPulseEvent4 owner, TaskCompletionSource<bool> waiter, CancellationToken cancellationToken)
         {
-            return Task.FromCanceled(cancellationToken);
+            this.Owner = owner;
+            this.Waiter = waiter;
+            this.CancellationToken = cancellationToken;
         }
+    }
 
-        while (true)
+    private sealed class TimeoutState
+    {
+        public AsyncPulseEvent4 Owner { get; }
+
+        public TaskCompletionSource<bool> Waiter { get; }
+
+        public TimeoutState(AsyncPulseEvent4 owner, TaskCompletionSource<bool> waiter)
         {
-            var current = Volatile.Read(ref this.waiter);
-            if (ReferenceEquals(current, PulsedSentinel))
-            {// Pulsed
-                if (Interlocked.CompareExchange(ref this.waiter, null, PulsedSentinel) == PulsedSentinel)
-                {
-                    return Task.CompletedTask;
-                }
-
-                continue;
-            }
-
-            if (current is not null)
-            {
-                throw new InvalidOperationException("Only one waiter is allowed at a time.");
-            }
-
-            var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-            if (Interlocked.CompareExchange(ref this.waiter, tcs, null) != null)
-            {
-                continue;
-            }
-
-            if (!cancellationToken.CanBeCanceled)
-            {
-                return tcs.Task;
-            }
-
-            var registration = cancellationToken.UnsafeRegister(
-                static state =>
-                {
-                    var cancellationState = (CancellationState)state!;
-                    if (Interlocked.CompareExchange(ref cancellationState.Owner.waiter, null, cancellationState.Waiter) == cancellationState.Waiter)
-                    {
-                        cancellationState.Waiter.TrySetCanceled(cancellationState.CancellationToken);
-                    }
-                },
-                new CancellationState(this, tcs, cancellationToken));
-
-            _ = tcs.Task.ContinueWith(
-                static (_, state) => ((CancellationTokenRegistration)state!).Dispose(),
-                registration,
-                CancellationToken.None,
-                TaskContinuationOptions.ExecuteSynchronously,
-                TaskScheduler.Default);
-
-            return tcs.Task;
+            this.Owner = owner;
+            this.Waiter = waiter;
         }
-    }*/
+    }
+
+    private sealed class CleanupState
+    {
+        public CancellationTokenRegistration CancellationRegistration { get; }
+
+        public CancellationTokenRegistration TimeoutRegistration { get; }
+
+        public CancellationTokenSource TimeoutCts { get; }
+
+        public CleanupState(CancellationTokenRegistration cancellationRegistration, CancellationTokenRegistration timeoutRegistration, CancellationTokenSource timeoutCts)
+        {
+            this.CancellationRegistration = cancellationRegistration;
+            this.TimeoutRegistration = timeoutRegistration;
+            this.TimeoutCts = timeoutCts;
+        }
+    }
 }
