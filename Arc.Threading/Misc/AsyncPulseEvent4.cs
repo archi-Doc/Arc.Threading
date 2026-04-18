@@ -97,13 +97,13 @@ public sealed class AsyncPulseEvent4
                 return tcs.Task;
             }
 
-            var registration = cancellationToken.Register(
+            var registration = cancellationToken.UnsafeRegister(
                 static state =>
                 {
-                    var s = (CancellationState)state!;
-                    if (Interlocked.CompareExchange(ref s.Owner.waiter, null, s.Waiter) == s.Waiter)
+                    var cancellationState = (CancellationState)state!;
+                    if (Interlocked.CompareExchange(ref cancellationState.Owner.waiter, null, cancellationState.Waiter) == cancellationState.Waiter)
                     {
-                        s.Waiter.TrySetCanceled(s.CancellationToken);
+                        cancellationState.Waiter.TrySetCanceled(cancellationState.CancellationToken);
                     }
                 },
                 new CancellationState(this, tcs, cancellationToken));
