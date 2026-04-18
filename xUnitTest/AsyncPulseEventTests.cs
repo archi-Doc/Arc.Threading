@@ -169,4 +169,19 @@ public sealed class AsyncPulseEventTests
             await waitTask;
         }
     }
+
+    [Fact]
+    public async Task WaitAsync_Cancel()
+    {
+        var cts = new CancellationTokenSource();
+        var ev = new AsyncPulseEvent4();
+
+        var task = ev.WaitAsync(cts.Token);
+        Assert.False(task.IsCompleted);
+        cts.Cancel();
+
+        ev.Pulse();
+
+        await Assert.ThrowsAsync<TaskCanceledException>(async () => await task);
+    }
 }
