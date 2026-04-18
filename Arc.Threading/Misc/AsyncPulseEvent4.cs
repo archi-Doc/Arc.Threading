@@ -45,7 +45,7 @@ public sealed class AsyncPulseEvent4
                 return;
             }
             else
-            {// Waiting -> Pulse
+            {// Waiting -> Pulse -> No Waiter
                 if (Interlocked.CompareExchange(ref this.waiter, null, current) == current)
                 {
                     current.TrySetResult(true);
@@ -56,19 +56,12 @@ public sealed class AsyncPulseEvent4
     }
 
     /// <summary>
-    /// Waits until a pulse is received.
-    /// </summary>
-    /// <returns>The <see cref="Task"/> representing the asynchronous wait.</returns>
-    public Task WaitAsync()
-        => this.WaitAsync(CancellationToken.None);
-
-    /// <summary>
-    /// Waits until a pulse is received, or until cancellation is requested.
+    /// Waits until a pulse is received, or until cancellation is requested.<br/>
     /// Only one concurrent waiter is allowed.
     /// </summary>
     /// <param name="cancellationToken">The CancellationToken to monitor for a cancellation request.</param>
     /// <returns>The <see cref="Task"/> representing the asynchronous wait.</returns>
-    public Task WaitAsync(CancellationToken cancellationToken)
+    public Task WaitAsync(CancellationToken cancellationToken = default)
     {
         if (cancellationToken.IsCancellationRequested)
         {
@@ -110,7 +103,7 @@ public sealed class AsyncPulseEvent4
                     var s = (CancellationState)state!;
                     if (Interlocked.CompareExchange(ref s.Owner.waiter, null, s.Waiter) == s.Waiter)
                     {
-                        s.Waiter.TrySetCanceled(s.Token);
+                        s.Waiter.TrySetCanceled(s.CancellationToken);
                     }
                 },
                 new CancellationState(this, tcs, cancellationToken));
@@ -126,5 +119,19 @@ public sealed class AsyncPulseEvent4
         }
     }
 
-    private sealed record class CancellationState(AsyncPulseEvent4 Owner, TaskCompletionSource<bool> Waiter, CancellationToken Token);
+    private sealed class CancellationState
+    {
+        public AsyncPulseEvent4 Owner { get; }
+
+        public TaskCompletionSource<bool> Waiter { get; }
+
+        public CancellationToken CancellationToken { get; }
+
+        public CancellationState(AsyncPulseEvent4 owner, TaskCompletionSource<bool> waiter, CancellationToken cancellationToken)
+        {
+            this.Owner = owner;
+            this.Waiter = waiter;
+            this.CancellationToken = cancellationToken;
+        }
+    }
 }

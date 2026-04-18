@@ -169,7 +169,7 @@ Terminated:
     private readonly ConcurrentQueue<TJob> pendingJobs;
     private int numberOfPendingJobs;
 
-    private AsyncPulseEvent? updateEvent = new();
+    private AsyncPulseEvent4? updateEvent = new();
     private int numberOfActiveTasks;
 
     #endregion
