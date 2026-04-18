@@ -109,18 +109,29 @@ public class ReusableJobWorkerTask<TJob> : TaskCore, IDisposable
                     }
                 }
 
-                job.State = ReusableJobState.Running;
-                if (worker.processJob is null)
+                try
                 {
-                    worker.ProcessJob(job);
-                }
-                else
-                {
-                    worker.processJob(job);
-                }
+                    job.State = ReusableJobState.Running;
 
-                job.State = ReusableJobState.Completed;
-                job.SetInternal();
+                    if (worker.processJob is null)
+                    {
+                        worker.ProcessJob(job);
+                    }
+                    else
+                    {
+                        worker.processJob(job);
+                    }
+
+                    job.State = ReusableJobState.Completed;
+                }
+                catch
+                {
+                    job.State = ReusableJobState.Aborted;
+                }
+                finally
+                {
+                    job.SetInternal();
+                }
 
                 if (worker.IsTerminated)
                 {// To prevent the job from freezing, complete the acquired job first, then check whether it has been terminated.

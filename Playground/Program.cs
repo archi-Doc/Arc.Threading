@@ -46,13 +46,23 @@ class Program
 
         Console.WriteLine(DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss.fff"));
 
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(100);
+            tcs.Cancel();
+        });
 
         try
         {
             await pulseEvent.WaitAsync(TimeSpan.FromSeconds(1), tcs.Token);
         }
+        catch (TaskCanceledException)
+        {
+            Console.WriteLine("Canceled");
+        }
         catch (TimeoutException)
         {
+            Console.WriteLine("Timeout");
         }
 
         Console.WriteLine(DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss.fff"));
