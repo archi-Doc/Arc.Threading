@@ -14,7 +14,7 @@ namespace Arc.Threading;
 /// </summary>
 public class SemaphoreLock : ILockable, IAsyncLockable
 {// object:16, 1+2+4+8+8 -> 39
-    internal const int DefaultSpinCountBeforeWait = 35 * 4;
+    private const int DefaultSpinCountBeforeWait = 35 * 4;
 
     private object SyncObject => this; // lock (this) is a bad practice but...
 
