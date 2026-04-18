@@ -368,7 +368,7 @@ internal class Program
             Console.WriteLine($"Wait end {core.index}");
         }
 
-        private AsyncPulseEvent pulseEvent;
+        private AsyncPulseEventObsolete pulseEvent;
         private int index;
     }
 

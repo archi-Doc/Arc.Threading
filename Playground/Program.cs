@@ -5,7 +5,7 @@ using Arc.Threading;
 
 namespace Playground;
 
-public class TestWorker : ReusableJobWorker<ReusableThreadJob>
+public class TestWorker : ReusableJobWorkerObsolete<ReusableThreadJob>
 {
     public TestWorker(ThreadCoreBase? parent, Action<ReusableThreadJob>? processJob = null)
         : base(parent, processJob)
@@ -41,7 +41,7 @@ class Program
     {
         Console.WriteLine("Hello World!");
 
-        var pulseEvent = new AsyncPulseEvent4();
+        var pulseEvent = new AsyncPulseEvent();
         var tcs = new CancellationTokenSource();
 
         Console.WriteLine(DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss.fff"));

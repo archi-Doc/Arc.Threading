@@ -48,7 +48,7 @@ internal record class TestReusableJob2 : ReusableTaskJob
     }
 }
 
-internal class TestReusableWorker : ReusableJobWorker<TestReusableJob>
+internal class TestReusableWorker : ReusableJobWorkerObsolete<TestReusableJob>
 {
     private int count;
 
@@ -69,8 +69,8 @@ public class WorkerBenchmark
     private static int count;
     private readonly ThreadWorker<TestWork> threadWorker;
     private readonly TaskWorkerSlim<TestTaskWorkSlim> taskWorkerSlim;
-    private readonly ReusableJobWorker<TestReusableJob> jobWorker;
-    private readonly ReusableJobWorker<TestReusableJob2> jobWorker3;
+    private readonly ReusableJobWorkerObsolete<TestReusableJob> jobWorker;
+    private readonly ReusableJobWorkerObsolete<TestReusableJob2> jobWorker3;
     private readonly TestReusableWorker jobWorker2;
 
     public WorkerBenchmark()

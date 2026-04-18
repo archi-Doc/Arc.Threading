@@ -33,7 +33,7 @@ namespace Arc.Threading;
 /// <see cref="ReusableJobState.Created"/> -> <see cref="ReusableJobState.Pending"/> ->
 /// <see cref="ReusableJobState.Running"/> -> <see cref="ReusableJobState.Completed"/>.
 /// </remarks>
-public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
+public class ReusableJobWorkerObsolete<TJob> : ThreadCore, IDisposable
     where TJob : ReusableJobBase, new()
 {
     private const int DefaultPoolCapacity = 32;
@@ -42,7 +42,7 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
 
     private static void Process(object? parameter)
     {
-        var worker = (ReusableJobWorker<TJob>)parameter!;
+        var worker = (ReusableJobWorkerObsolete<TJob>)parameter!;
         while (!worker.IsTerminated)
         {
             try
@@ -181,7 +181,7 @@ Terminated:
     #endregion
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="ReusableJobWorker{TJob}"/> class.
+    /// Initializes a new instance of the <see cref="ReusableJobWorkerObsolete{TJob}"/> class.
     /// </summary>
     /// <param name="parent">The parent thread core used for lifecycle coordination, or <see langword="default"/>.</param>
     /// <param name="processJob">
@@ -191,7 +191,7 @@ Terminated:
     /// <param name="startImmediately">
     /// <see langword="true"/> to start the worker thread during construction; otherwise, manual start is required.
     /// </param>
-    public ReusableJobWorker(ThreadCoreBase? parent, Action<TJob>? processJob = default, int poolCapacity = DefaultPoolCapacity, bool startImmediately = true)
+    public ReusableJobWorkerObsolete(ThreadCoreBase? parent, Action<TJob>? processJob = default, int poolCapacity = DefaultPoolCapacity, bool startImmediately = true)
         : base(parent, Process, startImmediately)
     {
         this.processJob = processJob;

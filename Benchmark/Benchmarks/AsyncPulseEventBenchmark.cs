@@ -10,14 +10,14 @@ using BenchmarkDotNet.Attributes;
 [Config(typeof(BenchmarkConfig))]
 public class AsyncPulseEventBenchmark
 {
-    private AsyncPulseEvent ev = default!;
-    private AsyncPulseEvent4 ev4 = default!;
+    private AsyncPulseEventObsolete ev = default!;
+    private AsyncPulseEvent ev4 = default!;
 
     [GlobalSetup]
     public void Setup()
     {
-        this.ev = new AsyncPulseEvent();
-        this.ev4 = new AsyncPulseEvent4();
+        this.ev = new AsyncPulseEventObsolete();
+        this.ev4 = new AsyncPulseEvent();
     }
 
     [Benchmark]

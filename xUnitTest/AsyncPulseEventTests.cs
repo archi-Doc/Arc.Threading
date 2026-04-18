@@ -13,7 +13,7 @@ public sealed class AsyncPulseEventTests
     [Fact]
     public async Task WaitAsync_AfterPulse_CompletesImmediately()
     {
-        var ev = new AsyncPulseEvent4();
+        var ev = new AsyncPulseEvent();
 
         ev.Pulse();
         var task = ev.WaitAsync(TestContext.Current.CancellationToken);
@@ -25,7 +25,7 @@ public sealed class AsyncPulseEventTests
     [Fact]
     public async Task WaitAsync_BeforePulse_CompletesAfterPulse()
     {
-        var ev = new AsyncPulseEvent4();
+        var ev = new AsyncPulseEvent();
 
         var task = ev.WaitAsync(TestContext.Current.CancellationToken);
         Assert.False(task.IsCompleted);
@@ -38,7 +38,7 @@ public sealed class AsyncPulseEventTests
     [Fact]
     public async Task MultiplePulses_BeforeWait_AreCoalescedIntoOne()
     {
-        var ev = new AsyncPulseEvent4();
+        var ev = new AsyncPulseEvent();
 
         ev.Pulse();
         ev.Pulse();
@@ -58,7 +58,7 @@ public sealed class AsyncPulseEventTests
     [Fact]
     public async Task Pulse_ReleasesOnlyOneWait()
     {
-        var ev = new AsyncPulseEvent4();
+        var ev = new AsyncPulseEvent();
 
         var first = ev.WaitAsync(TestContext.Current.CancellationToken);
         Assert.False(first.IsCompleted);
@@ -76,7 +76,7 @@ public sealed class AsyncPulseEventTests
     [Fact]
     public async Task WaitAsync_WithAlreadyCanceledToken_ReturnsCanceledTask()
     {
-        var ev = new AsyncPulseEvent4();
+        var ev = new AsyncPulseEvent();
 
         using var cts = new CancellationTokenSource();
         cts.Cancel();
@@ -89,7 +89,7 @@ public sealed class AsyncPulseEventTests
     [Fact]
     public async Task WaitAsync_CanBeCanceledAfterStart()
     {
-        var ev = new AsyncPulseEvent4();
+        var ev = new AsyncPulseEvent();
 
         using var cts = new CancellationTokenSource();
         var task = ev.WaitAsync(cts.Token);
@@ -104,7 +104,7 @@ public sealed class AsyncPulseEventTests
     [Fact]
     public async Task WaitAsync_CanceledWait_DoesNotBreakNextWait()
     {
-        var ev = new AsyncPulseEvent4();
+        var ev = new AsyncPulseEvent();
 
         using (var cts = new CancellationTokenSource())
         {
@@ -125,7 +125,7 @@ public sealed class AsyncPulseEventTests
     [Fact]
     public async Task Pulse_AfterCanceledWait_IsRetained()
     {
-        var ev = new AsyncPulseEvent4();
+        var ev = new AsyncPulseEvent();
 
         using (var cts = new CancellationTokenSource())
         {
@@ -145,7 +145,7 @@ public sealed class AsyncPulseEventTests
     [Fact]
     public async Task Pulse_CanBeCalledFromMultipleThreads()
     {
-        var ev = new AsyncPulseEvent4();
+        var ev = new AsyncPulseEvent();
 
         for (var i = 0; i < 100; i++)
         {
@@ -160,7 +160,7 @@ public sealed class AsyncPulseEventTests
     [Fact]
     public async Task WaitAsync_CanBeUsedRepeatedly()
     {
-        var ev = new AsyncPulseEvent4();
+        var ev = new AsyncPulseEvent();
 
         for (var i = 0; i < 1000; i++)
         {
@@ -174,7 +174,7 @@ public sealed class AsyncPulseEventTests
     public async Task WaitAsync_Cancel()
     {
         var cts = new CancellationTokenSource();
-        var ev = new AsyncPulseEvent4();
+        var ev = new AsyncPulseEvent();
 
         var task = ev.WaitAsync(cts.Token);
         Assert.False(task.IsCompleted);

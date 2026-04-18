@@ -455,7 +455,7 @@ public class TaskWorker<TWork> : TaskCore
     /// </summary>
     public int WorkingCount => this.workingList.Count;
 
-    internal AsyncPulseEvent? updateEvent = new();
+    internal AsyncPulseEventObsolete? updateEvent = new();
 
     internal void FinishWork2(TaskWorkInterface<TWork> workInterface)
     {

@@ -3,7 +3,7 @@
 namespace Arc.Threading;
 
 /// <summary>
-/// Represents the lifecycle state of a reusable job handled by <see cref="ReusableJobWorker{TJob}"/>.
+/// Represents the lifecycle state of a reusable job handled by <see cref="ReusableJobWorkerObsolete{TJob}"/>.
 /// </summary>
 /// <remarks>
 /// Typical progression is <see cref="Created"/> → <see cref="Pending"/> → <see cref="Running"/> → <see cref="Completed"/>.

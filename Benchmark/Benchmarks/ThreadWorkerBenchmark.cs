@@ -101,7 +101,7 @@ internal class ThreadWorkerBenchmark
         Console.WriteLine(Count.ToString());*/
 
         Console.WriteLine($"ReusableJobWorker");
-        var jobWorker = new ReusableJobWorker<TestJob>(ThreadCore.Root, EmptyMethodThread, N);
+        var jobWorker = new ReusableJobWorkerObsolete<TestJob>(ThreadCore.Root, EmptyMethodThread, N);
         BenchWorker3(N, jobWorker);
         jobWorker.Dispose();
         Console.WriteLine(Count.ToString());
@@ -132,7 +132,7 @@ internal class ThreadWorkerBenchmark
         Console.WriteLine(Count.ToString());*/
 
         Console.WriteLine($"ReusableJobWorker heavy");
-        var jobWorker2 = new ReusableJobWorker<TestJob>(ThreadCore.Root, HeavyMethod3, N2);
+        var jobWorker2 = new ReusableJobWorkerObsolete<TestJob>(ThreadCore.Root, HeavyMethod3, N2);
         jobWorker2.NumberOfConcurrentTasks = 4;
         BenchWorker3(N2, jobWorker2);
         jobWorker2.Dispose();
@@ -350,7 +350,7 @@ internal class ThreadWorkerBenchmark
         benchTimer.Clear();
     }
 
-    private static void BenchWorker3(int count, ReusableJobWorker<TestJob> worker)
+    private static void BenchWorker3(int count, ReusableJobWorkerObsolete<TestJob> worker)
     {
         for (var repeat = 0; repeat < Repeat; repeat++)
         {
