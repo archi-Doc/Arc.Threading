@@ -16,7 +16,7 @@ public sealed class AsyncPulseEventTests
         var ev = new AsyncPulseEvent4();
 
         ev.Pulse();
-        var task = ev.Wait(TestContext.Current.CancellationToken);
+        var task = ev.WaitAsync(TestContext.Current.CancellationToken);
 
         Assert.True(task.IsCompletedSuccessfully);
         await task;
@@ -27,7 +27,7 @@ public sealed class AsyncPulseEventTests
     {
         var ev = new AsyncPulseEvent4();
 
-        var task = ev.Wait(TestContext.Current.CancellationToken);
+        var task = ev.WaitAsync(TestContext.Current.CancellationToken);
         Assert.False(task.IsCompleted);
 
         ev.Pulse();
@@ -44,11 +44,11 @@ public sealed class AsyncPulseEventTests
         ev.Pulse();
         ev.Pulse();
 
-        var first = ev.Wait(TestContext.Current.CancellationToken);
+        var first = ev.WaitAsync(TestContext.Current.CancellationToken);
         Assert.True(first.IsCompletedSuccessfully);
         await first;
 
-        var second = ev.Wait(TestContext.Current.CancellationToken);
+        var second = ev.WaitAsync(TestContext.Current.CancellationToken);
         Assert.False(second.IsCompleted);
 
         ev.Pulse();
@@ -60,13 +60,13 @@ public sealed class AsyncPulseEventTests
     {
         var ev = new AsyncPulseEvent4();
 
-        var first = ev.Wait(TestContext.Current.CancellationToken);
+        var first = ev.WaitAsync(TestContext.Current.CancellationToken);
         Assert.False(first.IsCompleted);
 
         ev.Pulse();
         await first;
 
-        var second = ev.Wait(TestContext.Current.CancellationToken);
+        var second = ev.WaitAsync(TestContext.Current.CancellationToken);
         Assert.False(second.IsCompleted);
 
         ev.Pulse();
@@ -81,7 +81,7 @@ public sealed class AsyncPulseEventTests
         using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        var task = ev.Wait(cts.Token);
+        var task = ev.WaitAsync(cts.Token);
 
         await Assert.ThrowsAsync<TaskCanceledException>(async () => await task);
     }
@@ -92,7 +92,7 @@ public sealed class AsyncPulseEventTests
         var ev = new AsyncPulseEvent4();
 
         using var cts = new CancellationTokenSource();
-        var task = ev.Wait(cts.Token);
+        var task = ev.WaitAsync(cts.Token);
 
         Assert.False(task.IsCompleted);
 
@@ -108,13 +108,13 @@ public sealed class AsyncPulseEventTests
 
         using (var cts = new CancellationTokenSource())
         {
-            var canceledTask = ev.Wait(cts.Token);
+            var canceledTask = ev.WaitAsync(cts.Token);
             cts.Cancel();
 
             await Assert.ThrowsAsync<TaskCanceledException>(async () => await canceledTask);
         }
 
-        var next = ev.Wait(TestContext.Current.CancellationToken);
+        var next = ev.WaitAsync(TestContext.Current.CancellationToken);
         Assert.False(next.IsCompleted);
 
         ev.Pulse();
@@ -129,7 +129,7 @@ public sealed class AsyncPulseEventTests
 
         using (var cts = new CancellationTokenSource())
         {
-            var task = ev.Wait(cts.Token);
+            var task = ev.WaitAsync(cts.Token);
             cts.Cancel();
 
             await Assert.ThrowsAsync<TaskCanceledException>(async () => await task);
@@ -137,7 +137,7 @@ public sealed class AsyncPulseEventTests
 
         ev.Pulse();
 
-        var next = ev.Wait(TestContext.Current.CancellationToken);
+        var next = ev.WaitAsync(TestContext.Current.CancellationToken);
         Assert.True(next.IsCompletedSuccessfully);
         await next;
     }
@@ -149,7 +149,7 @@ public sealed class AsyncPulseEventTests
 
         for (var i = 0; i < 100; i++)
         {
-            var waitTask = ev.Wait(TestContext.Current.CancellationToken);
+            var waitTask = ev.WaitAsync(TestContext.Current.CancellationToken);
 
             await Task.Run(() => ev.Pulse(), TestContext.Current.CancellationToken);
 
@@ -164,7 +164,7 @@ public sealed class AsyncPulseEventTests
 
         for (var i = 0; i < 1000; i++)
         {
-            var waitTask = ev.Wait(TestContext.Current.CancellationToken);
+            var waitTask = ev.WaitAsync(TestContext.Current.CancellationToken);
             ev.Pulse();
             await waitTask;
         }

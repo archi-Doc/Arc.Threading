@@ -41,16 +41,9 @@ public sealed class AsyncPulseEvent2
         _ = toRelease?.TrySetResult(true);
     }
 
-    /// <summary>
-    /// Waits until a pulse is received.
-    /// </summary>
     public Task Wait()
         => this.Wait(CancellationToken.None);
 
-    /// <summary>
-    /// Waits until a pulse is received, or until cancellation is requested.
-    /// Only one concurrent waiter is allowed.
-    /// </summary>
     public Task Wait(CancellationToken cancellationToken)
     {
         if (cancellationToken.IsCancellationRequested)

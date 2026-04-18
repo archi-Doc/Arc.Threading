@@ -40,7 +40,7 @@ public class ReusableJobWorkerTask<TJob> : TaskCore, IDisposable
     private const int WaitTimeout = 100;
 
     private static async Task Process(object? parameter)
-    {//
+    {
         var worker = (ReusableJobWorkerTask<TJob>)parameter!;
         while (!worker.IsTerminated)
         {

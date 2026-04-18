@@ -59,8 +59,8 @@ public sealed class AsyncPulseEvent4
     /// Waits until a pulse is received.
     /// </summary>
     /// <returns>The <see cref="Task"/> representing the asynchronous wait.</returns>
-    public Task Wait()
-        => this.Wait(CancellationToken.None);
+    public Task WaitAsync()
+        => this.WaitAsync(CancellationToken.None);
 
     /// <summary>
     /// Waits until a pulse is received, or until cancellation is requested.
@@ -68,7 +68,7 @@ public sealed class AsyncPulseEvent4
     /// </summary>
     /// <param name="cancellationToken">The CancellationToken to monitor for a cancellation request.</param>
     /// <returns>The <see cref="Task"/> representing the asynchronous wait.</returns>
-    public Task Wait(CancellationToken cancellationToken)
+    public Task WaitAsync(CancellationToken cancellationToken)
     {
         if (cancellationToken.IsCancellationRequested)
         {
