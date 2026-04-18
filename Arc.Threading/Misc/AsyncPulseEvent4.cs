@@ -142,7 +142,8 @@ public sealed class AsyncPulseEvent4
                         new CancellationState(this, tcs, cancellationToken));
                 }
 
-                var timeoutCts = new CancellationTokenSource(timeout);
+                var timeoutCts = CtsPool.Rent(); // new CancellationTokenSource(timeout);
+                timeoutCts.CancelAfter(timeout);
                 var timeoutRegistration = timeoutCts.Token.UnsafeRegister(
                     static state =>
                     {
@@ -160,7 +161,14 @@ public sealed class AsyncPulseEvent4
                         var cleanupState = (CleanupState)state!;
                         cleanupState.CancellationRegistration.Dispose();
                         cleanupState.TimeoutRegistration.Dispose();
-                        cleanupState.TimeoutCts.Dispose();
+                        if (cleanupState.TimeoutCts.TryReset())
+                        {
+                            CtsPool.Return(cleanupState.TimeoutCts);
+                        }
+                        else
+                        {
+                            cleanupState.TimeoutCts.Dispose();
+                        }
                     },
                     new CleanupState(cancellationRegistration, timeoutRegistration, timeoutCts),
                     CancellationToken.None,

@@ -49,7 +49,7 @@ class Program
         _ = Task.Run(async () =>
         {
             await Task.Delay(100);
-            tcs.Cancel();
+            // tcs.Cancel();
         });
 
         try
