@@ -41,25 +41,20 @@ class Program
     {
         Console.WriteLine("Hello World!");
 
-        var core = new TestCore(ThreadCore.Root);
+        var pulseEvent = new AsyncPulseEvent4();
+        var tcs = new CancellationTokenSource();
 
-        // Thread.Sleep(2000);
-
-        var worker = new TestWorker(ThreadCore.Root, x => { Thread.Sleep(1000); });
-        var job = worker.Rent();
-        Console.WriteLine(job.State);
-        worker.Add(job);
-
-        Console.WriteLine(job.State);
         Console.WriteLine(DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss.fff"));
 
-        await worker.WaitForCompletion(500);
 
-        Console.WriteLine(job.State);
-        Console.WriteLine(DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss.fff"));
+        try
+        {
+            await pulseEvent.WaitAsync(TimeSpan.FromSeconds(1), tcs.Token);
+        }
+        catch (TimeoutException)
+        {
+        }
 
-        await worker.WaitForCompletion(500);
-        Console.WriteLine(job.State);
         Console.WriteLine(DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss.fff"));
 
         ThreadCore.Root.Terminate();

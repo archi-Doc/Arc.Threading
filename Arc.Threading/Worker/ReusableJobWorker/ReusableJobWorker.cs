@@ -40,7 +40,7 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
     private const int WaitTimeout = 100;
     private static readonly TimeSpan DefaultPollingInterval = TimeSpan.FromMilliseconds(1_000);
 
-    private static async void Process(object? parameter)
+    private static void Process(object? parameter)
     {
         var worker = (ReusableJobWorker<TJob>)parameter!;
         while (!worker.IsTerminated)
