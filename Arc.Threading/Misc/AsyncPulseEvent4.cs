@@ -3,6 +3,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Arc.Collections;
 
 namespace Arc.Threading;
 
@@ -13,7 +14,9 @@ namespace Arc.Threading;
 /// </summary>
 public sealed class AsyncPulseEvent4
 {
+    private const int CtsPoolCapacity = 32;
     private static readonly TaskCompletionSource<bool> PulsedSentinel;
+    private static readonly ObjectPool<CancellationTokenSource> CtsPool = new(() => new CancellationTokenSource(), CtsPoolCapacity);
 
     private TaskCompletionSource<bool>? waiter; // null:No waiter, PulsedSentinel:Pulsed, Other:Waiting
 
