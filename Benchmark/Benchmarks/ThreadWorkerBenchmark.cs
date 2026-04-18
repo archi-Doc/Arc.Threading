@@ -100,14 +100,9 @@ internal class ThreadWorkerBenchmark
         taskWorker.Dispose();
         Console.WriteLine(Count.ToString());*/
 
-        Console.WriteLine($"ReusableJobWorker");
-        var jobWorker = new ReusableJobWorkerObsolete<TestJob>(ThreadCore.Root, EmptyMethodThread, N);
-        BenchWorker3(N, jobWorker);
-        jobWorker.Dispose();
-        Console.WriteLine(Count.ToString());
 
         Console.WriteLine($"ReusableJobWorkerTask");
-        var jobWorkerTask = new ReusableJobWorkerTask<TestJob>(ThreadCore.Root, EmptyMethodThread, N);
+        var jobWorkerTask = new ReusableJobWorker<TestJob>(ThreadCore.Root, EmptyMethodThread, N);
         BenchWorker3(N, jobWorkerTask);
         jobWorkerTask.Dispose();
         Console.WriteLine(Count.ToString());
@@ -131,15 +126,8 @@ internal class ThreadWorkerBenchmark
         taskWorkerHeavy.Dispose();
         Console.WriteLine(Count.ToString());*/
 
-        Console.WriteLine($"ReusableJobWorker heavy");
-        var jobWorker2 = new ReusableJobWorkerObsolete<TestJob>(ThreadCore.Root, HeavyMethod3, N2);
-        jobWorker2.NumberOfConcurrentTasks = 4;
-        BenchWorker3(N2, jobWorker2);
-        jobWorker2.Dispose();
-        Console.WriteLine(Count.ToString());
-
         Console.WriteLine($"ReusableJobWorkerTask heavy");
-        var jobWorker3 = new ReusableJobWorkerTask<TestJob>(ThreadCore.Root, HeavyMethod3, N2);
+        var jobWorker3 = new ReusableJobWorker<TestJob>(ThreadCore.Root, HeavyMethod3, N2);
         jobWorker3.NumberOfConcurrentTasks = 4;
         BenchWorker3(N2, jobWorker3);
         jobWorker3.Dispose();
@@ -350,104 +338,7 @@ internal class ThreadWorkerBenchmark
         benchTimer.Clear();
     }
 
-    private static void BenchWorker3(int count, ReusableJobWorkerObsolete<TestJob> worker)
-    {
-        for (var repeat = 0; repeat < Repeat; repeat++)
-        {
-            benchTimer.Start();
-            for (var n = 0; n < count; n++)
-            {
-                var job = worker.Rent();
-                job.Id = n;
-                worker.Add(job);
-            }
-
-            worker.WaitForCompletion(-1).Wait();
-            benchTimer.Stop();
-        }
-
-        Console.WriteLine(benchTimer.GetResult("Sequence Add"));
-        benchTimer.Clear();
-
-        for (var repeat = 0; repeat < Repeat; repeat++)
-        {
-            benchTimer.Start();
-            Parallel.For(0, 10, parallelOptions, x =>
-            {
-                for (var n = 0; n < (count / 10); n++)
-                {
-                    var job = worker.Rent();
-                    job.Id = n;
-                    worker.Add(job);
-                }
-            });
-
-            worker.WaitForCompletion(-1).Wait();
-            benchTimer.Stop();
-        }
-
-        Console.WriteLine(benchTimer.GetResult("Parallel 10 Add"));
-        benchTimer.Clear();
-
-        for (var repeat = 0; repeat < Repeat; repeat++)
-        {
-            benchTimer.Start();
-            for (var n = 0; n < count; n++)
-            {
-                var job = worker.Rent();
-                job.Id = n;
-                worker.Add(job);
-            }
-
-            worker.WaitForCompletion(-1).Wait();
-            benchTimer.Stop();
-        }
-
-        Console.WriteLine(benchTimer.GetResult("Sequence Add and Wait"));
-        benchTimer.Clear();
-
-        for (var repeat = 0; repeat < Repeat; repeat++)
-        {
-            benchTimer.Start();
-            Parallel.For(0, 10, parallelOptions, x =>
-            {
-                for (var n = 0; n < (count / 10); n++)
-                {
-                    var job = worker.Rent();
-                    job.Id = n;
-                    worker.Add(job);
-                }
-            });
-
-            worker.WaitForCompletion(-1).Wait();
-            benchTimer.Stop();
-        }
-
-        Console.WriteLine(benchTimer.GetResult("Parallel 10 Add and Wait"));
-        benchTimer.Clear();
-
-        for (var repeat = 0; repeat < Repeat; repeat++)
-        {
-            benchTimer.Start();
-            Parallel.For(0, 100, parallelOptions, x =>
-            {
-                for (var n = 0; n < (count / 100); n++)
-                {
-                    var job = worker.Rent();
-                    job.Id = n;
-                    worker.Add(job);
-                }
-            });
-
-            worker.WaitForCompletion(-1).Wait();
-            benchTimer.Stop();
-        }
-
-        Console.WriteLine(benchTimer.GetResult("Parallel 100 Add and Wait"));
-        benchTimer.Clear();
-    }
-
-    private static void BenchWorker3(int count, ReusableJobWorkerTask<TestJob> worker)
+    private static void BenchWorker3(int count, ReusableJobWorker<TestJob> worker)
     {
         for (var repeat = 0; repeat < Repeat; repeat++)
         {

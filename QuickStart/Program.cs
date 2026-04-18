@@ -260,7 +260,7 @@ internal class Program
     {
         Console.WriteLine("AsyncPulseEvent.");
 
-        var pulseEvent = new AsyncPulseEventObsolete(); // Create AsyncPulseEvent.
+        var pulseEvent = new AsyncPulseEvent(); // Create AsyncPulseEvent.
         var c = new TaskCore(ThreadCore.Root, async parameter =>
         { // Create TaskCore that will send a pulse after 1 second.
             var core = (TaskCore)parameter!; // Get TaskCore from the parameter.
@@ -278,7 +278,7 @@ internal class Program
 
     private class WaitPulseCore : TaskCore
     {
-        public WaitPulseCore(ThreadCoreBase parent, AsyncPulseEventObsolete pulseEvent, int index)
+        public WaitPulseCore(ThreadCoreBase parent, AsyncPulseEvent pulseEvent, int index)
             : base(parent, Process)
         {
             this.pulseEvent = pulseEvent;
@@ -294,7 +294,7 @@ internal class Program
             Console.WriteLine($"Wait end {core.index}");
         }
 
-        private AsyncPulseEventObsolete pulseEvent;
+        private AsyncPulseEvent pulseEvent;
         private int index;
     }
 

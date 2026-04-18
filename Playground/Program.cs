@@ -5,7 +5,7 @@ using Arc.Threading;
 
 namespace Playground;
 
-public class TestWorker : ReusableJobWorkerObsolete<ReusableThreadJob>
+public class TestWorker : ReusableJobWorker<ReusableThreadJob>
 {
     public TestWorker(ThreadCoreBase? parent, Action<ReusableThreadJob>? processJob = null)
         : base(parent, processJob)
