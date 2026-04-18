@@ -33,24 +33,26 @@ namespace Arc.Threading;
 /// <see cref="ReusableJobState.Created"/> -> <see cref="ReusableJobState.Pending"/> ->
 /// <see cref="ReusableJobState.Running"/> -> <see cref="ReusableJobState.Completed"/>.
 /// </remarks>
-public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
+public class ReusableJobWorker<TJob> : TaskCore, IDisposable
     where TJob : ReusableJobBase, new()
 {
     private const int DefaultPoolCapacity = 32;
     private const int WaitTimeout = 100;
-    private static readonly TimeSpan DefaultPollingInterval = TimeSpan.FromMilliseconds(1_000);
 
-    private static async void Process(object? parameter)
+    private static async Task Process(object? parameter)
     {
         var worker = (ReusableJobWorker<TJob>)parameter!;
         while (!worker.IsTerminated)
         {
+            var updateEvent = worker.updateEvent;
+            if (updateEvent == null)
+            {// Disposed
+                goto Terminated;
+            }
+
             try
             {
-                if (worker.addedEvent?.Wait(worker.PollingInterval, worker.CancellationToken) == true)
-                {
-                    worker.addedEvent?.Reset();
-                }
+                await updateEvent.WaitAsync(worker.CancellationToken).ConfigureAwait(false); // Add or Finish
             }
             catch
             {
@@ -107,18 +109,29 @@ public class ReusableJobWorker<TJob> : ThreadCore, IDisposable
                     }
                 }
 
-                job.State = ReusableJobState.Running;
-                if (worker.processJob is null)
+                try
                 {
-                    worker.ProcessJob(job);
-                }
-                else
-                {
-                    worker.processJob(job);
-                }
+                    job.State = ReusableJobState.Running;
 
-                job.State = ReusableJobState.Completed;
-                job.SetInternal();
+                    if (worker.processJob is null)
+                    {
+                        worker.ProcessJob(job);
+                    }
+                    else
+                    {
+                        worker.processJob(job);
+                    }
+
+                    job.State = ReusableJobState.Completed;
+                }
+                catch
+                {
+                    job.State = ReusableJobState.Aborted;
+                }
+                finally
+                {
+                    job.SetInternal();
+                }
 
                 if (worker.IsTerminated)
                 {// To prevent the job from freezing, complete the acquired job first, then check whether it has been terminated.
@@ -147,14 +160,6 @@ Terminated:
     public ReusableJobWorkerState State { get; private set; }
 
     /// <summary>
-    /// Gets or sets the time interval used to poll for new jobs when the queue is empty.
-    /// </summary>
-    /// <value>
-    /// A <see cref="TimeSpan"/> representing the polling interval. The default value is <c>1000 milliseconds</c>.
-    /// </value>
-    public TimeSpan PollingInterval { get; set; } = DefaultPollingInterval;
-
-    /// <summary>
     /// Gets or sets the maximum number of worker tasks allowed to process queued jobs concurrently.
     /// </summary>
     /// <value>
@@ -175,7 +180,7 @@ Terminated:
     private readonly ConcurrentQueue<TJob> pendingJobs;
     private int numberOfPendingJobs;
 
-    private ManualResetEventSlim? addedEvent = new(false);
+    private AsyncPulseEvent? updateEvent = new();
     private int numberOfActiveTasks;
 
     #endregion
@@ -248,7 +253,7 @@ Terminated:
         Interlocked.Increment(ref this.numberOfPendingJobs);
 
         job.State = ReusableJobState.Pending;
-        this.addedEvent?.Set();
+        this.updateEvent?.Pulse();
 
         if (this.State == ReusableJobWorkerState.Terminated)
         {
@@ -349,7 +354,7 @@ Terminated:
         {
             if (disposing)
             {
-                this.addedEvent = null;
+                this.updateEvent = null;
             }
 
             base.Dispose(disposing);

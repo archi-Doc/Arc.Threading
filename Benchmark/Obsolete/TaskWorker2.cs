@@ -365,7 +365,7 @@ public class TaskWorker2<TWork> : TaskCore
     /// </summary>
     public int Count => this.linkedList.Count;
 
-    internal AsyncPulseEvent? addedEvent = new();
+    internal AsyncPulseEventObsolete? addedEvent = new();
 
     /// <inheritdoc/>
     protected override void Dispose(bool disposing)

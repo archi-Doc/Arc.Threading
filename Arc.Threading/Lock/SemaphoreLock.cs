@@ -10,17 +10,17 @@ namespace Arc.Threading;
 /// <see cref="SemaphoreLock"/> is a simplified version of <see cref="SemaphoreSlim"/>.<br/>
 /// Used for object mutual exclusion and can also be used in code that includes await syntax.<br/>
 /// An instance of <see cref="SemaphoreLock"/> should be a private member since it uses `lock (this)` statement to reduce memory usage.<br/>
-/// The size of this struct is 40 bytes (37 bytes internally).
+/// The size of this struct is 40 bytes (39 bytes internally).
 /// </summary>
 public class SemaphoreLock : ILockable, IAsyncLockable
-{// object:16, 1+2+2+8+8 -> 37
-    internal const int DefaultSpinCountBeforeWait = 35 * 4;
+{// object:16, 1+2+4+8+8 -> 39
+    private const int DefaultSpinCountBeforeWait = 35 * 4;
 
     private object SyncObject => this; // lock (this) is a bad practice but...
 
     private bool entered = false;
     private ushort countOfWaitersPulsedToWake; // int -> ushort
-    private ushort waitCount; // int -> ushort
+    private int waitCount;
     private TaskNode? head;
     private TaskNode? tail;
 

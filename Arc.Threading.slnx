@@ -2,9 +2,10 @@
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
   </Folder>
-  <Project Path="Playground/Playground.csproj" />
   <Project Path="Arc.Threading/Arc.Threading.csproj" />
   <Project Path="Benchmark/Benchmark.csproj" />
+  <Project Path="Playground/Playground.csproj" />
   <Project Path="QuickStart/QuickStart.csproj" />
   <Project Path="Test/Test.csproj" />
+  <Project Path="xUnitTest/xUnitTest.csproj" Id="d7c99f0c-ebf9-4839-b372-9538aed3699d" />
 </Solution>
