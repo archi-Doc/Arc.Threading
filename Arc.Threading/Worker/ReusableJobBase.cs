@@ -15,6 +15,12 @@ public abstract record class ReusableJobBase
     public ReusableJobState State { get; internal set; }
 
     /// <summary>
+    /// Gets a value indicating whether the object is automatically returned when the job completes.<br/>
+    /// Enable this when you do not use the job's return value (fire-and-forget pattern).
+    /// </summary>
+    public bool AutoReturnOnJobCompletion { get; internal set; }
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="ReusableJobBase"/> class.
     /// </summary>
     public ReusableJobBase()
