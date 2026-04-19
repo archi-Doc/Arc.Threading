@@ -92,7 +92,7 @@ internal class ThreadWorkerBenchmark
 
     internal static async Task Benchmark()
     {
-        /*Console.WriteLine($"ThreadWorker");
+        Console.WriteLine($"ThreadWorker");
         var worker2 = new ThreadWorker<TestWork>(ThreadCore.Root, EmptyMethod2);
         BenchWorker2(N, worker2);
         worker2.Dispose();
@@ -103,21 +103,24 @@ internal class ThreadWorkerBenchmark
         BenchWorker3(N, jobWorkerTask);
         jobWorkerTask.Dispose();
         Console.WriteLine(Count.ToString());
-        Count = 0;*/
+        Count = 0;
 
-        /*Console.WriteLine($"ReusableJobWorker (Task)");
+        Console.WriteLine($"ReusableJobWorker (Task)");
         var jobWorker2 = new ReusableJobWorker<TestJob2>(ThreadCore.Root, EmptyMethodThread, N);
         BenchWorker3(N, jobWorker2, false);
         jobWorker2.Dispose();
         Console.WriteLine(Count.ToString());
-        Count = 0;*/
-
-        Console.WriteLine($"ReusableJobWorker (Task fire-and-forget)");
-        var jobWorker4 = new ReusableJobWorker<TestJob2>(ThreadCore.Root, EmptyMethodThread, N);
-        BenchWorker3(N, jobWorker4, true);
-        jobWorker4.Dispose();
-        Console.WriteLine(Count.ToString());
         Count = 0;
+
+        for (var i = 0; i < 1; i++)
+        {
+            Console.WriteLine($"ReusableJobWorker (Task fire-and-forget)");
+            var jobWorker4 = new ReusableJobWorker<TestJob2>(ThreadCore.Root, EmptyMethodThread, N);
+            BenchWorker3(N, jobWorker4, true);
+            jobWorker4.Dispose();
+            Console.WriteLine(Count.ToString());
+            Count = 0;
+        }
 
         /*Console.WriteLine($"TaskWorkerSlim heavy");
         var taskWorkerSlim2 = new TaskWorkerSlim<TestTaskWorkSlim>(ThreadCore.Root, HeavyMethodTaskSlim);
@@ -131,7 +134,7 @@ internal class ThreadWorkerBenchmark
         BenchWorker2(N2, heavyWorker2);
         heavyWorker2.Dispose();
         Console.WriteLine();
-
+         
         /*Console.WriteLine($"TaskWorker heavy");
         var taskWorkerHeavy = new TaskWorker<TestTaskWork>(ThreadCore.Root, HeavyMethodTask);
         taskWorkerHeavy.NumberOfConcurrentTasks = 4;
@@ -465,9 +468,8 @@ internal class ThreadWorkerBenchmark
         }
 
         Console.WriteLine(benchTimer.GetResult("Sequence Add"));
-        // Thread.Sleep(1000);
         benchTimer.Clear();
-        Console.WriteLine(Count);
+        // Console.WriteLine(Count);
 
         for (var repeat = 0; repeat < Repeat; repeat++)
         {
@@ -488,7 +490,7 @@ internal class ThreadWorkerBenchmark
 
         Console.WriteLine(benchTimer.GetResult("Parallel 10 Add"));
         benchTimer.Clear();
-        Console.WriteLine(Count);
+        // Console.WriteLine(Count);
 
         for (var repeat = 0; repeat < Repeat; repeat++)
         {
@@ -506,7 +508,7 @@ internal class ThreadWorkerBenchmark
 
         Console.WriteLine(benchTimer.GetResult("Sequence Add and Wait"));
         benchTimer.Clear();
-        Console.WriteLine(Count);
+        // Console.WriteLine(Count);
 
         for (var repeat = 0; repeat < Repeat; repeat++)
         {
@@ -527,7 +529,7 @@ internal class ThreadWorkerBenchmark
 
         Console.WriteLine(benchTimer.GetResult("Parallel 10 Add and Wait"));
         benchTimer.Clear();
-        Console.WriteLine(Count);
+        // Console.WriteLine(Count);
 
         for (var repeat = 0; repeat < Repeat; repeat++)
         {

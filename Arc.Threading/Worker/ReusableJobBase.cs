@@ -20,10 +20,16 @@ public abstract record class ReusableJobBase
     public static void ThrowFireAndForgetException()
         => throw new InvalidOperationException("Since this job uses the fire-and-forget pattern, you cannot wait for it to complete");
 
+#pragma warning disable SA1307 // Accessible fields should begin with upper-case letter
+#pragma warning disable SA1401 // Fields should be private
+    internal ReusableJobState state;
+#pragma warning restore SA1401 // Fields should be private
+#pragma warning restore SA1307 // Accessible fields should begin with upper-case letter
+
     /// <summary>
     /// Gets the current state of the reusable job.
     /// </summary>
-    public ReusableJobState State { get; internal set; }
+    public ReusableJobState State => this.state;
 
     /// <summary>
     /// Gets a value indicating whether the job is executed in a fire-and-forget manner without waiting for completion.
