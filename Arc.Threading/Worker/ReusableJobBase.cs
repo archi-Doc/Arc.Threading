@@ -1,5 +1,10 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
+using System;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
+
 namespace Arc.Threading;
 
 /// <summary>
@@ -9,16 +14,21 @@ namespace Arc.Threading;
 /// </summary>
 public abstract record class ReusableJobBase
 {
+    [DoesNotReturn]
+    [StackTraceHidden]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static void ThrowFireAndForgetException()
+        => throw new InvalidOperationException("Since this job uses the fire-and-forget pattern, you cannot wait for it to complete");
+
     /// <summary>
     /// Gets the current state of the reusable job.
     /// </summary>
     public ReusableJobState State { get; internal set; }
 
     /// <summary>
-    /// Gets a value indicating whether the object is automatically returned when the job completes.<br/>
-    /// Enable this when you do not use the job's return value (fire-and-forget pattern).
+    /// Gets a value indicating whether the job is executed in a fire-and-forget manner without waiting for completion.
     /// </summary>
-    public bool AutoReturnOnJobCompletion { get; internal set; }
+    public bool FireAndForget { get; internal set; }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ReusableJobBase"/> class.
@@ -35,6 +45,8 @@ public abstract record class ReusableJobBase
     public virtual void Reset()
     {
     }
+
+    internal abstract void InitializeInternal();
 
     /// <summary>
     /// Sets the internal state when the job is being prepared for execution.

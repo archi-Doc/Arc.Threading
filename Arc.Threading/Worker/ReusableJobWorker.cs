@@ -95,7 +95,7 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
 
                                         job.State = ReusableJobState.Completed;
                                         job.SetInternal();
-                                        if (job.AutoReturnOnJobCompletion)
+                                        if (job.FireAndForget)
                                         {
                                             worker.Return(job);
                                         }
@@ -137,9 +137,9 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
                 finally
                 {
                     job.SetInternal();
-                    if (job.AutoReturnOnJobCompletion)
+                    if (job.FireAndForget)
                     {
-                        worker.Return(job);
+                        //worker.Return(job);
                     }
                 }
 
@@ -160,7 +160,7 @@ Terminated:
             Interlocked.Decrement(ref worker.numberOfPendingJobs);
             job.State = ReusableJobState.Aborted;
             job.SetInternal();
-            if (job.AutoReturnOnJobCompletion)
+            if (job.FireAndForget)
             {
                 worker.Return(job);
             }
@@ -221,15 +221,15 @@ Terminated:
     /// <summary>
     /// Rents a reusable job instance from the internal pool.
     /// </summary>
-    /// <param name="autoReturnOnJobCompletion">
-    /// <see langword="true"/> to automatically return the job to the pool when it reaches the completed state;<br/>
-    /// Enable this when you do not use the job's return value (fire-and-forget pattern).
+    /// <param name="fireAndForget">
+    /// <see langword="true"/> to execute the job in a fire-and-forget manner without waiting for completion.
     /// </param>
     /// <returns>A job in the <see cref="ReusableJobState.Created"/> state.</returns>
-    public TJob Rent(bool autoReturnOnJobCompletion = false)
+    public TJob Rent(bool fireAndForget = false)
     {
         var job = this.freeJobs.Rent();
-        job.AutoReturnOnJobCompletion = autoReturnOnJobCompletion;
+        job.FireAndForget = fireAndForget;
+        job.InitializeInternal();
         return job;
     }
 
@@ -247,7 +247,7 @@ Terminated:
             job.State == ReusableJobState.Aborted)
         {// Completed or Aborted
             job.State = ReusableJobState.Created;
-            job.AutoReturnOnJobCompletion = false;
+            job.FireAndForget = false;
             job.ResetInternal();
             job.Reset();
             this.freeJobs.Return(job);
@@ -278,7 +278,7 @@ Terminated:
         {
             job.State = ReusableJobState.Aborted;
             job.SetInternal();
-            if (job.AutoReturnOnJobCompletion)
+            if (job.FireAndForget)
             {
                 this.Return(job);
             }
