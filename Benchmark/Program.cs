@@ -23,7 +23,7 @@ public class Program
         // ThreadPool.GetMaxThreads(out var workerThreads, out var completionPortThreads);
         // ThreadPool.SetMaxThreads(100, completionPortThreads);
 
-        // await ThreadWorkerBenchmark.Benchmark();
+        await ThreadWorkerBenchmark.Benchmark();
 
         // ThreadPool.SetMaxThreads(workerThreads, completionPortThreads);
 
