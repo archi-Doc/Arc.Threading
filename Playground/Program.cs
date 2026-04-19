@@ -20,6 +20,8 @@ public class TestWorker : ReusableJobWorker<ReusableThreadJob>
     protected override async Task ProcessJob(ReusableThreadJob job)
     {
         Console.WriteLine("Process");
+        await Task.Delay(500);
+        Console.WriteLine("Done");
     }
 }
 
