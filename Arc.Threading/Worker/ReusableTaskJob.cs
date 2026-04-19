@@ -26,6 +26,27 @@ public record class ReusableTaskJob : ReusableJobBase
     /// </value>
     public Task Task => this.tcs.Task;
 
+    /// <summary>
+    /// Asynchronously waits until this job is completed.
+    /// </summary>
+    /// <param name="cancellationToken">A token used to cancel the wait operation.</param>
+    /// <returns>
+    /// A task that completes when the job is set, or is canceled if <paramref name="cancellationToken"/> is canceled.
+    /// </returns>
+    public Task WaitAsync(CancellationToken cancellationToken = default)
+        => this.tcs.Task.WaitAsync(cancellationToken);
+
+    /// <summary>
+    /// Starts an asynchronous wait for completion with a timeout and optional cancellation.
+    /// </summary>
+    /// <param name="timeout">The maximum time to wait before timing out. </param>
+    /// <param name="cancellationToken">A token used to cancel the wait operation.</param>
+    /// <returns>
+    /// A task that completes when the job is set, or is canceled if <paramref name="cancellationToken"/> is canceled.
+    /// </returns>
+    public Task WaitAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
+        => this.tcs.Task.WaitAsync(timeout, cancellationToken);
+
     internal override void SetInternal()
     {
         this.tcs.SetResult();
