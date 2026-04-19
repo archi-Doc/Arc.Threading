@@ -2,17 +2,15 @@
 
 using System;
 using System.Threading;
-using System.Threading.Tasks;
 
 namespace Arc.Threading;
 
 public record class ReusableThreadJob : ReusableJobBase
 {
-    private readonly ManualResetEventSlim eventSlim;
+    private ManualResetEventSlim? eventSlim;
 
     public ReusableThreadJob()
     {
-        this.eventSlim = new(false);
     }
 
     /// <summary>
@@ -23,7 +21,7 @@ public record class ReusableThreadJob : ReusableJobBase
     /// </param>
     public void Wait(CancellationToken cancellationToken = default)
     {
-        if (this.FireAndForget)
+        if (this.eventSlim is null)
         {
             ThrowFireAndForgetException();
         }
@@ -32,81 +30,38 @@ public record class ReusableThreadJob : ReusableJobBase
     }
 
     /// <summary>
-    /// Blocks the calling thread until this job is signaled as completed, the timeout expires,
-    /// or the wait is canceled.
+    /// Blocks the calling thread until this job is signaled as completed, a timeout expires, or cancellation is requested.
     /// </summary>
-    /// <param name="timeout">The maximum time to wait for the job to be signaled.</param>
-    /// <param name="cancellationToken">A token used to cancel the wait operation.</param>
-    public void Wait(TimeSpan timeout, CancellationToken cancellationToken = default)
+    /// <param name="timeout">The maximum time to wait for the job to complete.</param>
+    /// <param name="cancellationToken">A token that can be used to cancel the wait operation.</param>
+    /// <returns>
+    /// <see langword="true"/> if the job was signaled as completed before the timeout elapsed; otherwise, <see langword="false"/>.
+    /// </returns>
+    public bool Wait(TimeSpan timeout, CancellationToken cancellationToken = default)
     {
-        if (this.FireAndForget)
+        if (this.eventSlim is null)
         {
             ThrowFireAndForgetException();
         }
 
-        this.eventSlim.Wait(timeout, cancellationToken);
+        return this.eventSlim.Wait(timeout, cancellationToken);
     }
 
     internal override void InitializeInternal()
     {
         if (!this.FireAndForget)
         {
+            this.eventSlim = new(false);
         }
     }
 
     internal override void SetInternal()
     {
-        this.eventSlim.Set();
+        this.eventSlim?.Set();
     }
 
     internal override void ResetInternal()
     {
-        this.eventSlim.Reset();
+        this.eventSlim = default;
     }
 }
-
-/*public record class ReusableThreadJob : ReusableJobBase
-{
-    private readonly ManualResetEventSlim eventSlim;
-
-    public ReusableThreadJob()
-    {
-        this.eventSlim = new(false);
-    }
-
-    /// <summary>
-    /// Blocks the calling thread until this job is signaled as completed.
-    /// </summary>
-    /// <param name="cancellationToken">
-    /// A token that can be used to cancel the wait operation.
-    /// </param>
-    public void Wait(CancellationToken cancellationToken = default)
-    {
-        this.eventSlim.Wait(cancellationToken);
-    }
-
-    /// <summary>
-    /// Blocks the calling thread until this job is signaled as completed, the timeout expires,
-    /// or the wait is canceled.
-    /// </summary>
-    /// <param name="timeout">
-    /// The maximum time to wait for the job to be signaled.
-    /// </param>
-    /// <param name="cancellationToken">
-    /// A token that can be used to cancel the wait operation.
-    /// </param>
-    public void Wait(TimeSpan timeout, CancellationToken cancellationToken = default)
-    {
-        this.eventSlim.Wait(timeout, cancellationToken);
-    }
-
-    internal override void SetInternal()
-    {
-        this.eventSlim.Set();
-    }
-
-    internal override void ResetInternal()
-    {
-        this.eventSlim.Reset();
-    }
-}*/
