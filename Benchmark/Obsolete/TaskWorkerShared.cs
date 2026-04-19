@@ -3,7 +3,7 @@
 using System;
 using System.Runtime.CompilerServices;
 
-namespace Arc.Threading;
+namespace Benchmark.Obsolete;
 
 /// <summary>
 /// Represents a state of a task work.<br/>
@@ -37,9 +37,3 @@ public enum TaskWorkState : int
     Aborted,
 }
 
-internal static class TaskWorkHelper
-{
-    internal static TaskWorkState IntToState(int state) => Unsafe.As<int, TaskWorkState>(ref state);
-
-    internal static int StateToInt(TaskWorkState state) => Unsafe.As<TaskWorkState, int>(ref state);
-}

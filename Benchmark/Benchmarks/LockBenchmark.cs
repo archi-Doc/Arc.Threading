@@ -38,6 +38,12 @@ public class LockBenchmark
     public SemaphoreSlim NewSemaphoreSlim() => new SemaphoreSlim(1, 1);
 
     [Benchmark]
+    public ManualResetEventSlim NewManualResetEventSlim() => new ManualResetEventSlim(false);
+
+    [Benchmark]
+    public TaskCompletionSource NewTaskCompletionSource() => new TaskCompletionSource();
+
+    /*[Benchmark]
     public void Lock()
     {
         lock (this.syncObject)
@@ -174,5 +180,5 @@ public class LockBenchmark
                 this.semaphoreLock.Exit();
             }
         }
-    }
+    }*/
 }

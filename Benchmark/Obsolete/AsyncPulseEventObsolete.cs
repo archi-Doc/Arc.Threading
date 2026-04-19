@@ -4,7 +4,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Arc.Threading;
+namespace Benchmark.Obsolete;
 
 /// <summary>
 /// Represents a thread synchronization event that other threads wait until a pulse is received.

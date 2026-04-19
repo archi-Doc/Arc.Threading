@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Net.Http.Headers;
 using System.Threading;
 using System.Threading.Tasks;
 using Arc.Collections;
@@ -11,6 +12,7 @@ namespace Arc.Threading;
 
 #pragma warning disable SA1124 // Do not use regions
 #pragma warning disable SA1629 // Documentation text should end with a period
+#pragma warning disable SA1405 // Debug.Assert should provide message text
 
 /// <summary>
 /// Provides a reusable, pooled job worker that processes <typeparamref name="TJob"/> instances on a background thread.<br/>
@@ -30,7 +32,7 @@ namespace Arc.Threading;
 /// <remarks>
 /// This worker combines an internal object pool with a pending queue to reduce allocations and support high-throughput scheduling.<br/>
 /// Jobs are expected to follow the lifecycle:<br/>
-/// <see cref="ReusableJobState.Created"/> -> <see cref="ReusableJobState.Pending"/> ->
+/// <see cref="ReusableJobState.Initial"/> -> <see cref="ReusableJobState.Pending"/> ->
 /// <see cref="ReusableJobState.Running"/> -> <see cref="ReusableJobState.Completed"/>.
 /// </remarks>
 public class ReusableJobWorker<TJob> : TaskCore, IDisposable
@@ -38,6 +40,8 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
 {
     private const int DefaultPoolCapacity = 32;
     private const int WaitTimeout = 100;
+
+    public delegate void ProcessJobDelegate(object worker, TJob job);
 
     private static async Task Process(object? parameter)
     {
@@ -63,6 +67,7 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
             worker.State = ReusableJobWorkerState.Working;
             while (worker.pendingJobs.TryDequeue(out var job))
             {
+                Debug.Assert(job.State == ReusableJobState.Pending);
                 var numberOfPendingJobs = Interlocked.Decrement(ref worker.numberOfPendingJobs);
 
                 if (worker.NumberOfConcurrentTasks > 1)
@@ -73,7 +78,7 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
                     {
                         if (Interlocked.CompareExchange(ref worker.numberOfActiveTasks, current + 1, current) == current)
                         {
-                            _ = Task.Run(() =>
+                            _ = Task.Run(async () =>
                             {
                                 try
                                 {
@@ -81,19 +86,19 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
                                     {
                                         Interlocked.Decrement(ref worker.numberOfPendingJobs);
 
-                                        job.State = ReusableJobState.Running;
+                                        job.state = ReusableJobState.Running;
                                         if (worker.processJob is null)
                                         {
-                                            worker.ProcessJob(job);
+                                            await worker.ProcessJob(job).ConfigureAwait(false);
                                         }
                                         else
                                         {
-                                            worker.processJob(job);
+                                            worker.processJob(worker, job);
                                         }
 
-                                        job.State = ReusableJobState.Completed;
+                                        job.state = ReusableJobState.Completed;
                                         job.SetInternal();
-                                        if (job.AutoReturnOnJobCompletion)
+                                        if (job.FireAndForget)
                                         {
                                             worker.Return(job);
                                         }
@@ -115,27 +120,27 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
 
                 try
                 {
-                    job.State = ReusableJobState.Running;
+                    job.state = ReusableJobState.Running;
 
                     if (worker.processJob is null)
                     {
-                        worker.ProcessJob(job);
+                        await worker.ProcessJob(job).ConfigureAwait(false);
                     }
                     else
                     {
-                        worker.processJob(job);
+                        worker.processJob(worker, job);
                     }
 
-                    job.State = ReusableJobState.Completed;
+                    job.state = ReusableJobState.Completed;
                 }
                 catch
                 {
-                    job.State = ReusableJobState.Aborted;
+                    job.state = ReusableJobState.Aborted;
                 }
                 finally
                 {
                     job.SetInternal();
-                    if (job.AutoReturnOnJobCompletion)
+                    if (job.FireAndForget)
                     {
                         worker.Return(job);
                     }
@@ -156,9 +161,9 @@ Terminated:
         while (worker.pendingJobs.TryDequeue(out var job))
         {// Mark pending jobs as Aborted and return control.
             Interlocked.Decrement(ref worker.numberOfPendingJobs);
-            job.State = ReusableJobState.Aborted;
+            job.state = ReusableJobState.Aborted;
             job.SetInternal();
-            if (job.AutoReturnOnJobCompletion)
+            if (job.FireAndForget)
             {
                 worker.Return(job);
             }
@@ -187,7 +192,7 @@ Terminated:
     /// </summary>
     public int NumberOfPendingJobs => this.numberOfPendingJobs;
 
-    private readonly Action<TJob>? processJob;
+    private readonly ProcessJobDelegate? processJob;
     private readonly ObjectPool<TJob> freeJobs;
     private readonly ConcurrentQueue<TJob> pendingJobs;
     private int numberOfPendingJobs;
@@ -208,7 +213,7 @@ Terminated:
     /// <param name="startImmediately">
     /// <see langword="true"/> to start the worker thread during construction; otherwise, manual start is required.
     /// </param>
-    public ReusableJobWorker(ThreadCoreBase? parent, Action<TJob>? processJob = default, int poolCapacity = DefaultPoolCapacity, bool startImmediately = true)
+    public ReusableJobWorker(ThreadCoreBase? parent, ProcessJobDelegate? processJob = default, int poolCapacity = DefaultPoolCapacity, bool startImmediately = true)
         : base(parent, Process, startImmediately)
     {
         this.processJob = processJob;
@@ -219,15 +224,15 @@ Terminated:
     /// <summary>
     /// Rents a reusable job instance from the internal pool.
     /// </summary>
-    /// <param name="autoReturnOnJobCompletion">
-    /// <see langword="true"/> to automatically return the job to the pool when it reaches the completed state;<br/>
-    /// Enable this when you do not use the job's return value (fire-and-forget pattern).
+    /// <param name="fireAndForget">
+    /// <see langword="true"/> to execute the job in a fire-and-forget manner without waiting for completion.
     /// </param>
-    /// <returns>A job in the <see cref="ReusableJobState.Created"/> state.</returns>
-    public TJob Rent(bool autoReturnOnJobCompletion = false)
+    /// <returns>A job in the <see cref="ReusableJobState.Initial"/> state.</returns>
+    public TJob Rent(bool fireAndForget = false)
     {
         var job = this.freeJobs.Rent();
-        job.AutoReturnOnJobCompletion = autoReturnOnJobCompletion;
+        job.FireAndForget = fireAndForget;
+        job.InitializeInternal();
         return job;
     }
 
@@ -241,14 +246,18 @@ Terminated:
     /// </remarks>
     public void Return(TJob job)
     {
+        var currentState = job.State;
         if (job.State == ReusableJobState.Completed ||
             job.State == ReusableJobState.Aborted)
-        {// Completed or Aborted
-            job.State = ReusableJobState.Created;
-            job.AutoReturnOnJobCompletion = false;
-            job.ResetInternal();
-            job.Reset();
-            this.freeJobs.Return(job);
+        {
+            job.state = ReusableJobState.Initial;
+            // if (Interlocked.CompareExchange(ref job.state, ReusableJobState.Initial, currentState) == currentState)
+            {// Completed->Pooled or Aborted->Pooled
+                job.FireAndForget = false;
+                job.ResetInternal();
+                job.Reset();
+                this.freeJobs.Return(job);
+            }
         }
     }
 
@@ -257,26 +266,25 @@ Terminated:
     /// </summary>
     /// <param name="job">The job to enqueue.</param>
     /// <remarks>
-    /// Jobs not in the <see cref="ReusableJobState.Created"/> state are ignored.
+    /// Jobs not in the <see cref="ReusableJobState.Initial"/> state are ignored.
     /// </remarks>
     public void Add(TJob job)
     {
-        if (job.State != ReusableJobState.Created)
+        if (job.State != ReusableJobState.Initial)
         {
             return;
         }
 
-        this.pendingJobs.Enqueue(job);
+        job.state = ReusableJobState.Pending;
         Interlocked.Increment(ref this.numberOfPendingJobs);
-
-        job.State = ReusableJobState.Pending;
+        this.pendingJobs.Enqueue(job);
         this.updateEvent?.Pulse();
 
         if (this.State == ReusableJobWorkerState.Terminated)
         {
-            job.State = ReusableJobState.Aborted;
+            job.state = ReusableJobState.Aborted;
             job.SetInternal();
-            if (job.AutoReturnOnJobCompletion)
+            if (job.FireAndForget)
             {
                 this.Return(job);
             }
@@ -336,16 +344,9 @@ Terminated:
         return false;
     }
 
-    /// <summary>
-    /// Processes a single job instance.<br/>
-    /// This method must be <b>thread-safe</b>.
-    /// </summary>
-    /// <param name="job">The job to process.</param>
-    /// <remarks>
-    /// Override this method when no processing delegate is provided to the constructor.
-    /// </remarks>
-    protected virtual void ProcessJob(TJob job)
+    protected virtual Task ProcessJob(TJob job)
     {
+        return Task.CompletedTask;
     }
 
     /// <summary>

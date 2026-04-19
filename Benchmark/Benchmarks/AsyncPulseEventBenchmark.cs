@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Arc.Threading;
 using BenchmarkDotNet.Attributes;
+using Benchmark.Obsolete;
 
 [Config(typeof(BenchmarkConfig))]
 public class AsyncPulseEventBenchmark

@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Arc.Threading;
 using BenchmarkDotNet.Attributes;
+using Benchmark.Obsolete;
 
 namespace Benchmark;
 
@@ -57,7 +58,7 @@ internal class TestReusableWorker : ReusableJobWorker<TestReusableJob>
     {
     }
 
-    protected override void ProcessJob(TestReusableJob job)
+    protected override async Task ProcessJob(TestReusableJob job)
     {
         Interlocked.Increment(ref this.count);
     }
@@ -77,9 +78,9 @@ public class WorkerBenchmark
     {
         this.threadWorker = new ThreadWorker<TestWork>(ThreadCore.Root, EmptyMethod2);
         this.taskWorkerSlim = new TaskWorkerSlim<TestTaskWorkSlim>(ThreadCore.Root, EmptyMethodTaskSlim);
-        this.jobWorker = new(ThreadCore.Root, job => { Interlocked.Increment(ref WorkerBenchmark.count); });
+        this.jobWorker = new(ThreadCore.Root, (worker, job) => { Interlocked.Increment(ref WorkerBenchmark.count); });
         this.jobWorker2 = new(ThreadCore.Root);
-        this.jobWorker3 = new(ThreadCore.Root, job => { Interlocked.Increment(ref WorkerBenchmark.count); });
+        this.jobWorker3 = new(ThreadCore.Root, (worker, job) => { Interlocked.Increment(ref WorkerBenchmark.count); });
     }
 
     [Benchmark]

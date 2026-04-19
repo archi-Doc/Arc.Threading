@@ -7,14 +7,21 @@ namespace Playground;
 
 public class TestWorker : ReusableJobWorker<ReusableThreadJob>
 {
-    public TestWorker(ThreadCoreBase? parent, Action<ReusableThreadJob>? processJob = null)
-        : base(parent, processJob)
+    public TestWorker()
+        : base(ThreadCore.Root, default)
     {
     }
 
     protected override void OnAfterProcessJob()
     {
         Console.WriteLine("OnAfterProcessJob");
+    }
+
+    protected override async Task ProcessJob(ReusableThreadJob job)
+    {
+        Console.WriteLine("Process");
+        await Task.Delay(500);
+        Console.WriteLine("Done");
     }
 }
 
@@ -40,7 +47,25 @@ class Program
     static async Task Main(string[] args)
     {
         Console.WriteLine("Hello World!");
+        Console.WriteLine();
 
+        await Test2();
+
+        ThreadCore.Root.Terminate();
+    }
+
+    static async Task Test2()
+    {
+        var worker = new TestWorker();
+        var job1 = worker.Rent();
+        worker.Add(job1);
+        Console.WriteLine(job1.State);
+        job1.Wait();
+        Console.WriteLine(job1.State);
+    }
+
+    static async Task Test1()
+    {
         var pulseEvent = new AsyncPulseEvent();
         var tcs = new CancellationTokenSource();
 
@@ -66,7 +91,5 @@ class Program
         }
 
         Console.WriteLine(DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss.fff"));
-
-        ThreadCore.Root.Terminate();
     }
 }

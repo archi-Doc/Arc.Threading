@@ -6,14 +6,14 @@ namespace Arc.Threading;
 /// Represents the lifecycle state of a reusable job handled by <see cref="ReusableJobWorker{TJob}"/>.
 /// </summary>
 /// <remarks>
-/// Typical progression is <see cref="Created"/> → <see cref="Pending"/> → <see cref="Running"/> → <see cref="Completed"/>.
+/// Typical progression is <see cref="Initial"/> → <see cref="Pending"/> → <see cref="Running"/> → <see cref="Completed"/>.
 /// </remarks>
 public enum ReusableJobState : byte
 {
     /// <summary>
     /// Initial state. The job has been created but not yet queued.
     /// </summary>
-    Created,
+    Initial,
 
     /// <summary>
     /// Waiting state. The job is queued and waiting to be processed.

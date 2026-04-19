@@ -11,11 +11,10 @@ namespace Arc.Threading;
 /// </summary>
 public record class ReusableTaskJob : ReusableJobBase
 {
-    private TaskCompletionSource tcs;
+    private TaskCompletionSource? tcs;
 
     public ReusableTaskJob()
     {
-        this.tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
     /// <summary>
@@ -24,7 +23,18 @@ public record class ReusableTaskJob : ReusableJobBase
     /// <value>
     /// The task that will complete when the job is done.
     /// </value>
-    public Task Task => this.tcs.Task;
+    public Task Task
+    {
+        get
+        {
+            if (this.tcs is null)
+            {
+                ThrowFireAndForgetException();
+            }
+
+            return this.tcs.Task;
+        }
+    }
 
     /// <summary>
     /// Asynchronously waits until this job is completed.
@@ -34,7 +44,14 @@ public record class ReusableTaskJob : ReusableJobBase
     /// A task that completes when the job is set, or is canceled if <paramref name="cancellationToken"/> is canceled.
     /// </returns>
     public Task WaitAsync(CancellationToken cancellationToken = default)
-        => this.tcs.Task.WaitAsync(cancellationToken);
+    {
+        if (this.tcs is null)
+        {
+            ThrowFireAndForgetException();
+        }
+
+        return this.tcs.Task.WaitAsync(cancellationToken);
+    }
 
     /// <summary>
     /// Starts an asynchronous wait for completion with a timeout and optional cancellation.
@@ -45,15 +62,30 @@ public record class ReusableTaskJob : ReusableJobBase
     /// A task that completes when the job is set, or is canceled if <paramref name="cancellationToken"/> is canceled.
     /// </returns>
     public Task WaitAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
-        => this.tcs.Task.WaitAsync(timeout, cancellationToken);
+    {
+        if (this.tcs is null)
+        {
+            ThrowFireAndForgetException();
+        }
+
+        return this.tcs.Task.WaitAsync(timeout, cancellationToken);
+    }
+
+    internal override void InitializeInternal()
+    {
+        if (!this.FireAndForget)
+        {
+            this.tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+    }
 
     internal override void SetInternal()
     {
-        this.tcs.SetResult();
+        this.tcs?.TrySetResult();
     }
 
     internal override void ResetInternal()
     {
-        this.tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        this.tcs = default;
     }
 }
