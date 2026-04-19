@@ -756,7 +756,7 @@ internal class ThreadWorkerBenchmark
         return AbortOrComplete.Complete;
     }
 
-    private static void HeavyMethod3(TestJob job)
+    private static void HeavyMethod3(object worker, TestJob job)
     {
         unchecked
         {
@@ -778,7 +778,7 @@ internal class ThreadWorkerBenchmark
         Interlocked.Increment(ref Count);
     }
 
-    private static void EmptyMethodThread(TestJob job)
+    private static void EmptyMethodThread(object worker, TestJob job)
     {
         Interlocked.Increment(ref Count);
     }

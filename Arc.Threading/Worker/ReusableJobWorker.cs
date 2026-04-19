@@ -39,6 +39,8 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
     private const int DefaultPoolCapacity = 32;
     private const int WaitTimeout = 100;
 
+    public delegate void ProcessJobDelegate(object worker, TJob job);
+
     private static async Task Process(object? parameter)
     {
         var worker = (ReusableJobWorker<TJob>)parameter!;
@@ -73,7 +75,7 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
                     {
                         if (Interlocked.CompareExchange(ref worker.numberOfActiveTasks, current + 1, current) == current)
                         {
-                            _ = Task.Run(() =>
+                            _ = Task.Run(async () =>
                             {
                                 try
                                 {
@@ -84,11 +86,11 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
                                         job.State = ReusableJobState.Running;
                                         if (worker.processJob is null)
                                         {
-                                            worker.ProcessJob(job);
+                                            await worker.ProcessJob(job).ConfigureAwait(false);
                                         }
                                         else
                                         {
-                                            worker.processJob(job);
+                                            worker.processJob(worker, job);
                                         }
 
                                         job.State = ReusableJobState.Completed;
@@ -119,11 +121,11 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
 
                     if (worker.processJob is null)
                     {
-                        worker.ProcessJob(job);
+                        await worker.ProcessJob(job).ConfigureAwait(false);
                     }
                     else
                     {
-                        worker.processJob(job);
+                        worker.processJob(worker, job);
                     }
 
                     job.State = ReusableJobState.Completed;
@@ -187,7 +189,7 @@ Terminated:
     /// </summary>
     public int NumberOfPendingJobs => this.numberOfPendingJobs;
 
-    private readonly Action<TJob>? processJob;
+    private readonly ProcessJobDelegate? processJob;
     private readonly ObjectPool<TJob> freeJobs;
     private readonly ConcurrentQueue<TJob> pendingJobs;
     private int numberOfPendingJobs;
@@ -208,7 +210,7 @@ Terminated:
     /// <param name="startImmediately">
     /// <see langword="true"/> to start the worker thread during construction; otherwise, manual start is required.
     /// </param>
-    public ReusableJobWorker(ThreadCoreBase? parent, Action<TJob>? processJob = default, int poolCapacity = DefaultPoolCapacity, bool startImmediately = true)
+    public ReusableJobWorker(ThreadCoreBase? parent, ProcessJobDelegate? processJob = default, int poolCapacity = DefaultPoolCapacity, bool startImmediately = true)
         : base(parent, Process, startImmediately)
     {
         this.processJob = processJob;
@@ -336,16 +338,9 @@ Terminated:
         return false;
     }
 
-    /// <summary>
-    /// Processes a single job instance.<br/>
-    /// This method must be <b>thread-safe</b>.
-    /// </summary>
-    /// <param name="job">The job to process.</param>
-    /// <remarks>
-    /// Override this method when no processing delegate is provided to the constructor.
-    /// </remarks>
-    protected virtual void ProcessJob(TJob job)
+    protected virtual Task ProcessJob(TJob job)
     {
+        return Task.CompletedTask;
     }
 
     /// <summary>
