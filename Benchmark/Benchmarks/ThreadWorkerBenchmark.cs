@@ -47,6 +47,17 @@ internal record class TestJob : ReusableThreadJob
     public long Result { get; set; }
 }
 
+internal record class TestJob2 : ReusableTaskJob
+{
+    public TestJob2()
+    {
+    }
+
+    public int Id { get; set; }
+
+    public long Result { get; set; }
+}
+
 internal class TestTaskWork
 {
     public TestTaskWork(int id)
@@ -101,10 +112,16 @@ internal class ThreadWorkerBenchmark
         Console.WriteLine(Count.ToString());*/
 
 
-        Console.WriteLine($"ReusableJobWorkerTask");
+        Console.WriteLine($"ReusableJobWorker (Thread)");
         var jobWorkerTask = new ReusableJobWorker<TestJob>(ThreadCore.Root, EmptyMethodThread, N);
         BenchWorker3(N, jobWorkerTask);
         jobWorkerTask.Dispose();
+        Console.WriteLine(Count.ToString());
+
+        Console.WriteLine($"ReusableJobWorker (Task)");
+        var jobWorker2 = new ReusableJobWorker<TestJob2>(ThreadCore.Root, EmptyMethodThread, N);
+        BenchWorker3(N, jobWorker2);
+        jobWorker2.Dispose();
         Console.WriteLine(Count.ToString());
 
         /*Console.WriteLine($"TaskWorkerSlim heavy");
@@ -339,6 +356,103 @@ internal class ThreadWorkerBenchmark
     }
 
     private static void BenchWorker3(int count, ReusableJobWorker<TestJob> worker)
+    {
+        for (var repeat = 0; repeat < Repeat; repeat++)
+        {
+            benchTimer.Start();
+            for (var n = 0; n < count; n++)
+            {
+                var job = worker.Rent();
+                job.Id = n;
+                worker.Add(job);
+            }
+
+            worker.WaitForCompletion(-1).Wait();
+            benchTimer.Stop();
+        }
+
+        Console.WriteLine(benchTimer.GetResult("Sequence Add"));
+        benchTimer.Clear();
+
+        for (var repeat = 0; repeat < Repeat; repeat++)
+        {
+            benchTimer.Start();
+            Parallel.For(0, 10, parallelOptions, x =>
+            {
+                for (var n = 0; n < (count / 10); n++)
+                {
+                    var job = worker.Rent();
+                    job.Id = n;
+                    worker.Add(job);
+                }
+            });
+
+            worker.WaitForCompletion(-1).Wait();
+            benchTimer.Stop();
+        }
+
+        Console.WriteLine(benchTimer.GetResult("Parallel 10 Add"));
+        benchTimer.Clear();
+
+        for (var repeat = 0; repeat < Repeat; repeat++)
+        {
+            benchTimer.Start();
+            for (var n = 0; n < count; n++)
+            {
+                var job = worker.Rent();
+                job.Id = n;
+                worker.Add(job);
+            }
+
+            worker.WaitForCompletion(-1).Wait();
+            benchTimer.Stop();
+        }
+
+        Console.WriteLine(benchTimer.GetResult("Sequence Add and Wait"));
+        benchTimer.Clear();
+
+        for (var repeat = 0; repeat < Repeat; repeat++)
+        {
+            benchTimer.Start();
+            Parallel.For(0, 10, parallelOptions, x =>
+            {
+                for (var n = 0; n < (count / 10); n++)
+                {
+                    var job = worker.Rent();
+                    job.Id = n;
+                    worker.Add(job);
+                }
+            });
+
+            worker.WaitForCompletion(-1).Wait();
+            benchTimer.Stop();
+        }
+
+        Console.WriteLine(benchTimer.GetResult("Parallel 10 Add and Wait"));
+        benchTimer.Clear();
+
+        for (var repeat = 0; repeat < Repeat; repeat++)
+        {
+            benchTimer.Start();
+            Parallel.For(0, 100, parallelOptions, x =>
+            {
+                for (var n = 0; n < (count / 100); n++)
+                {
+                    var job = worker.Rent();
+                    job.Id = n;
+                    worker.Add(job);
+                }
+            });
+
+            worker.WaitForCompletion(-1).Wait();
+            benchTimer.Stop();
+        }
+
+        Console.WriteLine(benchTimer.GetResult("Parallel 100 Add and Wait"));
+        benchTimer.Clear();
+    }
+
+    private static void BenchWorker3(int count, ReusableJobWorker<TestJob2> worker)
     {
         for (var repeat = 0; repeat < Repeat; repeat++)
         {
@@ -779,6 +893,11 @@ internal class ThreadWorkerBenchmark
     }
 
     private static void EmptyMethodThread(object worker, TestJob job)
+    {
+        Interlocked.Increment(ref Count);
+    }
+
+    private static void EmptyMethodThread(object worker, TestJob2 job)
     {
         Interlocked.Increment(ref Count);
     }
