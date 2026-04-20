@@ -1,5 +1,5 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
-
+/*
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -68,4 +68,4 @@ public class AsyncSinglePulseEvent
     {
         await this.tcs.Task.WaitAsync(timeout, cancellationToken).ConfigureAwait(false);
     }
-}
+}*/
