@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Arc.Collections;
@@ -64,6 +65,7 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
 
             // worker.OnBeforeProcessJob();
             worker.State = ReusableJobWorkerState.Working;
+            Interlocked.Increment(ref worker.numberOfTasks);
             while (worker.pendingJobs.TryDequeue(out var job))
             {
                 Debug.Assert(job.State == ReusableJobState.Pending);
@@ -71,11 +73,11 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
 
                 if (worker.MaxConcurrentTasks > 1)
                 {
-                    var current = Volatile.Read(ref worker.numberOfRunningJobs);
-                    if (current < worker.MaxConcurrentTasks &&
-                        current < numberOfPendingJobs * 2)
+                    var currentTasks = Volatile.Read(ref worker.numberOfTasks);
+                    if (currentTasks < worker.MaxConcurrentTasks &&
+                        currentTasks < numberOfPendingJobs * 2)
                     {
-                        if (Interlocked.CompareExchange(ref worker.numberOfRunningJobs, current + 1, current) == current)
+                        if (Interlocked.CompareExchange(ref worker.numberOfTasks, currentTasks + 1, currentTasks) == currentTasks)
                         {
                             _ = Task.Run(async () =>
                             {
@@ -121,7 +123,7 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
                                 }
                                 finally
                                 {
-                                    Interlocked.Decrement(ref worker.numberOfRunningJobs);
+                                    Interlocked.Decrement(ref worker.numberOfTasks);
                                 }
                             });
                         }
@@ -163,6 +165,7 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
             }
 
             worker.State = ReusableJobWorkerState.Idle;
+            Interlocked.Decrement(ref worker.numberOfTasks);
             // worker.OnAfterProcessJob();
         }
 
@@ -203,7 +206,7 @@ Terminated:
 
     public bool IsCompleted
         => Volatile.Read(ref this.numberOfPendingJobs) == 0 &&
-           Volatile.Read(ref this.numberOfRunningJobs) == 0 &&
+           Volatile.Read(ref this.numberOfTasks) == 0 &&
            this.State == ReusableJobWorkerState.Idle;
 
     /// <summary>
@@ -214,11 +217,10 @@ Terminated:
     private readonly ProcessJobDelegate? processJob;
     private readonly ObjectPool<TJob> freeJobs;
     private readonly ConcurrentQueue<TJob> pendingJobs;
+    private AsyncPulseEvent? updateEvent = new();
     private int state;
     private int numberOfPendingJobs;
-
-    private AsyncPulseEvent? updateEvent = new();
-    private int numberOfRunningJobs;
+    private int numberOfTasks;
 
     #endregion
 
