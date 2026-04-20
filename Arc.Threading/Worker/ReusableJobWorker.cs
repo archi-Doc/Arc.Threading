@@ -47,15 +47,15 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
         var worker = (ReusableJobWorker<TJob>)parameter!;
         while (!worker.IsTerminated)
         {
-            var updateEvent = worker.updateEvent;
-            if (updateEvent is null)
+            var addEvent = worker.addEvent;
+            if (addEvent is null)
             {// Disposed
                 goto Terminated;
             }
 
             try
             {
-                await updateEvent.WaitAsync(worker.CancellationToken).ConfigureAwait(false); // Add or Finish
+                await addEvent.WaitAsync(worker.CancellationToken).ConfigureAwait(false); // Add or Finish
             }
             catch
             {
@@ -197,7 +197,7 @@ Terminated:
     private readonly ProcessJobDelegate? processJob;
     private readonly ObjectPool<TJob> freeJobs;
     private readonly ConcurrentQueue<TJob> pendingJobs;
-    private AsyncPulseEvent? updateEvent = new();
+    private AsyncPulseEvent? addEvent = new();
     private int numberOfPendingJobs;
     private int numberOfTasks;
 
@@ -286,7 +286,7 @@ Terminated:
         job.State = ReusableJobState.Pending;
         Interlocked.Increment(ref this.numberOfPendingJobs);
         this.pendingJobs.Enqueue(job);
-        this.updateEvent?.Pulse();
+        this.addEvent?.Pulse();
 
         if (this.IsTerminated)
         {
@@ -425,7 +425,7 @@ Terminated:
         {
             if (disposing)
             {
-                this.updateEvent = null;
+                this.addEvent = null;
             }
 
             base.Dispose(disposing);
