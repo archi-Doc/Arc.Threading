@@ -21,7 +21,7 @@ namespace Arc.Threading;
 /// var job = worker.Rent();<br/>
 /// job.Initialize(10);<br/>
 /// worker.Add(job);<br/>
-/// job.Wait();<br/>
+/// job.WaitAsync();<br/>
 /// worker.Return(job);
 /// </summary>
 /// <typeparam name="TJob">
@@ -85,7 +85,7 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
                                     {
                                         Interlocked.Decrement(ref worker.numberOfPendingJobs);
 
-                                        job.state = ReusableJobState.Running;
+                                        job.State = ReusableJobState.Running;
                                         if (worker.processJob is null)
                                         {
                                             await worker.ProcessJob(job).ConfigureAwait(false);
@@ -95,8 +95,8 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
                                             worker.processJob(worker, job);
                                         }
 
-                                        job.state = ReusableJobState.Completed;
-                                        job.SetInternal();
+                                        job.State = ReusableJobState.Completed;
+                                        job._SetSynchronizationPrimitive();
                                         if (job.FireAndForget)
                                         {
                                             worker.Return(job);
@@ -119,7 +119,7 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
 
                 try
                 {
-                    job.state = ReusableJobState.Running;
+                    job.State = ReusableJobState.Running;
 
                     if (worker.processJob is null)
                     {
@@ -130,15 +130,15 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
                         worker.processJob(worker, job);
                     }
 
-                    job.state = ReusableJobState.Completed;
+                    job.State = ReusableJobState.Completed;
                 }
                 catch
                 {
-                    job.state = ReusableJobState.Aborted;
+                    job.State = ReusableJobState.Aborted;
                 }
                 finally
                 {
-                    job.SetInternal();
+                    job._SetSynchronizationPrimitive();
                     if (job.FireAndForget)
                     {
                         worker.Return(job);
@@ -160,8 +160,8 @@ Terminated:
         while (worker.pendingJobs.TryDequeue(out var job))
         {// Mark pending jobs as Aborted and return control.
             Interlocked.Decrement(ref worker.numberOfPendingJobs);
-            job.state = ReusableJobState.Aborted;
-            job.SetInternal();
+            job.State = ReusableJobState.Aborted;
+            job._SetSynchronizationPrimitive();
             if (job.FireAndForget)
             {
                 worker.Return(job);
@@ -242,7 +242,11 @@ Terminated:
     {
         var job = this.freeJobs.Rent();
         job.FireAndForget = fireAndForget;
-        job.InitializeInternal();
+        if (!fireAndForget)
+        {
+            job._InitializeSynchronizationPrimitive();
+        }
+
         return job;
     }
 
@@ -256,14 +260,20 @@ Terminated:
     /// </remarks>
     public void Return(TJob job)
     {
-        var currentState = job.State;
         if (job.State == ReusableJobState.Completed ||
             job.State == ReusableJobState.Aborted)
         {// Completed -> Initial, Aborted -> Initial
-            job.state = ReusableJobState.Initial;
-            job.FireAndForget = false;
-            job.ResetInternal();
-            job.Reset();
+            job.State = ReusableJobState.Initial;
+            if (job.FireAndForget)
+            {
+                job.FireAndForget = false;
+            }
+            else
+            {
+                job._ResetSynchronizationPrimitive();
+            }
+
+            job.OnReturnToPool();
             this.freeJobs.Return(job);
         }
     }
@@ -282,15 +292,15 @@ Terminated:
             return;
         }
 
-        job.state = ReusableJobState.Pending;
+        job.State = ReusableJobState.Pending;
         Interlocked.Increment(ref this.numberOfPendingJobs);
         this.pendingJobs.Enqueue(job);
         this.updateEvent?.Pulse();
 
         if (this.State == ReusableJobWorkerState.Terminated)
         {
-            job.state = ReusableJobState.Aborted;
-            job.SetInternal();
+            job.State = ReusableJobState.Aborted;
+            job._SetSynchronizationPrimitive();
             if (job.FireAndForget)
             {
                 this.Return(job);
