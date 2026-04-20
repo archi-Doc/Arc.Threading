@@ -3,7 +3,6 @@
 using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Arc.Collections;
@@ -64,7 +63,6 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
             }
 
             // worker.OnBeforeProcessJob();
-            worker.State = ReusableJobWorkerState.Working;
             Interlocked.Increment(ref worker.numberOfTasks);
             while (worker.pendingJobs.TryDequeue(out var job))
             {
@@ -160,38 +158,21 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
 
                 if (worker.IsTerminated)
                 {// To prevent the job from freezing, complete the acquired job first, then check whether it has been terminated.
+                    Interlocked.Decrement(ref worker.numberOfTasks);
                     goto Terminated;
                 }
             }
 
-            worker.State = ReusableJobWorkerState.Idle;
             Interlocked.Decrement(ref worker.numberOfTasks);
             // worker.OnAfterProcessJob();
         }
 
 Terminated:
-        worker.State = ReusableJobWorkerState.Terminated;
-        while (worker.pendingJobs.TryDequeue(out var job))
-        {// Mark pending jobs as Aborted and return control.
-            Interlocked.Decrement(ref worker.numberOfPendingJobs);
-            job.State = ReusableJobState.Aborted;
-            job._SetSynchronizationPrimitive();
-            if (job.FireAndForget)
-            {
-                worker.Return(job);
-            }
-        }
-
+        worker.AbortAllJobs();
         worker.OnTerminated();
     }
 
     #region FieldAndProperty
-
-    public ReusableJobWorkerState State
-    {
-        get => (ReusableJobWorkerState)Volatile.Read(ref this.state);
-        private set => Volatile.Write(ref this.state, (int)value);
-    }
 
     /// <summary>
     /// Gets or sets the maximum number of worker tasks allowed to process queued jobs concurrently.
@@ -206,8 +187,7 @@ Terminated:
 
     public bool IsCompleted
         => Volatile.Read(ref this.numberOfPendingJobs) == 0 &&
-           Volatile.Read(ref this.numberOfTasks) == 0 &&
-           this.State == ReusableJobWorkerState.Idle;
+           Volatile.Read(ref this.numberOfTasks) == 0;
 
     /// <summary>
     /// Gets the current number of jobs waiting to be processed.
@@ -218,7 +198,6 @@ Terminated:
     private readonly ObjectPool<TJob> freeJobs;
     private readonly ConcurrentQueue<TJob> pendingJobs;
     private AsyncPulseEvent? updateEvent = new();
-    private int state;
     private int numberOfPendingJobs;
     private int numberOfTasks;
 
@@ -309,14 +288,9 @@ Terminated:
         this.pendingJobs.Enqueue(job);
         this.updateEvent?.Pulse();
 
-        if (this.State == ReusableJobWorkerState.Terminated)
+        if (this.IsTerminated)
         {
-            job.State = ReusableJobState.Aborted;
-            job._SetSynchronizationPrimitive();
-            if (job.FireAndForget)
-            {
-                this.Return(job);
-            }
+            this.AbortAllJobs();
         }
     }
 
@@ -391,7 +365,7 @@ Terminated:
             {
                 return false;
             }
-            else if (this.State == ReusableJobWorkerState.Terminated || this.IsTerminated)
+            else if (this.IsTerminated)
             {
                 return false;
             }
@@ -455,6 +429,20 @@ Terminated:
             }
 
             base.Dispose(disposing);
+        }
+    }
+
+    private void AbortAllJobs()
+    {
+        while (this.pendingJobs.TryDequeue(out var job))
+        {// Mark pending jobs as Aborted and return control.
+            Interlocked.Decrement(ref this.numberOfPendingJobs);
+            job.State = ReusableJobState.Aborted;
+            job._SetSynchronizationPrimitive();
+            if (job.FireAndForget)
+            {
+                this.Return(job);
+            }
         }
     }
 }

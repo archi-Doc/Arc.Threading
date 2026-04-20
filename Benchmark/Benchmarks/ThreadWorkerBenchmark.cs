@@ -151,7 +151,7 @@ internal class ThreadWorkerBenchmark
 
         Console.WriteLine($"ReusableJobWorker heavy (Task)");
         var jobWorker4 = new ReusableJobWorker<TestJob2>(ThreadCore.Root, HeavyMethod3, N2);
-        jobWorker4.MaxConcurrentTasks = 4;
+        jobWorker4.MaxConcurrentTasks = 5;
         BenchWorker3(N2, jobWorker4, false);
         jobWorker4.Dispose();
         Console.WriteLine(Count.ToString());
