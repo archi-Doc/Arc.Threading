@@ -311,7 +311,7 @@ Terminated:
     /// or <see langword="false"/> if the operation was cancelled.
     /// </returns>
     public Task<bool> WaitForCompletion(CancellationToken cancellationToken = default)
-        => this.WaitForCompletion(Timeout.Infinite, cancellationToken);
+        => this.WaitForCompletion(Timeout.InfiniteTimeSpan, cancellationToken);
 
     /// <summary>
     /// Waits for the completion of all jobs.
@@ -321,21 +321,23 @@ Terminated:
     /// A cancellation token that can be used to cancel the wait operation.
     /// </param>
     /// <returns><see langword="true"/>: All works are complete.<br/><see langword="false"/>: Timeout or cancelled.</returns>
-    public Task<bool> WaitForCompletion(TimeSpan timeout, CancellationToken cancellationToken = default)
+    public async Task<bool> WaitForCompletion(TimeSpan timeout, CancellationToken cancellationToken = default)
     {
-        if (timeout == Timeout.InfiniteTimeSpan)
+        if (this.disposed)
         {
-            return this.WaitForCompletion(Timeout.Infinite, cancellationToken);
-        }
-        else if (timeout < TimeSpan.Zero ||
-            timeout.TotalMilliseconds > int.MaxValue)
-        {
-            throw new ArgumentOutOfRangeException(nameof(timeout));
+            throw new ObjectDisposedException(this.GetType().Name);
         }
 
+        try
+        {
+            await this.completedEvent.WaitAsync(timeout, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {// Timeout or cancelled
+            return false;
+        }
 
-
-        return this.WaitForCompletion((int)timeout.TotalMilliseconds, cancellationToken);
+        return true;
     }
 
     /// <summary>
@@ -346,71 +348,8 @@ Terminated:
     /// A cancellation token that can be used to cancel the wait operation.
     /// </param>
     /// <returns><see langword="true"/>: All works are complete.<br/><see langword="false"/>: Timeout or cancelled.</returns>
-    public async Task<bool> WaitForCompletion(int millisecondsTimeout, CancellationToken cancellationToken = default)
-    {
-        if (this.disposed)
-        {
-            throw new ObjectDisposedException(this.GetType().Name);
-        }
-        else if (millisecondsTimeout < Timeout.Infinite)
-        {
-            throw new ArgumentOutOfRangeException(nameof(millisecondsTimeout));
-        }
-
-        try
-        {
-            await this.completedEvent.WaitAsync(cancellationToken).ConfigureAwait(false);
-        }
-        catch
-        {
-            return false;
-        }
-
-        return true;
-
-        long startTimestamp = 0;
-        if (millisecondsTimeout != Timeout.Infinite)
-        {
-            startTimestamp = Stopwatch.GetTimestamp();
-        }
-
-        while (true)
-        {
-            if (this.IsCompleted)
-            {
-                return true;
-            }
-            else if (this.disposed)
-            {
-                return false;
-            }
-            else if (this.IsTerminated)
-            {
-                return false;
-            }
-
-            var delayMilliseconds = DelayMilliseconds;
-            if (millisecondsTimeout != Timeout.Infinite)
-            {
-                var elapsedMilliseconds = ((Stopwatch.GetTimestamp() - startTimestamp) * 1000) / Stopwatch.Frequency;
-                long remainingMilliseconds = millisecondsTimeout - elapsedMilliseconds;
-
-                if (remainingMilliseconds <= 0)
-                {
-                    return false;
-                }
-                else if (delayMilliseconds > remainingMilliseconds)
-                {
-                    delayMilliseconds = (int)remainingMilliseconds;
-                }
-            }
-
-            if (await this.Delay(delayMilliseconds, cancellationToken).ConfigureAwait(false) == false)
-            {
-                return false;
-            }
-        }
-    }
+    public Task<bool> WaitForCompletion(int millisecondsTimeout, CancellationToken cancellationToken = default)
+        => this.WaitForCompletion(TimeSpan.FromMilliseconds(millisecondsTimeout), cancellationToken);
 
     /// <summary>
     /// Processes a single job instance on the background thread.
