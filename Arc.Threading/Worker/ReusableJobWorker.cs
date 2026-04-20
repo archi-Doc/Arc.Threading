@@ -3,7 +3,6 @@
 using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Net.Http.Headers;
 using System.Threading;
 using System.Threading.Tasks;
 using Arc.Collections;

@@ -49,6 +49,10 @@ class Program
         Console.WriteLine("Hello World!");
         Console.WriteLine();
 
+        var timeout = Timeout.InfiniteTimeSpan;
+        Console.WriteLine(timeout);
+        Console.WriteLine(timeout.TotalMilliseconds);
+
         await Test2();
 
         ThreadCore.Root.Terminate();
