@@ -91,7 +91,7 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
                                             job.State = ReusableJobState.Running;
                                             if (worker.processJob is null)
                                             {
-                                                await worker.ProcessJob(job).ConfigureAwait(false);
+                                                await worker.ProcessJob(job, worker.CancellationToken).ConfigureAwait(false);
                                             }
                                             else
                                             {
@@ -134,7 +134,7 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
                     job.State = ReusableJobState.Running;
                     if (worker.processJob is null)
                     {
-                        await worker.ProcessJob(job).ConfigureAwait(false);
+                        await worker.ProcessJob(job, worker.CancellationToken).ConfigureAwait(false);
                     }
                     else
                     {
@@ -165,6 +165,11 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
 
             Interlocked.Decrement(ref worker.numberOfTasks);
             // worker.OnAfterProcessJob();
+
+            if (worker.IsCompleted)
+            {
+                worker.completedEvent.Pulse();
+            }
         }
 
 Terminated:
@@ -197,6 +202,7 @@ Terminated:
     private readonly ProcessJobDelegate? processJob;
     private readonly ObjectPool<TJob> freeJobs;
     private readonly ConcurrentQueue<TJob> pendingJobs;
+    private readonly AsyncPulseEvent completedEvent = new();
     private AsyncPulseEvent? addEvent = new();
     private int numberOfPendingJobs;
     private int numberOfTasks;
@@ -208,7 +214,7 @@ Terminated:
     /// </summary>
     /// <param name="parent">The parent thread core used for lifecycle coordination, or <see langword="default"/>.</param>
     /// <param name="processJob">
-    /// Optional delegate used to process each job. If <see langword="null"/>, <see cref="ProcessJob(TJob)"/> is invoked.
+    /// Optional delegate used to process each job. If <see langword="null"/>, <see cref="ProcessJob(TJob, CancellationToken)"/> is invoked.
     /// </param>
     /// <param name="poolCapacity">Initial capacity of the reusable job object pool.</param>
     /// <param name="startImmediately">
@@ -393,7 +399,18 @@ Terminated:
         }
     }
 
-    protected virtual Task ProcessJob(TJob job)
+    /// <summary>
+    /// Processes a single job instance on the background thread.
+    /// </summary>
+    /// <param name="job">The job to process. The job's state will be <see cref="ReusableJobState.Running"/> when this method is called.</param>
+    /// <param name="cancellationToken">A cancellation token that signals when the worker is being terminated.</param>
+    /// <returns>A task representing the asynchronous job processing operation.</returns>
+    /// <remarks>
+    /// Override this method to implement custom job processing logic.<br/>
+    /// This method is called automatically by the worker when a job is dequeued from the pending queue.<br/>
+    /// Alternatively, you can provide a <c>processJob</c> delegate in the constructor instead of overriding this method.
+    /// </remarks>
+    protected virtual Task ProcessJob(TJob job, CancellationToken cancellationToken)
     {
         return Task.CompletedTask;
     }

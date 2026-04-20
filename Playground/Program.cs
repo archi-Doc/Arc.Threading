@@ -17,10 +17,10 @@ public class TestWorker : ReusableJobWorker<ReusableThreadJob>
         Console.WriteLine("OnAfterProcessJob");
     }*/
 
-    protected override async Task ProcessJob(ReusableThreadJob job)
+    protected override async Task ProcessJob(ReusableThreadJob job, CancellationToken cancellationToken)
     {
         Console.WriteLine("Process");
-        await Task.Delay(500);
+        await Task.Delay(1000);
         Console.WriteLine("Done");
     }
 }
