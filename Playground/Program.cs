@@ -12,10 +12,10 @@ public class TestWorker : ReusableJobWorker<ReusableThreadJob>
     {
     }
 
-    protected override void OnAfterProcessJob()
+    /*protected override void OnAfterProcessJob()
     {
         Console.WriteLine("OnAfterProcessJob");
-    }
+    }*/
 
     protected override async Task ProcessJob(ReusableThreadJob job)
     {

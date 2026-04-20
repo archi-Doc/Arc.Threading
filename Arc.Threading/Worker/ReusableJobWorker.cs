@@ -62,17 +62,17 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
                 goto Terminated;
             }
 
-            worker.OnBeforeProcessJob();
+            // worker.OnBeforeProcessJob();
             worker.State = ReusableJobWorkerState.Working;
             while (worker.pendingJobs.TryDequeue(out var job))
             {
                 Debug.Assert(job.State == ReusableJobState.Pending);
                 var numberOfPendingJobs = Interlocked.Decrement(ref worker.numberOfPendingJobs);
 
-                if (worker.NumberOfConcurrentTasks > 1)
+                if (worker.MaxConcurrentTasks > 1)
                 {
                     var current = Volatile.Read(ref worker.numberOfRunningJobs);
-                    if (current < worker.NumberOfConcurrentTasks &&
+                    if (current < worker.MaxConcurrentTasks &&
                         current < numberOfPendingJobs * 2)
                     {
                         if (Interlocked.CompareExchange(ref worker.numberOfRunningJobs, current + 1, current) == current)
@@ -85,21 +85,32 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
                                     {
                                         Interlocked.Decrement(ref worker.numberOfPendingJobs);
 
-                                        job.State = ReusableJobState.Running;
-                                        if (worker.processJob is null)
+                                        // ProcessJobCode
+                                        try
                                         {
-                                            await worker.ProcessJob(job).ConfigureAwait(false);
-                                        }
-                                        else
-                                        {
-                                            worker.processJob(worker, job);
-                                        }
+                                            job.State = ReusableJobState.Running;
+                                            if (worker.processJob is null)
+                                            {
+                                                await worker.ProcessJob(job).ConfigureAwait(false);
+                                            }
+                                            else
+                                            {
+                                                worker.processJob(worker, job);
+                                            }
 
-                                        job.State = ReusableJobState.Completed;
-                                        job._SetSynchronizationPrimitive();
-                                        if (job.FireAndForget)
+                                            job.State = ReusableJobState.Completed;
+                                        }
+                                        catch
                                         {
-                                            worker.Return(job);
+                                            job.State = ReusableJobState.Aborted;
+                                        }
+                                        finally
+                                        {
+                                            job._SetSynchronizationPrimitive();
+                                            if (job.FireAndForget)
+                                            {
+                                                worker.Return(job);
+                                            }
                                         }
 
                                         if (worker.IsTerminated)
@@ -117,10 +128,10 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
                     }
                 }
 
+                // ProcessJobCode
                 try
                 {
                     job.State = ReusableJobState.Running;
-
                     if (worker.processJob is null)
                     {
                         await worker.ProcessJob(job).ConfigureAwait(false);
@@ -152,7 +163,7 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
             }
 
             worker.State = ReusableJobWorkerState.Idle;
-            worker.OnAfterProcessJob();
+            // worker.OnAfterProcessJob();
         }
 
 Terminated:
@@ -188,7 +199,7 @@ Terminated:
     /// <remarks>
     /// Values greater than <c>1</c> allow additional task-based parallel processing when the queue has enough pending jobs.
     /// </remarks>
-    public int NumberOfConcurrentTasks { get; set; } = 1;
+    public int MaxConcurrentTasks { get; set; } = 1;
 
     public bool IsCompleted
         => Volatile.Read(ref this.numberOfPendingJobs) == 0 &&
@@ -205,7 +216,6 @@ Terminated:
     private readonly ConcurrentQueue<TJob> pendingJobs;
     private int state;
     private int numberOfPendingJobs;
-    private int numberOfActiveJobs;
 
     private AsyncPulseEvent? updateEvent = new();
     private int numberOfRunningJobs;
@@ -412,7 +422,7 @@ Terminated:
         return Task.CompletedTask;
     }
 
-    /// <summary>
+    /*/// <summary>
     /// Called before the worker begins processing currently pending jobs.
     /// </summary>
     protected virtual void OnBeforeProcessJob()
@@ -424,7 +434,7 @@ Terminated:
     /// </summary>
     protected virtual void OnAfterProcessJob()
     {
-    }
+    }*/
 
     /// <summary>
     /// Called once when the worker transitions to the terminated state.
