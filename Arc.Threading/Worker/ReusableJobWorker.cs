@@ -38,7 +38,7 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
     where TJob : ReusableJobBase, new()
 {
     private const int DefaultPoolCapacity = 32;
-    private const int WaitTimeout = 100;
+    private const int DelayMilliseconds = 100;
 
     public delegate void ProcessJobDelegate(object worker, TJob job);
 
@@ -71,11 +71,11 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
 
                 if (worker.NumberOfConcurrentTasks > 1)
                 {
-                    var current = Volatile.Read(ref worker.numberOfActiveTasks);
+                    var current = Volatile.Read(ref worker.numberOfRunningJobs);
                     if (current < worker.NumberOfConcurrentTasks &&
                         current < numberOfPendingJobs * 2)
                     {
-                        if (Interlocked.CompareExchange(ref worker.numberOfActiveTasks, current + 1, current) == current)
+                        if (Interlocked.CompareExchange(ref worker.numberOfRunningJobs, current + 1, current) == current)
                         {
                             _ = Task.Run(async () =>
                             {
@@ -110,7 +110,7 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
                                 }
                                 finally
                                 {
-                                    Interlocked.Decrement(ref worker.numberOfActiveTasks);
+                                    Interlocked.Decrement(ref worker.numberOfRunningJobs);
                                 }
                             });
                         }
@@ -173,7 +173,11 @@ Terminated:
 
     #region FieldAndProperty
 
-    public ReusableJobWorkerState State { get; private set; }
+    public ReusableJobWorkerState State
+    {
+        get => (ReusableJobWorkerState)Volatile.Read(ref this.state);
+        private set => Volatile.Write(ref this.state, (int)value);
+    }
 
     /// <summary>
     /// Gets or sets the maximum number of worker tasks allowed to process queued jobs concurrently.
@@ -188,7 +192,7 @@ Terminated:
 
     public bool IsCompleted
         => Volatile.Read(ref this.numberOfPendingJobs) == 0 &&
-           Volatile.Read(ref this.numberOfActiveTasks) == 0 &&
+           Volatile.Read(ref this.numberOfRunningJobs) == 0 &&
            this.State == ReusableJobWorkerState.Idle;
 
     /// <summary>
@@ -199,11 +203,12 @@ Terminated:
     private readonly ProcessJobDelegate? processJob;
     private readonly ObjectPool<TJob> freeJobs;
     private readonly ConcurrentQueue<TJob> pendingJobs;
+    private int state;
     private int numberOfPendingJobs;
     private int numberOfActiveJobs;
 
     private AsyncPulseEvent? updateEvent = new();
-    private int numberOfActiveTasks;
+    private int numberOfRunningJobs;
 
     #endregion
 
@@ -254,15 +259,12 @@ Terminated:
         var currentState = job.State;
         if (job.State == ReusableJobState.Completed ||
             job.State == ReusableJobState.Aborted)
-        {
+        {// Completed -> Initial, Aborted -> Initial
             job.state = ReusableJobState.Initial;
-            // if (Interlocked.CompareExchange(ref job.state, ReusableJobState.Initial, currentState) == currentState)
-            {// Completed->Pooled or Aborted->Pooled
-                job.FireAndForget = false;
-                job.ResetInternal();
-                job.Reset();
-                this.freeJobs.Return(job);
-            }
+            job.FireAndForget = false;
+            job.ResetInternal();
+            job.Reset();
+            this.freeJobs.Return(job);
         }
     }
 
@@ -342,40 +344,57 @@ Terminated:
     /// <returns><see langword="true"/>: All works are complete.<br/><see langword="false"/>: Timeout or cancelled.</returns>
     public async Task<bool> WaitForCompletion(int millisecondsTimeout, CancellationToken cancellationToken = default)
     {
-        if (millisecondsTimeout < Timeout.Infinite)
+        if (this.disposed)
+        {
+            throw new ObjectDisposedException(this.GetType().Name);
+        }
+        else if (millisecondsTimeout < Timeout.Infinite)
         {
             throw new ArgumentOutOfRangeException(nameof(millisecondsTimeout));
         }
-        else if (this.disposed)
+
+        long startTimestamp = 0;
+        if (millisecondsTimeout != Timeout.Infinite)
         {
-            throw new ObjectDisposedException(null);
+            startTimestamp = Stopwatch.GetTimestamp();
         }
 
-        var end = Stopwatch.GetTimestamp() + (long)(millisecondsTimeout * (double)Stopwatch.Frequency / 1000);
-        while (!this.IsTerminated)
+        while (true)
         {
-            if (this.numberOfPendingJobs == 0 && this.State == ReusableJobWorkerState.Idle)
-            {// Complete
+            if (this.IsCompleted)
+            {
                 return true;
             }
-            else if (this.State == ReusableJobWorkerState.Terminated)
-            {// Terminated
+            else if (this.disposed)
+            {
                 return false;
             }
-            else if (millisecondsTimeout >= 0 && Stopwatch.GetTimestamp() >= end)
-            {// Timeout
+            else if (this.State == ReusableJobWorkerState.Terminated || this.IsTerminated)
+            {
                 return false;
             }
-            else
-            {// Wait
-                if (await this.Delay(WaitTimeout, cancellationToken).ConfigureAwait(false) == false)
+
+            var delayMilliseconds = DelayMilliseconds;
+            if (millisecondsTimeout != Timeout.Infinite)
+            {
+                var elapsedMilliseconds = ((Stopwatch.GetTimestamp() - startTimestamp) * 1000) / Stopwatch.Frequency;
+                long remainingMilliseconds = millisecondsTimeout - elapsedMilliseconds;
+
+                if (remainingMilliseconds <= 0)
                 {
                     return false;
                 }
+                else if (delayMilliseconds > remainingMilliseconds)
+                {
+                    delayMilliseconds = (int)remainingMilliseconds;
+                }
+            }
+
+            if (await this.Delay(delayMilliseconds, cancellationToken).ConfigureAwait(false) == false)
+            {
+                return false;
             }
         }
-
-        return false;
     }
 
     protected virtual Task ProcessJob(TJob job)
