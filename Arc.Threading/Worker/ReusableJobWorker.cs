@@ -186,6 +186,11 @@ Terminated:
     /// </remarks>
     public int NumberOfConcurrentTasks { get; set; } = 1;
 
+    public bool IsCompleted
+        => Volatile.Read(ref this.numberOfPendingJobs) == 0 &&
+           Volatile.Read(ref this.numberOfActiveTasks) == 0 &&
+           this.State == ReusableJobWorkerState.Idle;
+
     /// <summary>
     /// Gets the current number of jobs waiting to be processed.
     /// </summary>
@@ -195,6 +200,7 @@ Terminated:
     private readonly ObjectPool<TJob> freeJobs;
     private readonly ConcurrentQueue<TJob> pendingJobs;
     private int numberOfPendingJobs;
+    private int numberOfActiveJobs;
 
     private AsyncPulseEvent? updateEvent = new();
     private int numberOfActiveTasks;
@@ -291,6 +297,19 @@ Terminated:
     }
 
     /// <summary>
+    /// Waits indefinitely for all pending and active jobs to complete.
+    /// </summary>
+    /// <param name="cancellationToken">
+    /// A cancellation token that can be used to cancel the wait operation.
+    /// </param>
+    /// <returns>
+    /// A task that represents the asynchronous wait operation. The result is <see langword="true"/> if all jobs completed successfully,<br/>
+    /// or <see langword="false"/> if the operation was cancelled.
+    /// </returns>
+    public Task<bool> WaitForCompletion(CancellationToken cancellationToken = default)
+        => this.WaitForCompletion(Timeout.Infinite, cancellationToken);
+
+    /// <summary>
     /// Waits for the completion of all jobs.
     /// </summary>
     /// <param name="timeout">The time span to wait.</param>
@@ -299,7 +318,19 @@ Terminated:
     /// </param>
     /// <returns><see langword="true"/>: All works are complete.<br/><see langword="false"/>: Timeout or cancelled.</returns>
     public Task<bool> WaitForCompletion(TimeSpan timeout, CancellationToken cancellationToken = default)
-        => this.WaitForCompletion((int)timeout.TotalMilliseconds, cancellationToken);
+    {
+        if (timeout == Timeout.InfiniteTimeSpan)
+        {
+            return this.WaitForCompletion(Timeout.Infinite, cancellationToken);
+        }
+        else if (timeout < TimeSpan.Zero ||
+            timeout.TotalMilliseconds > int.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(nameof(timeout));
+        }
+
+        return this.WaitForCompletion((int)timeout.TotalMilliseconds, cancellationToken);
+    }
 
     /// <summary>
     /// Waits for the completion of all jobs.
@@ -311,7 +342,11 @@ Terminated:
     /// <returns><see langword="true"/>: All works are complete.<br/><see langword="false"/>: Timeout or cancelled.</returns>
     public async Task<bool> WaitForCompletion(int millisecondsTimeout, CancellationToken cancellationToken = default)
     {
-        if (this.disposed)
+        if (millisecondsTimeout < Timeout.Infinite)
+        {
+            throw new ArgumentOutOfRangeException(nameof(millisecondsTimeout));
+        }
+        else if (this.disposed)
         {
             throw new ObjectDisposedException(null);
         }
