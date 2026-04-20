@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Arc.Threading;
@@ -10,6 +11,13 @@ using Arc.Threading;
 #pragma warning disable SA1307 // Accessible fields should begin with upper-case letter
 
 namespace Benchmark.Obsolete;
+
+internal static class TaskWorkHelper
+{
+    internal static TaskWorkState IntToState(int state) => Unsafe.As<int, TaskWorkState>(ref state);
+
+    internal static int StateToInt(TaskWorkState state) => Unsafe.As<TaskWorkState, int>(ref state);
+}
 
 /// <summary>
 /// Represents a work to be processed by <see cref="TaskWorkerSlim{T}"/>.

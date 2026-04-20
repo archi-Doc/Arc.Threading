@@ -134,7 +134,7 @@ internal class ThreadWorkerBenchmark
         BenchWorker2(N2, heavyWorker2);
         heavyWorker2.Dispose();
         Console.WriteLine();
-         
+
         /*Console.WriteLine($"TaskWorker heavy");
         var taskWorkerHeavy = new TaskWorker<TestTaskWork>(ThreadCore.Root, HeavyMethodTask);
         taskWorkerHeavy.NumberOfConcurrentTasks = 4;
@@ -657,96 +657,6 @@ internal class ThreadWorkerBenchmark
         benchTimer.Clear();
     }
 
-    private static void BenchWorkerTask2(int count, TaskWorker2<TestTaskWork> worker)
-    {
-        for (var repeat = 0; repeat < Repeat; repeat++)
-        {
-            benchTimer.Start();
-            for (var n = 0; n < count; n++)
-            {
-                worker.AddLast(new(n));
-            }
-
-            worker.WaitForCompletionAsync().Wait();
-            benchTimer.Stop();
-        }
-
-        Console.WriteLine(benchTimer.GetResult("Sequence Add"));
-        benchTimer.Clear();
-
-        for (var repeat = 0; repeat < Repeat; repeat++)
-        {
-            benchTimer.Start();
-            Parallel.For(0, 10, parallelOptions, x =>
-            {
-                for (var n = 0; n < (count / 10); n++)
-                {
-                    worker.AddLast(new(n));
-                }
-            });
-
-            worker.WaitForCompletionAsync().Wait();
-            benchTimer.Stop();
-        }
-
-        Console.WriteLine(benchTimer.GetResult("Parallel 10 Add"));
-        benchTimer.Clear();
-
-        for (var repeat = 0; repeat < Repeat; repeat++)
-        {
-            benchTimer.Start();
-            for (var n = 0; n < count; n++)
-            {
-                var w = new TestTaskWork(n);
-                worker.AddLast(w).WaitForCompletionAsync().Wait();
-            }
-
-            worker.WaitForCompletionAsync().Wait();
-            benchTimer.Stop();
-        }
-
-        Console.WriteLine(benchTimer.GetResult("Sequence Add and Wait"));
-        benchTimer.Clear();
-
-        for (var repeat = 0; repeat < Repeat; repeat++)
-        {
-            benchTimer.Start();
-            Parallel.For(0, 10, parallelOptions, x =>
-            {
-                for (var n = 0; n < (count / 10); n++)
-                {
-                    var w = new TestTaskWork(n);
-                    worker.AddLast(w).WaitForCompletionAsync().Wait();
-                }
-            });
-
-            worker.WaitForCompletionAsync().Wait();
-            benchTimer.Stop();
-        }
-
-        Console.WriteLine(benchTimer.GetResult("Parallel 10 Add and Wait"));
-        benchTimer.Clear();
-
-        for (var repeat = 0; repeat < Repeat; repeat++)
-        {
-            benchTimer.Start();
-            Parallel.For(0, 100, parallelOptions, x =>
-            {
-                for (var n = 0; n < (count / 100); n++)
-                {
-                    var w = new TestTaskWork(n);
-                    worker.AddLast(w).WaitForCompletionAsync().Wait();
-                }
-            });
-
-            worker.WaitForCompletionAsync().Wait();
-            benchTimer.Stop();
-        }
-
-        Console.WriteLine(benchTimer.GetResult("Parallel 100 Add and Wait"));
-        benchTimer.Clear();
-    }
-
     private static void BenchWorkerTaskSlim(int count, TaskWorkerSlim<TestTaskWorkSlim> worker)
     {
         for (var repeat = 0; repeat < Repeat; repeat++)
@@ -952,30 +862,6 @@ internal class ThreadWorkerBenchmark
 
         await Task.Delay(1);
         Interlocked.Increment(ref Count);
-    }
-
-    private static async Task<AbortOrComplete> EmptyMethodTask2(TaskWorker2<TestTaskWork> worker, TestTaskWork work)
-    {
-        Interlocked.Increment(ref Count);
-        return AbortOrComplete.Complete;
-    }
-
-    private static async Task<AbortOrComplete> HeavyMethodTask2(TaskWorker2<TestTaskWork> worker, TestTaskWork work)
-    {
-        unchecked
-        {
-            long x = 0;
-            for (var i = 0; i < (work.Id & 0xFFFF); i++)
-            {
-                x += i;
-            }
-
-            work.Result = x;
-        }
-
-        await Task.Delay(1);
-        Interlocked.Increment(ref Count);
-        return AbortOrComplete.Complete;
     }
 
     private static async Task<AbortOrComplete> EmptyMethodTaskSlim(TaskWorkerSlim<TestTaskWorkSlim> worker, TestTaskWorkSlim work)
