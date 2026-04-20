@@ -60,6 +60,7 @@ class Program
         var job1 = worker.Rent();
         worker.Add(job1);
         Console.WriteLine(job1.State);
+        await Task.Delay(1);
         await worker.WaitForCompletion();
         // job1.Wait();
         Console.WriteLine(job1.State);

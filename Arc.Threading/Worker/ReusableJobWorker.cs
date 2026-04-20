@@ -202,7 +202,7 @@ Terminated:
     private readonly ProcessJobDelegate? processJob;
     private readonly ObjectPool<TJob> freeJobs;
     private readonly ConcurrentQueue<TJob> pendingJobs;
-    private readonly AsyncPulseEvent completedEvent = new();
+    private readonly AsyncPulseEvent completedEvent = new(false);
     private AsyncPulseEvent? addEvent = new();
     private int numberOfPendingJobs;
     private int numberOfTasks;
@@ -333,6 +333,8 @@ Terminated:
             throw new ArgumentOutOfRangeException(nameof(timeout));
         }
 
+
+
         return this.WaitForCompletion((int)timeout.TotalMilliseconds, cancellationToken);
     }
 
@@ -354,6 +356,17 @@ Terminated:
         {
             throw new ArgumentOutOfRangeException(nameof(millisecondsTimeout));
         }
+
+        try
+        {
+            await this.completedEvent.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            return false;
+        }
+
+        return true;
 
         long startTimestamp = 0;
         if (millisecondsTimeout != Timeout.Infinite)
