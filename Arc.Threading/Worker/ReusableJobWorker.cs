@@ -165,11 +165,6 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
 
             Interlocked.Decrement(ref worker.numberOfTasks);
             // worker.OnAfterProcessJob();
-
-            if (worker.IsCompleted)
-            {
-                worker.completedEvent.Pulse();
-            }
         }
 
 Terminated:
@@ -202,7 +197,6 @@ Terminated:
     private readonly ProcessJobDelegate? processJob;
     private readonly ObjectPool<TJob> freeJobs;
     private readonly ConcurrentQueue<TJob> pendingJobs;
-    private readonly AsyncPulseEvent completedEvent = new(false);
     private AsyncPulseEvent? addEvent = new();
     private int numberOfPendingJobs;
     private int numberOfTasks;
@@ -311,7 +305,7 @@ Terminated:
     /// or <see langword="false"/> if the operation was cancelled.
     /// </returns>
     public Task<bool> WaitForCompletion(CancellationToken cancellationToken = default)
-        => this.WaitForCompletion(Timeout.InfiniteTimeSpan, cancellationToken);
+        => this.WaitForCompletion(Timeout.Infinite, cancellationToken);
 
     /// <summary>
     /// Waits for the completion of all jobs.
@@ -321,23 +315,19 @@ Terminated:
     /// A cancellation token that can be used to cancel the wait operation.
     /// </param>
     /// <returns><see langword="true"/>: All works are complete.<br/><see langword="false"/>: Timeout or cancelled.</returns>
-    public async Task<bool> WaitForCompletion(TimeSpan timeout, CancellationToken cancellationToken = default)
+    public Task<bool> WaitForCompletion(TimeSpan timeout, CancellationToken cancellationToken = default)
     {
-        if (this.disposed)
+        if (timeout == Timeout.InfiniteTimeSpan)
         {
-            throw new ObjectDisposedException(this.GetType().Name);
+            return this.WaitForCompletion(Timeout.Infinite, cancellationToken);
+        }
+        else if (timeout < TimeSpan.Zero ||
+            timeout.TotalMilliseconds > int.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(nameof(timeout));
         }
 
-        try
-        {
-            await this.completedEvent.WaitAsync(timeout, cancellationToken).ConfigureAwait(false);
-        }
-        catch
-        {// Timeout or cancelled
-            return false;
-        }
-
-        return true;
+        return this.WaitForCompletion((int)timeout.TotalMilliseconds, cancellationToken);
     }
 
     /// <summary>
@@ -348,8 +338,60 @@ Terminated:
     /// A cancellation token that can be used to cancel the wait operation.
     /// </param>
     /// <returns><see langword="true"/>: All works are complete.<br/><see langword="false"/>: Timeout or cancelled.</returns>
-    public Task<bool> WaitForCompletion(int millisecondsTimeout, CancellationToken cancellationToken = default)
-        => this.WaitForCompletion(TimeSpan.FromMilliseconds(millisecondsTimeout), cancellationToken);
+    public async Task<bool> WaitForCompletion(int millisecondsTimeout, CancellationToken cancellationToken = default)
+    {
+        if (this.disposed)
+        {
+            throw new ObjectDisposedException(this.GetType().Name);
+        }
+        else if (millisecondsTimeout < Timeout.Infinite)
+        {
+            throw new ArgumentOutOfRangeException(nameof(millisecondsTimeout));
+        }
+
+        long startTimestamp = 0;
+        if (millisecondsTimeout != Timeout.Infinite)
+        {
+            startTimestamp = Stopwatch.GetTimestamp();
+        }
+
+        while (true)
+        {
+            if (this.IsCompleted)
+            {
+                return true;
+            }
+            else if (this.disposed)
+            {
+                return false;
+            }
+            else if (this.IsTerminated)
+            {
+                return false;
+            }
+
+            var delayMilliseconds = DelayMilliseconds;
+            if (millisecondsTimeout != Timeout.Infinite)
+            {
+                var elapsedMilliseconds = ((Stopwatch.GetTimestamp() - startTimestamp) * 1000) / Stopwatch.Frequency;
+                long remainingMilliseconds = millisecondsTimeout - elapsedMilliseconds;
+
+                if (remainingMilliseconds <= 0)
+                {
+                    return false;
+                }
+                else if (delayMilliseconds > remainingMilliseconds)
+                {
+                    delayMilliseconds = (int)remainingMilliseconds;
+                }
+            }
+
+            if (await this.Delay(delayMilliseconds, cancellationToken).ConfigureAwait(false) == false)
+            {
+                return false;
+            }
+        }
+    }
 
     /// <summary>
     /// Processes a single job instance on the background thread.
