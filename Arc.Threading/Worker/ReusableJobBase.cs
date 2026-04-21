@@ -3,6 +3,7 @@
 using System;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection.PortableExecutable;
 using System.Runtime.CompilerServices;
 
 namespace Arc.Threading;
@@ -31,10 +32,12 @@ public abstract record class ReusableJobBase
     /// </summary>
     public ReusableJobState State { get; internal set; }
 
+    public ReusableJobFlags Flags { get; internal set; }
+
     /// <summary>
-    /// Gets a value indicating whether the job is executed in a fire-and-forget manner without waiting for completion.
+    /// Gets a value indicating whether the job object is automatically returned to the pool on completion.
     /// </summary>
-    public bool FireAndForget { get; internal set; }
+    public bool ReturnToPoolOnCompletion => (this.Flags & ReusableJobFlags.ReturnToPoolOnCompletion) != 0;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ReusableJobBase"/> class.

@@ -108,7 +108,7 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
                                         {
                                             worker.OnJobFinished(job);
                                             job._SetSynchronizationPrimitive();
-                                            if (job.FireAndForget)
+                                            if (job.ReturnToPoolOnCompletion)
                                             {
                                                 worker.Return(job);
                                             }
@@ -152,7 +152,7 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
                 {
                     worker.OnJobFinished(job);
                     job._SetSynchronizationPrimitive();
-                    if (job.FireAndForget)
+                    if (job.ReturnToPoolOnCompletion)
                     {
                         worker.Return(job);
                     }
@@ -227,14 +227,12 @@ Terminated:
     /// <summary>
     /// Rents a reusable job instance from the internal pool.
     /// </summary>
-    /// <param name="fireAndForget">
-    /// <see langword="true"/> to execute the job in a fire-and-forget manner without waiting for completion.
-    /// </param>
+    /// <param name="flags">Flags that control the behavior of reusable job instances.</param>
     /// <returns>A job in the <see cref="ReusableJobState.Initial"/> state.</returns>
-    public TJob Rent(bool fireAndForget = false)
+    public TJob Rent(ReusableJobFlags flags = default)
     {
         var job = this.freeJobs.Rent();
-        job.FireAndForget = fireAndForget;
+        job.Flags = flags;
         return job;
     }
 
@@ -252,7 +250,7 @@ Terminated:
             job.State == ReusableJobState.Aborted)
         {// Completed -> Initial, Aborted -> Initial
             job.State = ReusableJobState.Initial;
-            if (job.FireAndForget)
+            if (job.ReturnToPoolOnCompletion)
             {
                 job.FireAndForget = false;
             }
@@ -461,7 +459,7 @@ Terminated:
             job.State = ReusableJobState.Aborted;
             this.OnJobFinished(job);
             job._SetSynchronizationPrimitive();
-            if (job.FireAndForget)
+            if (job.ReturnToPoolOnCompletion)
             {
                 this.Return(job);
             }
