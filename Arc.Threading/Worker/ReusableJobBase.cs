@@ -47,13 +47,6 @@ public abstract record class ReusableJobBase
     }*/
 
     /// <summary>
-    /// Called when a job has completed or been aborted, before notifying the synchronization primitive.
-    /// </summary>
-    public virtual void OnJobFinished()
-    {
-    }
-
-    /// <summary>
     /// Initializes the synchronization primitive.
     /// </summary>
     internal abstract void _InitializeSynchronizationPrimitive();

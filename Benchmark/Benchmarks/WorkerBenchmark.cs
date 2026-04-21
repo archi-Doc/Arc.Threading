@@ -54,7 +54,7 @@ internal class TestReusableWorker : ReusableJobWorker<TestReusableJob>
     {
     }
 
-    protected override async Task ProcessJob(TestReusableJob job, CancellationToken cancellationToken)
+    protected override async Task OnJobProcessing(TestReusableJob job, CancellationToken cancellationToken)
     {
         Interlocked.Increment(ref this.count);
     }
