@@ -239,7 +239,7 @@ Terminated:
 
     /// <summary>
     /// Returns a used job to the internal pool.<br/>
-    /// Since it will be reused, be sure to reset the job's internal state.
+    /// Since it will be reused, be sure to reset the job's internal state.<br/>
     /// </summary>
     /// <param name="job">The job to return.</param>
     /// <remarks>
@@ -255,7 +255,7 @@ Terminated:
             {
                 job.Flags = default;
                 job._ResetSynchronizationPrimitive();
-                // job.OnReturnToPool();
+                //job.OnReturnToPool();
                 this.freeJobs.Return(job);
             }
         }
