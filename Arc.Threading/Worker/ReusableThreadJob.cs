@@ -12,7 +12,7 @@ namespace Arc.Threading;
 /// This job type allocates a <see cref="ManualResetEventSlim"/> when it is initialized in non-fire-and-forget mode.<br/>
 /// Call <see cref="Wait(CancellationToken)"/> or <see cref="Wait(TimeSpan, CancellationToken)"/> to block until completion.
 /// </remarks>
-public record class ReusableThreadJob : ReusableJobBase
+public record class ReusableThreadJob : ReusableJob
 {
     private ManualResetEventSlim? eventSlim;
 

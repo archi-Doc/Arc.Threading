@@ -25,7 +25,7 @@ namespace Arc.Threading;
 /// worker.Return(job);
 /// </summary>
 /// <typeparam name="TJob">
-/// The reusable job type handled by this worker. The type must inherit from <see cref="ReusableJobBase"/>
+/// The reusable job type handled by this worker. The type must inherit from <see cref="ReusableJob"/>
 /// and expose a public parameterless constructor.
 /// </typeparam>
 /// <remarks>
@@ -35,7 +35,7 @@ namespace Arc.Threading;
 /// <see cref="ReusableJobState.Running"/> -> <see cref="ReusableJobState.Completed"/>.
 /// </remarks>
 public class ReusableJobWorker<TJob> : TaskCore, IDisposable
-    where TJob : ReusableJobBase, new()
+    where TJob : ReusableJob, new()
 {
     private const int DefaultPoolCapacity = 32;
     private const int DelayMilliseconds = 100;
@@ -250,15 +250,8 @@ Terminated:
             job.State == ReusableJobState.Aborted)
         {// Completed -> Initial, Aborted -> Initial
             job.State = ReusableJobState.Initial;
-            if (job.ReturnToPoolOnCompletion)
-            {
-                job.FireAndForget = false;
-            }
-            else
-            {
-                job._ResetSynchronizationPrimitive();
-            }
-
+            job.Flags = default;
+            job._ResetSynchronizationPrimitive();
             // job.OnReturnToPool();
             this.freeJobs.Return(job);
         }
@@ -278,12 +271,8 @@ Terminated:
             throw new InvalidOperationException("A job can be enqueued only when it is in ReusableJobState.Initial");
         }
 
-        if (!job.FireAndForget)
-        {
-            job._InitializeSynchronizationPrimitive();
-        }
-
         job.State = ReusableJobState.Pending;
+        job._InitializeSynchronizationPrimitive();
         Interlocked.Increment(ref this.numberOfPendingJobs);
         this.pendingJobs.Enqueue(job);
         this.addEvent?.Pulse();

@@ -9,7 +9,7 @@ namespace Arc.Threading;
 /// <summary>
 /// Represents a reusable job that uses task-based asynchronous waiting.
 /// </summary>
-public record class ReusableTaskJob : ReusableJobBase
+public record class ReusableTaskJob : ReusableJob
 {
     private TaskCompletionSource? tcs;
 

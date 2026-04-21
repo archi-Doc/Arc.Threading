@@ -13,7 +13,7 @@ namespace Arc.Threading;
 /// Since this class does not provide a way to wait for completion, inherit from <br/>
 /// <see cref="ReusableTaskJob" /> (TaskCompletionSource-based, recommended) or <see cref="ReusableThreadJob" /> (ManualResetEventSlim-based).
 /// </summary>
-public abstract record class ReusableJobBase
+public record class ReusableJob
 {
     [DoesNotReturn]
     [StackTraceHidden]
@@ -40,9 +40,9 @@ public abstract record class ReusableJobBase
     public bool ReturnToPoolOnCompletion => (this.Flags & ReusableJobFlags.ReturnToPoolOnCompletion) != 0;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="ReusableJobBase"/> class.
+    /// Initializes a new instance of the <see cref="ReusableJob"/> class.
     /// </summary>
-    public ReusableJobBase()
+    public ReusableJob()
     {
     }
 
@@ -58,15 +58,21 @@ public abstract record class ReusableJobBase
     /// <summary>
     /// Initializes the synchronization primitive.
     /// </summary>
-    internal abstract void _InitializeSynchronizationPrimitive();
+    internal virtual void _InitializeSynchronizationPrimitive()
+    {
+    }
 
     /// <summary>
     /// Sets the synchronization primitive.
     /// </summary>
-    internal abstract void _SetSynchronizationPrimitive();
+    internal virtual void _SetSynchronizationPrimitive()
+    {
+    }
 
     /// <summary>
     /// Resets the synchronization primitive.
     /// </summary>
-    internal abstract void _ResetSynchronizationPrimitive();
+    internal virtual void _ResetSynchronizationPrimitive()
+    {
+    }
 }
