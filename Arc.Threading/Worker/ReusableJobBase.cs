@@ -20,6 +20,12 @@ public abstract record class ReusableJobBase
     public static void ThrowFireAndForgetException()
         => throw new InvalidOperationException("Since this job uses the fire-and-forget pattern, you cannot wait for it to complete");
 
+    [DoesNotReturn]
+    [StackTraceHidden]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static void ThrowNoSynchronizationPrimitive()
+        => throw new InvalidOperationException("Failed to obtain the job's synchronization primitive");
+
     /// <summary>
     /// Gets the current state of the reusable job.
     /// </summary>

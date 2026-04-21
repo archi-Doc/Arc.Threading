@@ -30,7 +30,7 @@ public record class ReusableThreadJob : ReusableJobBase
     {
         if (this.eventSlim is null)
         {
-            ThrowFireAndForgetException();
+            ThrowNoSynchronizationPrimitive();
         }
 
         this.eventSlim.Wait(cancellationToken);
@@ -48,7 +48,7 @@ public record class ReusableThreadJob : ReusableJobBase
     {
         if (this.eventSlim is null)
         {
-            ThrowFireAndForgetException();
+            ThrowNoSynchronizationPrimitive();
         }
 
         return this.eventSlim.Wait(timeout, cancellationToken);

@@ -29,7 +29,7 @@ public record class ReusableTaskJob : ReusableJobBase
         {
             if (this.tcs is null)
             {
-                ThrowFireAndForgetException();
+                ThrowNoSynchronizationPrimitive();
             }
 
             return this.tcs.Task;
@@ -47,7 +47,7 @@ public record class ReusableTaskJob : ReusableJobBase
     {
         if (this.tcs is null)
         {
-            ThrowFireAndForgetException();
+            ThrowNoSynchronizationPrimitive();
         }
 
         return this.tcs.Task.WaitAsync(cancellationToken);
@@ -65,7 +65,7 @@ public record class ReusableTaskJob : ReusableJobBase
     {
         if (this.tcs is null)
         {
-            ThrowFireAndForgetException();
+            ThrowNoSynchronizationPrimitive();
         }
 
         return this.tcs.Task.WaitAsync(timeout, cancellationToken);
