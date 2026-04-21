@@ -106,6 +106,7 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
                                         }
                                         finally
                                         {
+                                            job.OnJobFinished();
                                             job._SetSynchronizationPrimitive();
                                             if (job.FireAndForget)
                                             {
@@ -149,6 +150,7 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
                 }
                 finally
                 {
+                    job.OnJobFinished();
                     job._SetSynchronizationPrimitive();
                     if (job.FireAndForget)
                     {
@@ -218,7 +220,7 @@ Terminated:
         : base(parent, Process, startImmediately)
     {
         this.processJob = processJob;
-        this.freeJobs = new(() => new TJob(), poolCapacity);
+        this.freeJobs = new(() => new(), poolCapacity);
         this.pendingJobs = new();
     }
 
@@ -233,11 +235,6 @@ Terminated:
     {
         var job = this.freeJobs.Rent();
         job.FireAndForget = fireAndForget;
-        if (!fireAndForget)
-        {
-            job._InitializeSynchronizationPrimitive();
-        }
-
         return job;
     }
 
@@ -264,7 +261,7 @@ Terminated:
                 job._ResetSynchronizationPrimitive();
             }
 
-            job.OnReturnToPool();
+            // job.OnReturnToPool();
             this.freeJobs.Return(job);
         }
     }
@@ -280,7 +277,12 @@ Terminated:
     {
         if (job.State != ReusableJobState.Initial)
         {
-            return;
+            throw new InvalidOperationException("A job can be enqueued only when it is in ReusableJobState.Initial");
+        }
+
+        if (!job.FireAndForget)
+        {
+            job._InitializeSynchronizationPrimitive();
         }
 
         job.State = ReusableJobState.Pending;
@@ -449,6 +451,7 @@ Terminated:
         {// Mark pending jobs as Aborted and return control.
             Interlocked.Decrement(ref this.numberOfPendingJobs);
             job.State = ReusableJobState.Aborted;
+            job.OnJobFinished();
             job._SetSynchronizationPrimitive();
             if (job.FireAndForget)
             {

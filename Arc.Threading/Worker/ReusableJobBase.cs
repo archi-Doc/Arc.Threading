@@ -37,12 +37,19 @@ public abstract record class ReusableJobBase
     {
     }
 
-    /// <summary>
+    /*/// <summary>
     /// Resets the job to its initial state, allowing it to be reused for another execution.<br/>
     /// This method is intended to be overridden by derived classes to reset custom user-defined state.<br/>
     /// The base implementation is empty and does nothing.
     /// </summary>
     public virtual void OnReturnToPool()
+    {
+    }*/
+
+    /// <summary>
+    /// Called when a job has completed or been aborted, before notifying the synchronization primitive.
+    /// </summary>
+    public virtual void OnJobFinished()
     {
     }
 

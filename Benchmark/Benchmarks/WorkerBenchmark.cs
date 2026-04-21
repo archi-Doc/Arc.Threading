@@ -27,10 +27,6 @@ internal record class TestReusableJob : ReusableThreadJob
     {
         this.Id = id;
     }
-
-    public override void OnReturnToPool()
-    {
-    }
 }
 
 internal record class TestReusableJob2 : ReusableTaskJob
