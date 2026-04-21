@@ -56,7 +56,7 @@ public record class ReusableThreadJob : ReusableJob
 
     internal override void _InitializeSynchronizationPrimitive()
     {
-        this.eventSlim = new(false);
+        this.eventSlim ??= new(false);
     }
 
     internal override void _SetSynchronizationPrimitive()

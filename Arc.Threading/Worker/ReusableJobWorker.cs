@@ -234,6 +234,7 @@ Terminated:
         var job = this.freeJobs.Rent();
         job.State = ReusableJobState.Initial;
         job.Flags = flags;
+        job._InitializeSynchronizationPrimitive();//
         return job;
     }
 
@@ -276,7 +277,6 @@ Terminated:
         }
 
         job.State = ReusableJobState.Pending;
-        job._InitializeSynchronizationPrimitive();
         Interlocked.Increment(ref this.numberOfPendingJobs);
         this.pendingJobs.Enqueue(job);
         this.addEvent?.Pulse();

@@ -53,6 +53,7 @@ public record class ReusableJob
     /// </summary>
     public ReusableJob()
     {
+        this._InitializeSynchronizationPrimitive();
     }
 
     /*/// <summary>

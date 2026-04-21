@@ -73,7 +73,7 @@ public record class ReusableTaskJob : ReusableJob
 
     internal override void _InitializeSynchronizationPrimitive()
     {
-        this.tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        this.tcs ??= new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
     internal override void _SetSynchronizationPrimitive()
