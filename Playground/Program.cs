@@ -12,15 +12,15 @@ public class TestWorker : ReusableJobWorker<ReusableThreadJob>
     {
     }
 
-    protected override void OnAfterProcessJob()
+    /*protected override void OnAfterProcessJob()
     {
         Console.WriteLine("OnAfterProcessJob");
-    }
+    }*/
 
-    protected override async Task ProcessJob(ReusableThreadJob job)
+    protected override async Task ProcessJob(ReusableThreadJob job, CancellationToken cancellationToken)
     {
         Console.WriteLine("Process");
-        await Task.Delay(500);
+        await Task.Delay(1000);
         Console.WriteLine("Done");
     }
 }
@@ -60,7 +60,9 @@ class Program
         var job1 = worker.Rent();
         worker.Add(job1);
         Console.WriteLine(job1.State);
-        job1.Wait();
+        await Task.Delay(1);
+        await worker.WaitForCompletion();
+        // job1.Wait();
         Console.WriteLine(job1.State);
     }
 

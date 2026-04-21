@@ -71,20 +71,17 @@ public record class ReusableTaskJob : ReusableJobBase
         return this.tcs.Task.WaitAsync(timeout, cancellationToken);
     }
 
-    internal override void InitializeInternal()
+    internal override void _InitializeSynchronizationPrimitive()
     {
-        if (!this.FireAndForget)
-        {
-            this.tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        }
+        this.tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
-    internal override void SetInternal()
+    internal override void _SetSynchronizationPrimitive()
     {
         this.tcs?.TrySetResult();
     }
 
-    internal override void ResetInternal()
+    internal override void _ResetSynchronizationPrimitive()
     {
         this.tcs = default;
     }

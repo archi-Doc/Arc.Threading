@@ -27,10 +27,6 @@ internal record class TestReusableJob : ReusableThreadJob
     {
         this.Id = id;
     }
-
-    public override void Reset()
-    {
-    }
 }
 
 internal record class TestReusableJob2 : ReusableTaskJob
@@ -58,7 +54,7 @@ internal class TestReusableWorker : ReusableJobWorker<TestReusableJob>
     {
     }
 
-    protected override async Task ProcessJob(TestReusableJob job)
+    protected override async Task ProcessJob(TestReusableJob job, CancellationToken cancellationToken)
     {
         Interlocked.Increment(ref this.count);
     }

@@ -54,20 +54,17 @@ public record class ReusableThreadJob : ReusableJobBase
         return this.eventSlim.Wait(timeout, cancellationToken);
     }
 
-    internal override void InitializeInternal()
+    internal override void _InitializeSynchronizationPrimitive()
     {
-        if (!this.FireAndForget)
-        {
-            this.eventSlim = new(false);
-        }
+        this.eventSlim = new(false);
     }
 
-    internal override void SetInternal()
+    internal override void _SetSynchronizationPrimitive()
     {
         this.eventSlim?.Set();
     }
 
-    internal override void ResetInternal()
+    internal override void _ResetSynchronizationPrimitive()
     {
         this.eventSlim = default;
     }

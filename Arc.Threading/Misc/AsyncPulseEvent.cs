@@ -9,7 +9,7 @@ namespace Arc.Threading;
 
 /// <summary>
 /// An async pulse event with a single waiter.
-/// A pulse is retained until it is consumed by one wait operation.
+/// By default, a pulse is retained until it is consumed by one wait operation.
 /// If multiple pulses arrive before a wait, they are coalesced into one.
 /// </summary>
 public sealed class AsyncPulseEvent
@@ -18,7 +18,8 @@ public sealed class AsyncPulseEvent
     private static readonly TaskCompletionSource<bool> PulsedSentinel;
     private static readonly ObjectPool<CancellationTokenSource> CtsPool = new(() => new CancellationTokenSource(), CtsPoolCapacity);
 
-    private TaskCompletionSource<bool>? waiter; // null:No waiter, PulsedSentinel:Pulsed, Other:Waiting
+    private readonly bool retainPulseIfNoWaiter;
+    private TaskCompletionSource<bool>? waiter; // null: No waiter, PulsedSentinel: Pulsed, Other: Waiting
 
     static AsyncPulseEvent()
     {
@@ -27,9 +28,21 @@ public sealed class AsyncPulseEvent
     }
 
     /// <summary>
+    /// Initializes a new instance of the <see cref="AsyncPulseEvent"/> class.
+    /// </summary>
+    /// <param name="retainPulseIfNoWaiter">
+    /// <see langword="true"/> to retain a pulse when no waiter exists, so the next <see cref="WaitAsync(CancellationToken)"/> consumes it.
+    /// <see langword="false"/> to drop the pulse when no waiter exists at the time of <see cref="Pulse"/>.
+    /// </param>
+    public AsyncPulseEvent(bool retainPulseIfNoWaiter = true)
+    {
+        this.retainPulseIfNoWaiter = retainPulseIfNoWaiter;
+    }
+
+    /// <summary>
     /// Sends a pulse.<br/>
     /// If a waiter exists, it is released.<br/>
-    /// Otherwise, the pulse is retained until the next wait.
+    /// Otherwise, the pulse is either retained or dropped depending on <c>retainPulseIfNoWaiter</c>.
     /// </summary>
     public void Pulse()
     {
@@ -37,14 +50,19 @@ public sealed class AsyncPulseEvent
         {
             var current = Volatile.Read(ref this.waiter);
             if (current is null)
-            {// No waiter -> Pulsed
+            {// No waiter
+                if (!this.retainPulseIfNoWaiter)
+                {// Drop the pulse.
+                    return;
+                }
+
                 if (Interlocked.CompareExchange(ref this.waiter, PulsedSentinel, null) is null)
-                {
+                {// Retain the pulse.
                     return;
                 }
             }
             else if (ReferenceEquals(current, PulsedSentinel))
-            {// Pulsed
+            {// Already pulsed
                 return;
             }
             else
