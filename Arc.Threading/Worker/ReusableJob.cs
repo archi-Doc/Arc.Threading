@@ -12,7 +12,7 @@ namespace Arc.Threading;
 /// Since this class does not provide a way to wait for completion, inherit from <br/>
 /// <see cref="ReusableTaskJob" /> (TaskCompletionSource-based, recommended) or <see cref="ReusableThreadJob" /> (ManualResetEventSlim-based).
 /// </summary>
-public abstract record class ReusableJobBase
+public record class ReusableJob
 {
     [DoesNotReturn]
     [StackTraceHidden]
@@ -20,20 +20,38 @@ public abstract record class ReusableJobBase
     public static void ThrowFireAndForgetException()
         => throw new InvalidOperationException("Since this job uses the fire-and-forget pattern, you cannot wait for it to complete");
 
+    [DoesNotReturn]
+    [StackTraceHidden]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static void ThrowNoSynchronizationPrimitive()
+        => throw new InvalidOperationException("Failed to obtain the job's synchronization primitive");
+
+#pragma warning disable SA1401 // Fields should be private
+#pragma warning disable SA1307 // Accessible fields should begin with upper-case letter
+    internal byte state;
+#pragma warning restore SA1307 // Accessible fields should begin with upper-case letter
+#pragma warning restore SA1401 // Fields should be private
+
     /// <summary>
     /// Gets the current state of the reusable job.
     /// </summary>
-    public ReusableJobState State { get; internal set; }
+    public ReusableJobState State
+    {
+        get => (ReusableJobState)this.state;
+        internal set => this.state = (byte)value;
+    }
+
+    public ReusableJobFlags Flags { get; internal set; }
 
     /// <summary>
-    /// Gets a value indicating whether the job is executed in a fire-and-forget manner without waiting for completion.
+    /// Gets a value indicating whether the job object is automatically returned to the pool on completion.
     /// </summary>
-    public bool FireAndForget { get; internal set; }
+    public bool ReturnToPoolOnCompletion => (this.Flags & ReusableJobFlags.ReturnToPoolOnCompletion) != 0;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="ReusableJobBase"/> class.
+    /// Initializes a new instance of the <see cref="ReusableJob"/> class.
     /// </summary>
-    public ReusableJobBase()
+    public ReusableJob()
     {
     }
 
@@ -49,15 +67,21 @@ public abstract record class ReusableJobBase
     /// <summary>
     /// Initializes the synchronization primitive.
     /// </summary>
-    internal abstract void _InitializeSynchronizationPrimitive();
+    internal virtual void _InitializeSynchronizationPrimitive()
+    {
+    }
 
     /// <summary>
     /// Sets the synchronization primitive.
     /// </summary>
-    internal abstract void _SetSynchronizationPrimitive();
+    internal virtual void _SetSynchronizationPrimitive()
+    {
+    }
 
     /// <summary>
     /// Resets the synchronization primitive.
     /// </summary>
-    internal abstract void _ResetSynchronizationPrimitive();
+    internal virtual void _ResetSynchronizationPrimitive()
+    {
+    }
 }

@@ -107,7 +107,7 @@ internal class ThreadWorkerBenchmark
 
         Console.WriteLine($"ReusableJobWorker (Task)");
         var jobWorker2 = new ReusableJobWorker<TestJob2>(ThreadCore.Root, EmptyMethodThread, N);
-        BenchWorker3(N, jobWorker2, false);
+        BenchWorker3(N, jobWorker2, default);
         jobWorker2.Dispose();
         Console.WriteLine(Count.ToString());
         Count = 0;
@@ -116,7 +116,7 @@ internal class ThreadWorkerBenchmark
         {
             Console.WriteLine($"ReusableJobWorker (Task fire-and-forget)");
             jobWorker2 = new ReusableJobWorker<TestJob2>(ThreadCore.Root, EmptyMethodThread, N);
-            BenchWorker3(N, jobWorker2, true);
+            BenchWorker3(N, jobWorker2, ReusableJobFlags.ReturnToPoolOnCompletion);
             jobWorker2.Dispose();
             Console.WriteLine(Count.ToString());
             Count = 0;
@@ -152,14 +152,14 @@ internal class ThreadWorkerBenchmark
         Console.WriteLine($"ReusableJobWorker heavy (Task)");
         var jobWorker4 = new ReusableJobWorker<TestJob2>(ThreadCore.Root, HeavyMethod3, N2);
         jobWorker4.MaxConcurrentTasks = 5;
-        BenchWorker3(N2, jobWorker4, false);
+        BenchWorker3(N2, jobWorker4, default);
         jobWorker4.Dispose();
         Console.WriteLine(Count.ToString());
 
         Console.WriteLine($"ReusableJobWorker heavy (Task fire-and-forget)");
         jobWorker4 = new ReusableJobWorker<TestJob2>(ThreadCore.Root, HeavyMethod3, N2);
         jobWorker4.MaxConcurrentTasks = 4;
-        BenchWorker3(N2, jobWorker4, true);
+        BenchWorker3(N2, jobWorker4, ReusableJobFlags.ReturnToPoolOnCompletion);
         jobWorker4.Dispose();
         Console.WriteLine(Count.ToString());
 
@@ -465,14 +465,14 @@ internal class ThreadWorkerBenchmark
         benchTimer.Clear();
     }
 
-    private static void BenchWorker3(int count, ReusableJobWorker<TestJob2> worker, bool fireAndForget)
+    private static void BenchWorker3(int count, ReusableJobWorker<TestJob2> worker, ReusableJobFlags flags)
     {
         for (var repeat = 0; repeat < Repeat; repeat++)
         {
             benchTimer.Start();
             for (var n = 0; n < count; n++)
             {
-                var job = worker.Rent(fireAndForget);
+                var job = worker.Rent(flags);
                 job.Id = n;
                 worker.Add(job);
             }
@@ -492,7 +492,7 @@ internal class ThreadWorkerBenchmark
             {
                 for (var n = 0; n < (count / 10); n++)
                 {
-                    var job = worker.Rent(fireAndForget);
+                    var job = worker.Rent(flags);
                     job.Id = n;
                     worker.Add(job);
                 }
@@ -511,7 +511,7 @@ internal class ThreadWorkerBenchmark
             benchTimer.Start();
             for (var n = 0; n < count; n++)
             {
-                var job = worker.Rent(fireAndForget);
+                var job = worker.Rent(flags);
                 job.Id = n;
                 worker.Add(job);
             }
@@ -531,7 +531,7 @@ internal class ThreadWorkerBenchmark
             {
                 for (var n = 0; n < (count / 10); n++)
                 {
-                    var job = worker.Rent(fireAndForget);
+                    var job = worker.Rent(flags);
                     job.Id = n;
                     worker.Add(job);
                 }

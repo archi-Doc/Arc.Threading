@@ -25,7 +25,7 @@ namespace Arc.Threading;
 /// worker.Return(job);
 /// </summary>
 /// <typeparam name="TJob">
-/// The reusable job type handled by this worker. The type must inherit from <see cref="ReusableJobBase"/>
+/// The reusable job type handled by this worker. The type must inherit from <see cref="ReusableJob"/>
 /// and expose a public parameterless constructor.
 /// </typeparam>
 /// <remarks>
@@ -35,7 +35,7 @@ namespace Arc.Threading;
 /// <see cref="ReusableJobState.Running"/> -> <see cref="ReusableJobState.Completed"/>.
 /// </remarks>
 public class ReusableJobWorker<TJob> : TaskCore, IDisposable
-    where TJob : ReusableJobBase, new()
+    where TJob : ReusableJob, new()
 {
     private const int DefaultPoolCapacity = 32;
     private const int DelayMilliseconds = 100;
@@ -108,7 +108,7 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
                                         {
                                             worker.OnJobFinished(job);
                                             job._SetSynchronizationPrimitive();
-                                            if (job.FireAndForget)
+                                            if (job.ReturnToPoolOnCompletion)
                                             {
                                                 worker.Return(job);
                                             }
@@ -152,7 +152,7 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
                 {
                     worker.OnJobFinished(job);
                     job._SetSynchronizationPrimitive();
-                    if (job.FireAndForget)
+                    if (job.ReturnToPoolOnCompletion)
                     {
                         worker.Return(job);
                     }
@@ -227,20 +227,19 @@ Terminated:
     /// <summary>
     /// Rents a reusable job instance from the internal pool.
     /// </summary>
-    /// <param name="fireAndForget">
-    /// <see langword="true"/> to execute the job in a fire-and-forget manner without waiting for completion.
-    /// </param>
+    /// <param name="flags">Flags that control the behavior of reusable job instances.</param>
     /// <returns>A job in the <see cref="ReusableJobState.Initial"/> state.</returns>
-    public TJob Rent(bool fireAndForget = false)
+    public TJob Rent(ReusableJobFlags flags = default)
     {
         var job = this.freeJobs.Rent();
-        job.FireAndForget = fireAndForget;
+        job.State = ReusableJobState.Initial;
+        job.Flags = flags;
         return job;
     }
 
     /// <summary>
     /// Returns a used job to the internal pool.<br/>
-    /// Since it will be reused, be sure to reset the job's internal state.
+    /// Since it will be reused, be sure to reset the job's internal state.<br/>
     /// </summary>
     /// <param name="job">The job to return.</param>
     /// <remarks>
@@ -248,21 +247,17 @@ Terminated:
     /// </remarks>
     public void Return(TJob job)
     {
-        if (job.State == ReusableJobState.Completed ||
-            job.State == ReusableJobState.Aborted)
+        var currentState = job.state;
+        if (currentState == (byte)ReusableJobState.Completed ||
+            currentState == (byte)ReusableJobState.Aborted)
         {// Completed -> Initial, Aborted -> Initial
-            job.State = ReusableJobState.Initial;
-            if (job.FireAndForget)
+            if (Interlocked.CompareExchange(ref job.state, (byte)ReusableJobState.Pooled, currentState) == currentState)
             {
-                job.FireAndForget = false;
-            }
-            else
-            {
+                job.Flags = default;
                 job._ResetSynchronizationPrimitive();
+                //job.OnReturnToPool();
+                this.freeJobs.Return(job);
             }
-
-            // job.OnReturnToPool();
-            this.freeJobs.Return(job);
         }
     }
 
@@ -280,12 +275,8 @@ Terminated:
             throw new InvalidOperationException("A job can be enqueued only when it is in ReusableJobState.Initial");
         }
 
-        if (!job.FireAndForget)
-        {
-            job._InitializeSynchronizationPrimitive();
-        }
-
         job.State = ReusableJobState.Pending;
+        job._InitializeSynchronizationPrimitive();
         Interlocked.Increment(ref this.numberOfPendingJobs);
         this.pendingJobs.Enqueue(job);
         this.addEvent?.Pulse();
@@ -461,7 +452,7 @@ Terminated:
             job.State = ReusableJobState.Aborted;
             this.OnJobFinished(job);
             job._SetSynchronizationPrimitive();
-            if (job.FireAndForget)
+            if (job.ReturnToPoolOnCompletion)
             {
                 this.Return(job);
             }
