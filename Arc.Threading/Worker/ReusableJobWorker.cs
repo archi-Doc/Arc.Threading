@@ -232,6 +232,7 @@ Terminated:
     public TJob Rent(ReusableJobFlags flags = default)
     {
         var job = this.freeJobs.Rent();
+        job.State = ReusableJobState.Initial;
         job.Flags = flags;
         return job;
     }
@@ -250,9 +251,8 @@ Terminated:
         if (currentState == (byte)ReusableJobState.Completed ||
             currentState == (byte)ReusableJobState.Aborted)
         {// Completed -> Initial, Aborted -> Initial
-            if (Interlocked.CompareExchange(ref job.state, (byte)ReusableJobState.Initial, currentState) == currentState)
+            if (Interlocked.CompareExchange(ref job.state, (byte)ReusableJobState.Pooled, currentState) == currentState)
             {
-                job.State = ReusableJobState.Initial;
                 job.Flags = default;
                 job._ResetSynchronizationPrimitive();
                 // job.OnReturnToPool();

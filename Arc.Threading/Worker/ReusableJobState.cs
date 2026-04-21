@@ -34,4 +34,9 @@ public enum ReusableJobState : byte
     /// Aborted state. The job was terminated before completion.
     /// </summary>
     Aborted,
+
+    /// <summary>
+    /// Pooled state. The job instance has been returned to the reusable pool and is available for future scheduling.
+    /// </summary>
+    Pooled,
 }

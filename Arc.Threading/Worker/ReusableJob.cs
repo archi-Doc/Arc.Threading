@@ -3,9 +3,7 @@
 using System;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Reflection.PortableExecutable;
 using System.Runtime.CompilerServices;
-using System.Threading;
 
 namespace Arc.Threading;
 
@@ -28,7 +26,11 @@ public record class ReusableJob
     public static void ThrowNoSynchronizationPrimitive()
         => throw new InvalidOperationException("Failed to obtain the job's synchronization primitive");
 
+#pragma warning disable SA1401 // Fields should be private
+#pragma warning disable SA1307 // Accessible fields should begin with upper-case letter
     internal byte state;
+#pragma warning restore SA1307 // Accessible fields should begin with upper-case letter
+#pragma warning restore SA1401 // Fields should be private
 
     /// <summary>
     /// Gets the current state of the reusable job.
