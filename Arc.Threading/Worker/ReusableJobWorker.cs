@@ -91,7 +91,7 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
                                             job.State = ReusableJobState.Running;
                                             if (worker.processJob is null)
                                             {
-                                                await worker.ProcessJob(job, worker.CancellationToken).ConfigureAwait(false);
+                                                await worker.OnJobProcessing(job, worker.CancellationToken).ConfigureAwait(false);
                                             }
                                             else
                                             {
@@ -106,7 +106,7 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
                                         }
                                         finally
                                         {
-                                            job.OnJobFinished();
+                                            worker.OnJobFinished(job);
                                             job._SetSynchronizationPrimitive();
                                             if (job.FireAndForget)
                                             {
@@ -135,7 +135,7 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
                     job.State = ReusableJobState.Running;
                     if (worker.processJob is null)
                     {
-                        await worker.ProcessJob(job, worker.CancellationToken).ConfigureAwait(false);
+                        await worker.OnJobProcessing(job, worker.CancellationToken).ConfigureAwait(false);
                     }
                     else
                     {
@@ -150,7 +150,7 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
                 }
                 finally
                 {
-                    job.OnJobFinished();
+                    worker.OnJobFinished(job);
                     job._SetSynchronizationPrimitive();
                     if (job.FireAndForget)
                     {
@@ -210,7 +210,7 @@ Terminated:
     /// </summary>
     /// <param name="parent">The parent thread core used for lifecycle coordination, or <see langword="default"/>.</param>
     /// <param name="processJob">
-    /// Optional delegate used to process each job. If <see langword="null"/>, <see cref="ProcessJob(TJob, CancellationToken)"/> is invoked.
+    /// Optional delegate used to process each job. If <see langword="null"/>, <see cref="OnJobProcessing(TJob, CancellationToken)"/> is invoked.
     /// </param>
     /// <param name="poolCapacity">Initial capacity of the reusable job object pool.</param>
     /// <param name="startImmediately">
@@ -406,9 +406,17 @@ Terminated:
     /// This method is called automatically by the worker when a job is dequeued from the pending queue.<br/>
     /// Alternatively, you can provide a <c>processJob</c> delegate in the constructor instead of overriding this method.
     /// </remarks>
-    protected virtual Task ProcessJob(TJob job, CancellationToken cancellationToken)
+    protected virtual Task OnJobProcessing(TJob job, CancellationToken cancellationToken)
     {
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Called when a job has completed or been aborted, before notifying the synchronization primitive.
+    /// </summary>
+    /// <param name="job">A completed or aborted job.</param>
+    protected virtual void OnJobFinished(TJob job)
+    {
     }
 
     /*/// <summary>
@@ -451,7 +459,7 @@ Terminated:
         {// Mark pending jobs as Aborted and return control.
             Interlocked.Decrement(ref this.numberOfPendingJobs);
             job.State = ReusableJobState.Aborted;
-            job.OnJobFinished();
+            this.OnJobFinished(job);
             job._SetSynchronizationPrimitive();
             if (job.FireAndForget)
             {
