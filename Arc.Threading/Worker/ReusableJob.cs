@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection.PortableExecutable;
 using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace Arc.Threading;
 
@@ -27,10 +28,16 @@ public record class ReusableJob
     public static void ThrowNoSynchronizationPrimitive()
         => throw new InvalidOperationException("Failed to obtain the job's synchronization primitive");
 
+    internal byte state;
+
     /// <summary>
     /// Gets the current state of the reusable job.
     /// </summary>
-    public ReusableJobState State { get; internal set; }
+    public ReusableJobState State
+    {
+        get => (ReusableJobState)this.state;
+        internal set => this.state = (byte)value;
+    }
 
     public ReusableJobFlags Flags { get; internal set; }
 

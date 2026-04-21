@@ -246,14 +246,18 @@ Terminated:
     /// </remarks>
     public void Return(TJob job)
     {
-        if (job.State == ReusableJobState.Completed ||
-            job.State == ReusableJobState.Aborted)
+        var currentState = job.state;
+        if (currentState == (byte)ReusableJobState.Completed ||
+            currentState == (byte)ReusableJobState.Aborted)
         {// Completed -> Initial, Aborted -> Initial
-            job.State = ReusableJobState.Initial;
-            job.Flags = default;
-            job._ResetSynchronizationPrimitive();
-            // job.OnReturnToPool();
-            this.freeJobs.Return(job);
+            if (Interlocked.CompareExchange(ref job.state, (byte)ReusableJobState.Initial, currentState) == currentState)
+            {
+                job.State = ReusableJobState.Initial;
+                job.Flags = default;
+                job._ResetSynchronizationPrimitive();
+                // job.OnReturnToPool();
+                this.freeJobs.Return(job);
+            }
         }
     }
 
