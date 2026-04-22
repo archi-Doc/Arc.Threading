@@ -53,7 +53,7 @@ public record class ReusableJob
     /// </summary>
     public ReusableJob()
     {
-        this._InitializeSynchronizationPrimitive();
+        this._PrepareSynchronizationPrimitive();
     }
 
     /*/// <summary>
@@ -66,9 +66,9 @@ public record class ReusableJob
     }*/
 
     /// <summary>
-    /// Initializes the synchronization primitive.
+    /// Prepares the synchronization primitive.
     /// </summary>
-    internal virtual void _InitializeSynchronizationPrimitive()
+    internal virtual void _PrepareSynchronizationPrimitive()
     {
     }
 

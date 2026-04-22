@@ -234,7 +234,7 @@ Terminated:
         var job = this.freeJobs.Rent();
         job.State = ReusableJobState.Initial;
         job.Flags = flags;
-        job._InitializeSynchronizationPrimitive();//
+        job._PrepareSynchronizationPrimitive();
         return job;
     }
 
@@ -256,7 +256,7 @@ Terminated:
             {
                 job.Flags = default;
                 job._ResetSynchronizationPrimitive();
-                //job.OnReturnToPool();
+                // job.OnReturnToPool();
                 this.freeJobs.Return(job);
             }
         }
