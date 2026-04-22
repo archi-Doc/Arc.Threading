@@ -383,44 +383,8 @@ public class ThreadCoreBase : IDisposable
     /// Note that you need to call <see cref="Terminate"/> to terminate the object from outside the thread/task.
     /// </summary>
     /// <param name="millisecondsTimeout">The number of milliseconds to wait before termination, or -1 to wait indefinitely.</param>
-    /// <returns><see langword="true"/>: The thread/task is terminated.</returns>
-    public bool WaitForTermination(int millisecondsTimeout)
-    {
-        var sw = new Stopwatch();
-        sw.Start();
-
-        while (true)
-        {
-            using (TreeLock.EnterScope())
-            {
-                this.Clean(out var numberOfActiveObjects);
-
-                if (numberOfActiveObjects == 0)
-                {
-                    if (!this.IsThreadOrTask || !this.IsRunning)
-                    {// Not active (e.g. Root, ThreadCoreGroup) or not running.
-                        return true;
-                    }
-                }
-            }
-
-            Thread.Sleep(ThreadCore.DefaultInterval);
-            if (millisecondsTimeout >= 0 && sw.ElapsedMilliseconds >= millisecondsTimeout)
-            {
-                return false;
-            }
-
-            continue;
-        }
-    }
-
-    /// <summary>
-    /// Waits for the termination of the thread/task.<br/>
-    /// Note that you need to call <see cref="Terminate"/> to terminate the object from outside the thread/task.
-    /// </summary>
-    /// <param name="millisecondsTimeout">The number of milliseconds to wait before termination, or -1 to wait indefinitely.</param>
     /// <returns>A task that represents waiting for termination.</returns>
-    public async Task<bool> WaitForTerminationAsync(int millisecondsTimeout)
+    public async Task<bool> WaitForTermination(int millisecondsTimeout)
     {
         var sw = new Stopwatch();
         sw.Start();
@@ -483,19 +447,29 @@ public class ThreadCoreBase : IDisposable
     /// </summary>
     /// <param name="millisecondsToWait">The number of milliseconds to wait.</param>
     /// <returns><see langword="true"/> if the time successfully elapsed, <see langword="false"/> if the thread/task is terminated.</returns>
-    public Task<bool> Delay(int millisecondsToWait)
-        => this.Delay(TimeSpan.FromMilliseconds(millisecondsToWait));
+    public async Task<bool> Delay(int millisecondsToWait)
+    {
+        try
+        {
+            await Task.Delay(millisecondsToWait, this.CancellationToken).ConfigureAwait(false);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 
     /// <summary>
     /// Wait for the specified time (<see cref="Task.Delay(TimeSpan)"/>).
     /// </summary>
-    /// <param name="timeToWait">The TimeSpan to wait.</param>
+    /// <param name="timeSpanToWait">The TimeSpan to wait.</param>
     /// <returns><see langword="true"/> if the time successfully elapsed, <see langword="false"/> if the thread/task is terminated.</returns>
-    public async Task<bool> Delay(TimeSpan timeToWait)
+    public async Task<bool> Delay(TimeSpan timeSpanToWait)
     {
         try
         {
-            await Task.Delay(timeToWait).WaitAsync(this.CancellationToken);
+            await Task.Delay(timeSpanToWait, this.CancellationToken).ConfigureAwait(false);
             return true;
         }
         catch

@@ -105,7 +105,7 @@ internal class Program
         // await TestAsyncPulseEvent();
         await TestExecutionStack();
 
-        await ThreadCore.Root.WaitForTerminationAsync(-1); // Wait for the termination infinitely.
+        await ThreadCore.Root.WaitForTermination(-1); // Wait for the termination infinitely.
         ThreadCore.Root.TerminationEvent.Set(); // The termination process is complete (#1).
     }
 
@@ -340,7 +340,7 @@ internal class Program
         catch
         {
             ThreadCore.Root.Terminate();
-            ThreadCore.Root.WaitForTermination(-1);
+            ThreadCore.Root.WaitForTermination(-1).Wait();
         }
 
         // c1.Start();
