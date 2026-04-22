@@ -1,6 +1,7 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Arc.Threading;
@@ -24,6 +25,8 @@ public class DelayBenchmark
         this.Cts2 = new();
         this.CancellationToken = this.Cts.Token;
         this.CancellationToken2 = this.Cts2.Token;
+
+        var x = Delay6(MillisecondsTimeSpan, this.CancellationToken, this.CancellationToken2).Result;
     }
 
     [GlobalSetup]
@@ -32,37 +35,82 @@ public class DelayBenchmark
     }
 
     [Benchmark]
-    public void Delay10()
+    public async Task Delay10()
     {
-        _ = ThreadCore.Root.Delay(MillisecondsTimeSpan, this.CancellationToken);
+        await ThreadCore.Root.Delay(0, this.CancellationToken);
+    }
+
+    // [Benchmark]
+    public async Task Delay10_Ct2()
+    {
+        await ThreadCore.Root.Delay2(MillisecondsTimeSpan, this.CancellationToken);
     }
 
     [Benchmark]
-    public void Delay10_Ct2()
+    public async Task Delay10_Ct4()
     {
-        _ = ThreadCore.Root.Delay2(MillisecondsTimeSpan, this.CancellationToken);
+        await Delay4(default, this.CancellationToken, this.CancellationToken2);
     }
 
     [Benchmark]
-    public void Delay10_Ct4()
+    public async Task Delay10_Ct5()
     {
-        _ = Delay4(MillisecondsTimeSpan, this.CancellationToken, this.CancellationToken2);
+        await Delay5(default, this.CancellationToken, this.CancellationToken2);
     }
 
     [Benchmark]
-    public void Delay10_Ct5()
+    public async Task Delay10_Ct6()
     {
-        _ = Delay5(MillisecondsTimeSpan, this.CancellationToken, this.CancellationToken2);
+        await Delay6(default, this.CancellationToken, this.CancellationToken2);
     }
 
-    [Benchmark]
-    public void TaskDelay10_Ct()
+    // [Benchmark]
+    public async Task TaskDelay10_Ct()
     {
-        _ = Task.Delay(MillisecondsTimeSpan, this.CancellationToken);
+        await Task.Delay(MillisecondsTimeSpan, this.CancellationToken);
+    }
+
+    public static async Task<bool> Delay6(TimeSpan delay, CancellationToken cancellationToken1, CancellationToken cancellationToken2)
+    {
+        if (!cancellationToken2.CanBeCanceled)
+        {
+            try
+            {
+                await Task.Delay(delay, cancellationToken1).ConfigureAwait(false);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        var cts = TaskHelper.CtsPool2.Rent();
+        cts.Register(cancellationToken1, cancellationToken2);
+
+        try
+        {
+            // await Task.Delay(delay, cts.Token).ConfigureAwait(false);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+        finally
+        {
+            cts.Unregister();
+            if (cts.TryReset())
+            {
+                TaskHelper.CtsPool2.Return(cts);
+            }
+        }
     }
 
     public static async Task<bool> Delay5(TimeSpan delay, CancellationToken cancellationToken1, CancellationToken cancellationToken2)
     {
+
+
         if (!cancellationToken2.CanBeCanceled)
         {
             try
