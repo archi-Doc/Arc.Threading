@@ -54,7 +54,7 @@ public record class ReusableThreadJob : ReusableJob
         return this.eventSlim.Wait(timeout, cancellationToken);
     }
 
-    internal override void _InitializeSynchronizationPrimitive()
+    internal override void _PrepareSynchronizationPrimitive()
     {
         this.eventSlim ??= new(false);
     }

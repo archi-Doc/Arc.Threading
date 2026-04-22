@@ -71,7 +71,7 @@ public record class ReusableTaskJob : ReusableJob
         return this.tcs.Task.WaitAsync(timeout, cancellationToken);
     }
 
-    internal override void _InitializeSynchronizationPrimitive()
+    internal override void _PrepareSynchronizationPrimitive()
     {
         this.tcs ??= new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
