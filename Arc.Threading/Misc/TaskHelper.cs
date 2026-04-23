@@ -37,7 +37,6 @@ public static class TaskHelper
             this.reg1 = default;
             this.reg2.Dispose();
             this.reg2 = default;
-
         }
     }
 }

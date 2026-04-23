@@ -439,33 +439,56 @@ public class ThreadCoreBase : IDisposable
     /// <returns><see langword="true"/> if the time successfully elapsed, <see langword="false"/> if the thread/task is terminated.</returns>
     public async Task<bool> Delay(TimeSpan timeToWait, CancellationToken cancellationToken = default)
     {
+        if (!cancellationToken.CanBeCanceled)
+        {
+            try
+            {
+                _ = Task.Delay(timeToWait, this.CancellationToken).ConfigureAwait(false);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        var linkedCts = TaskHelper.CtsPool.Rent();
+        var registration1 = this.CancellationToken.UnsafeRegister(static state => ((CancellationTokenSource)state!).Cancel(), linkedCts);
+        var registration2 = cancellationToken.UnsafeRegister(static state => ((CancellationTokenSource)state!).Cancel(), linkedCts);
+
         try
         {
-            if (cancellationToken.CanBeCanceled)
-            {
-                await Task.Delay(timeToWait, cancellationToken).WaitAsync(this.CancellationToken).ConfigureAwait(false);
-            }
-            else
-            {
-                await Task.Delay(timeToWait, cancellationToken).ConfigureAwait(false);
-            }
-
+            _ = Task.Delay(timeToWait, linkedCts.Token).ConfigureAwait(false);
             return true;
         }
         catch
         {
             return false;
         }
+        finally
+        {
+            registration1.Dispose();
+            registration2.Dispose();
+            if (linkedCts.TryReset())
+            {
+                TaskHelper.CtsPool.Return(linkedCts);
+            }
+        }
     }
 
+    /// <summary>
+    /// Wait for the specified time (<see cref="Task.Delay(TimeSpan)"/>).
+    /// </summary>
+    /// <param name="timeToWait">The TimeSpan to wait.</param>
+    /// <param name="cancellationToken">An additional cancellation token that can be used to cancel the delay.</param>
+    /// <returns><see langword="true"/> if the time successfully elapsed, <see langword="false"/> if the thread/task is terminated.</returns>
     public async Task<bool> Delay2(TimeSpan timeToWait, CancellationToken cancellationToken = default)
     {
         try
         {
             if (cancellationToken.CanBeCanceled)
             {
-                var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(this.CancellationToken, cancellationToken);
-                await Task.Delay(timeToWait, linkedCts.Token).ConfigureAwait(false);
+                await Task.Delay(timeToWait, cancellationToken).WaitAsync(this.CancellationToken).ConfigureAwait(false);
             }
             else
             {
