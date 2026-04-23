@@ -382,49 +382,36 @@ public class ThreadCoreBase : IDisposable
     /// Waits for the termination of the thread/task.<br/>
     /// Note that you need to call <see cref="Terminate"/> to terminate the object from outside the thread/task.
     /// </summary>
-    /// <param name="millisecondsTimeout">The number of milliseconds to wait before termination, or -1 to wait indefinitely.</param>
-    /// <returns><see langword="true"/>: The thread/task is terminated.</returns>
-    public bool WaitForTermination(int millisecondsTimeout)
-    {
-        var sw = new Stopwatch();
-        sw.Start();
-
-        while (true)
-        {
-            using (TreeLock.EnterScope())
-            {
-                this.Clean(out var numberOfActiveObjects);
-
-                if (numberOfActiveObjects == 0)
-                {
-                    if (!this.IsThreadOrTask || !this.IsRunning)
-                    {// Not active (e.g. Root, ThreadCoreGroup) or not running.
-                        return true;
-                    }
-                }
-            }
-
-            Thread.Sleep(ThreadCore.DefaultInterval);
-            if (millisecondsTimeout >= 0 && sw.ElapsedMilliseconds >= millisecondsTimeout)
-            {
-                return false;
-            }
-
-            continue;
-        }
-    }
+    /// <param name="cancellationToken">An additional cancellation token to cancel the wait operation.</param>
+    /// <returns>A task that represents waiting for termination.</returns>
+    public Task WaitForTermination(CancellationToken cancellationToken = default)
+        => this.WaitForTermination(Timeout.InfiniteTimeSpan, cancellationToken);
 
     /// <summary>
     /// Waits for the termination of the thread/task.<br/>
     /// Note that you need to call <see cref="Terminate"/> to terminate the object from outside the thread/task.
     /// </summary>
     /// <param name="millisecondsTimeout">The number of milliseconds to wait before termination, or -1 to wait indefinitely.</param>
+    /// <param name="cancellationToken">An additional cancellation token to cancel the wait operation.</param>
     /// <returns>A task that represents waiting for termination.</returns>
-    public async Task<bool> WaitForTerminationAsync(int millisecondsTimeout)
-    {
-        var sw = new Stopwatch();
-        sw.Start();
+    public Task<bool> WaitForTermination(int millisecondsTimeout, CancellationToken cancellationToken = default)
+        => this.WaitForTermination(TimeSpan.FromMilliseconds(millisecondsTimeout));
 
+    /// <summary>
+    /// Waits for the termination of the thread/task.<br/>
+    /// Note that you need to call <see cref="Terminate"/> to terminate the object from outside the thread/task.
+    /// </summary>
+    /// <param name="timeout">The <see cref="TimeSpan"/> to wait before termination.</param>
+    /// <param name="cancellationToken">An additional cancellation token to cancel the wait operation.</param>
+    /// <returns>A task that represents waiting for termination.</returns>
+    public async Task<bool> WaitForTermination(TimeSpan timeout, CancellationToken cancellationToken = default)
+    {
+        if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
+        {
+            throw new ArgumentOutOfRangeException(nameof(timeout));
+        }
+
+        var startTimestamp = Stopwatch.GetTimestamp();
         while (true)
         {
             using (TreeLock.EnterScope())
@@ -440,69 +427,106 @@ public class ThreadCoreBase : IDisposable
                 }
             }
 
-            await Task.Delay(ThreadCore.DefaultInterval).ConfigureAwait(false);
-            if (millisecondsTimeout >= 0 && sw.ElapsedMilliseconds >= millisecondsTimeout)
+            try
+            {
+                await Task.Delay(ThreadCore.DefaultInterval, cancellationToken).ConfigureAwait(false);
+            }
+            catch
             {
                 return false;
             }
 
-            continue;
+            if (timeout != Timeout.InfiniteTimeSpan &&
+                Stopwatch.GetElapsedTime(startTimestamp) >= timeout)
+            {
+                return false;
+            }
         }
     }
 
     /// <summary>
-    /// Suspends the current thread/task for the specified amount of time (<see cref="Task.Delay(int)"/>).
+    /// Wait for the specified time (<see cref="Task.Delay(TimeSpan)"/>).
+    /// </summary>
+    /// <param name="delay">The TimeSpan to wait.</param>
+    /// <param name="cancellationToken">An additional cancellation token that can be used to cancel the delay.</param>
+    /// <returns><see langword="true"/> if the time successfully elapsed, <see langword="false"/> if the thread/task is terminated.</returns>
+    public async Task<bool> Delay(TimeSpan delay, CancellationToken cancellationToken = default)
+    {
+        var internalToken = this.CancellationToken;
+
+        if (!cancellationToken.CanBeCanceled ||
+            cancellationToken == internalToken)
+        {
+            try
+            {
+                await Task.Delay(delay, internalToken).ConfigureAwait(false);
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                return false;
+            }
+        }
+
+        var linkedCts = CancellationTokenHelper.Pool.Rent();
+        var registration1 = internalToken.UnsafeRegister(static state => ((CancellationTokenSource)state!).Cancel(), linkedCts);
+        var registration2 = cancellationToken.UnsafeRegister(static state => ((CancellationTokenSource)state!).Cancel(), linkedCts);
+
+        try
+        {
+            await Task.Delay(delay, linkedCts.Token).ConfigureAwait(false);
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            return false;
+        }
+        finally
+        {
+            registration1.Dispose();
+            registration2.Dispose();
+            if (linkedCts.TryReset())
+            {
+                CancellationTokenHelper.Pool.Return(linkedCts);
+            }
+            else
+            {
+                linkedCts.Dispose();
+            }
+        }
+    }
+
+    public async Task<bool> Delay2(TimeSpan delay, CancellationToken cancellationToken = default)
+    {
+        var internalToken = this.CancellationToken;
+
+        if (internalToken.IsCancellationRequested || cancellationToken.IsCancellationRequested)
+        {
+            return false;
+        }
+
+        try
+        {
+            var task = !cancellationToken.CanBeCanceled || cancellationToken == internalToken
+                ? Task.Delay(delay, internalToken)
+                : Task.Delay(delay, internalToken).WaitAsync(cancellationToken);
+            await task.ConfigureAwait(false);
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Wait for the specified time (<see cref="Task.Delay(TimeSpan)"/>).
     /// </summary>
     /// <param name="millisecondsToWait">The number of milliseconds to wait.</param>
     /// <param name="cancellationToken">An additional cancellation token that can be used to cancel the delay.</param>
     /// <returns><see langword="true"/> if the time successfully elapsed, <see langword="false"/> if the thread/task is terminated.</returns>
-    public Task<bool> Delay(int millisecondsToWait, CancellationToken cancellationToken)
+    public Task<bool> Delay(int millisecondsToWait, CancellationToken cancellationToken = default)
         => this.Delay(TimeSpan.FromMilliseconds(millisecondsToWait), cancellationToken);
-
-    /// <summary>
-    /// Wait for the specified time (<see cref="Task.Delay(TimeSpan)"/>).
-    /// </summary>
-    /// <param name="timeToWait">The TimeSpan to wait.</param>
-    /// <param name="cancellationToken">An additional cancellation token that can be used to cancel the delay.</param>
-    /// <returns><see langword="true"/> if the time successfully elapsed, <see langword="false"/> if the thread/task is terminated.</returns>
-    public async Task<bool> Delay(TimeSpan timeToWait, CancellationToken cancellationToken)
-    {
-        try
-        {
-            await Task.Delay(timeToWait, cancellationToken).WaitAsync(this.CancellationToken);
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    /// <summary>
-    /// Suspends the current thread/task for the specified amount of time (<see cref="Task.Delay(int)"/>).
-    /// </summary>
-    /// <param name="millisecondsToWait">The number of milliseconds to wait.</param>
-    /// <returns><see langword="true"/> if the time successfully elapsed, <see langword="false"/> if the thread/task is terminated.</returns>
-    public Task<bool> Delay(int millisecondsToWait)
-        => this.Delay(TimeSpan.FromMilliseconds(millisecondsToWait));
-
-    /// <summary>
-    /// Wait for the specified time (<see cref="Task.Delay(TimeSpan)"/>).
-    /// </summary>
-    /// <param name="timeToWait">The TimeSpan to wait.</param>
-    /// <returns><see langword="true"/> if the time successfully elapsed, <see langword="false"/> if the thread/task is terminated.</returns>
-    public async Task<bool> Delay(TimeSpan timeToWait)
-    {
-        try
-        {
-            await Task.Delay(timeToWait).WaitAsync(this.CancellationToken);
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
-    }
 
     /// <summary>
     /// Suspends the current thread/task for the specified amount of time (<see cref="Thread.Sleep(int)"/>).

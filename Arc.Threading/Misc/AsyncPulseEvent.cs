@@ -3,7 +3,6 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Arc.Collections;
 
 namespace Arc.Threading;
 
@@ -14,9 +13,7 @@ namespace Arc.Threading;
 /// </summary>
 public sealed class AsyncPulseEvent
 {
-    private const int CtsPoolCapacity = 32;
     private static readonly TaskCompletionSource<bool> PulsedSentinel;
-    private static readonly ObjectPool<CancellationTokenSource> CtsPool = new(() => new CancellationTokenSource(), CtsPoolCapacity);
 
     private readonly bool retainPulseIfNoWaiter;
     private TaskCompletionSource<bool>? waiter; // null: No waiter, PulsedSentinel: Pulsed, Other: Waiting
@@ -160,7 +157,7 @@ public sealed class AsyncPulseEvent
                         new CancellationState(this, tcs, cancellationToken));
                 }
 
-                var timeoutCts = CtsPool.Rent(); // new CancellationTokenSource(timeout);
+                var timeoutCts = CancellationTokenHelper.Pool.Rent(); // new CancellationTokenSource(timeout);
                 timeoutCts.CancelAfter(timeout);
                 var timeoutRegistration = timeoutCts.Token.UnsafeRegister(
                     static state =>
@@ -181,7 +178,7 @@ public sealed class AsyncPulseEvent
                         cleanupState.TimeoutRegistration.Dispose();
                         if (cleanupState.TimeoutCts.TryReset())
                         {
-                            CtsPool.Return(cleanupState.TimeoutCts);
+                            CancellationTokenHelper.Pool.Return(cleanupState.TimeoutCts);
                         }
                         else
                         {

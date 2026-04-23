@@ -23,16 +23,17 @@ public class Program
         // ThreadPool.GetMaxThreads(out var workerThreads, out var completionPortThreads);
         // ThreadPool.SetMaxThreads(100, completionPortThreads);
 
-        await ThreadWorkerBenchmark.Benchmark();
+        // await ThreadWorkerBenchmark.Benchmark();
 
         // ThreadPool.SetMaxThreads(workerThreads, completionPortThreads);
 
         // await ExclusiveControl.Test();
 
-        DebugRun<AsyncPulseEventBenchmark>();
+        DebugRun<DelayBenchmark>();
 
         var switcher = new BenchmarkSwitcher(new[]
         {
+            typeof(DelayBenchmark),
             typeof(AsyncPulseEventBenchmark),
             typeof(WorkerBenchmark),
             typeof(SourcePrimitiveBenchmark),
@@ -116,8 +117,8 @@ public class BenchmarkConfig : BenchmarkDotNet.Configs.ManualConfig
 
         // this.AddJob(Job.ShortRun.With(BenchmarkDotNet.Environments.Platform.X64).WithWarmupCount(1).WithIterationCount(1));
         // this.AddJob(BenchmarkDotNet.Jobs.Job.MediumRun.WithGcForce(true).WithId("GcForce medium"));
-        this.AddJob(BenchmarkDotNet.Jobs.Job.ShortRun);
-        // this.AddJob(BenchmarkDotNet.Jobs.Job.MediumRun);
+        // this.AddJob(BenchmarkDotNet.Jobs.Job.ShortRun);
+        this.AddJob(BenchmarkDotNet.Jobs.Job.MediumRun);
         // this.AddJob(BenchmarkDotNet.Jobs.Job.LongRun);
     }
 }
