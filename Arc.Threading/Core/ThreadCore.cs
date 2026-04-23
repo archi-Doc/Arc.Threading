@@ -414,7 +414,15 @@ public class ThreadCoreBase : IDisposable
                 }
             }
 
-            await Task.Delay(ThreadCore.DefaultInterval).ConfigureAwait(false);
+            try
+            {
+                await Task.Delay(ThreadCore.DefaultInterval, cancellationToken).ConfigureAwait(false);
+            }
+            catch
+            {
+                return false;
+            }
+
             if (timeout != Timeout.InfiniteTimeSpan &&
                 Stopwatch.GetElapsedTime(startTimestamp) >= timeout)
             {
