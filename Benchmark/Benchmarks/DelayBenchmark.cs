@@ -41,7 +41,7 @@ public class DelayBenchmark
     [Benchmark]
     public void Delay10_Ct2()
     {
-        _ = ThreadCore.Root.Delay2(MillisecondsTimeSpan, this.CancellationToken);
+        // _ = ThreadCore.Root.Delay2(MillisecondsTimeSpan, this.CancellationToken);
     }
     [Benchmark]
     public void Delay10_Ct3()

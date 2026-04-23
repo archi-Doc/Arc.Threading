@@ -454,6 +454,30 @@ public class ThreadCoreBase : IDisposable
     {
         var internalToken = this.CancellationToken;
 
+        if (internalToken.IsCancellationRequested || cancellationToken.IsCancellationRequested)
+        {
+            return false;
+        }
+
+        try
+        {
+            var task = !cancellationToken.CanBeCanceled || cancellationToken == internalToken
+                ? Task.Delay(delay, internalToken)
+                : Task.Delay(delay, internalToken).WaitAsync(cancellationToken);
+            await task.ConfigureAwait(false);
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            return false;
+        }
+    }
+
+    /*
+    public async Task<bool> Delay(TimeSpan delay, CancellationToken cancellationToken = default)
+    {
+        var internalToken = this.CancellationToken;
+
         if (!cancellationToken.CanBeCanceled ||
             cancellationToken == internalToken)
         {
@@ -494,30 +518,7 @@ public class ThreadCoreBase : IDisposable
                 linkedCts.Dispose();
             }
         }
-    }
-
-    public async Task<bool> Delay2(TimeSpan delay, CancellationToken cancellationToken = default)
-    {
-        var internalToken = this.CancellationToken;
-
-        if (internalToken.IsCancellationRequested || cancellationToken.IsCancellationRequested)
-        {
-            return false;
-        }
-
-        try
-        {
-            var task = !cancellationToken.CanBeCanceled || cancellationToken == internalToken
-                ? Task.Delay(delay, internalToken)
-                : Task.Delay(delay, internalToken).WaitAsync(cancellationToken);
-            await task.ConfigureAwait(false);
-            return true;
-        }
-        catch (OperationCanceledException)
-        {
-            return false;
-        }
-    }
+    }*/
 
     /// <summary>
     /// Wait for the specified time (<see cref="Task.Delay(TimeSpan)"/>).
