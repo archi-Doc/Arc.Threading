@@ -25,8 +25,6 @@ public class DelayBenchmark
         this.Cts2 = new();
         this.CancellationToken = this.Cts.Token;
         this.CancellationToken2 = this.Cts2.Token;
-
-        var x = Delay6(MillisecondsTimeSpan, this.CancellationToken, this.CancellationToken2).Result;
     }
 
     [GlobalSetup]
@@ -58,53 +56,10 @@ public class DelayBenchmark
         _ = Delay5(MillisecondsTimeSpan, this.CancellationToken, this.CancellationToken2);
     }
 
-    [Benchmark]
-    public void Delay10_Ct6()
-    {
-        _ = Delay6(MillisecondsTimeSpan, this.CancellationToken, this.CancellationToken2);
-    }
-
     // [Benchmark]
     public void TaskDelay10_Ct()
     {
         _ = Task.Delay(MillisecondsTimeSpan, this.CancellationToken);
-    }
-
-    public static async Task<bool> Delay6(TimeSpan delay, CancellationToken cancellationToken1, CancellationToken cancellationToken2)
-    {
-        if (!cancellationToken2.CanBeCanceled)
-        {
-            try
-            {
-                _ = Task.Delay(delay, cancellationToken1).ConfigureAwait(false);
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        var cts = TaskHelper.CtsPool2.Rent();
-        cts.Register(cancellationToken1, cancellationToken2);
-
-        try
-        {
-            _ = Task.Delay(delay, cts.Token).ConfigureAwait(false);
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
-        finally
-        {
-            cts.Unregister();
-            if (cts.TryReset())
-            {
-                TaskHelper.CtsPool2.Return(cts);
-            }
-        }
     }
 
     public static async Task<bool> Delay5(TimeSpan delay, CancellationToken cancellationToken1, CancellationToken cancellationToken2)
@@ -122,7 +77,7 @@ public class DelayBenchmark
             }
         }
 
-        var linkedCts = TaskHelper.CtsPool.Rent();
+        var linkedCts = CancellationTokenHelper.CtsPool.Rent();
         var registration1 = cancellationToken1.UnsafeRegister(static state => ((CancellationTokenSource)state!).Cancel(), linkedCts);
         var registration2 = cancellationToken2.UnsafeRegister(static state => ((CancellationTokenSource)state!).Cancel(), linkedCts);
 
@@ -141,7 +96,7 @@ public class DelayBenchmark
             registration2.Dispose();
             if (linkedCts.TryReset())
             {
-                TaskHelper.CtsPool.Return(linkedCts);
+                CancellationTokenHelper.CtsPool.Return(linkedCts);
             }
         }
     }

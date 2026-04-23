@@ -452,7 +452,7 @@ public class ThreadCoreBase : IDisposable
             }
         }
 
-        var linkedCts = TaskHelper.CtsPool.Rent();
+        var linkedCts = CancellationTokenHelper.CtsPool.Rent();
         var registration1 = this.CancellationToken.UnsafeRegister(static state => ((CancellationTokenSource)state!).Cancel(), linkedCts);
         var registration2 = cancellationToken.UnsafeRegister(static state => ((CancellationTokenSource)state!).Cancel(), linkedCts);
 
@@ -471,7 +471,7 @@ public class ThreadCoreBase : IDisposable
             registration2.Dispose();
             if (linkedCts.TryReset())
             {
-                TaskHelper.CtsPool.Return(linkedCts);
+                CancellationTokenHelper.CtsPool.Return(linkedCts);
             }
         }
     }
