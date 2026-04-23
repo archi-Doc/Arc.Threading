@@ -39,6 +39,12 @@ public class DelayBenchmark
     }
 
     [Benchmark]
+    public void Delay10_Ct3()
+    {
+        _ = Delay3(MillisecondsTimeSpan, this.CancellationToken, this.CancellationToken2);
+    }
+
+    [Benchmark]
     public void Delay10_Ct4()
     {
         _ = Delay4(MillisecondsTimeSpan, this.CancellationToken, this.CancellationToken2);
@@ -77,7 +83,7 @@ public class DelayBenchmark
 
         try
         {
-            _ = Task.Delay(delay, linkedCts.Token).ConfigureAwait(false);
+            await Task.Delay(delay, linkedCts.Token).ConfigureAwait(false);
             return true;
         }
         catch
@@ -100,10 +106,31 @@ public class DelayBenchmark
         try
         {
             var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken1, cancellationToken2);
-            _ = Task.Delay(delay, linkedCts.Token).ConfigureAwait(false);
+            await Task.Delay(delay, linkedCts.Token).ConfigureAwait(false);
             return true;
         }
         catch
+        {
+            return false;
+        }
+    }
+
+    public static async Task<bool> Delay3(TimeSpan delay, CancellationToken cancellationToken1, CancellationToken cancellationToken2)
+    {
+        try
+        {
+            if (cancellationToken2.CanBeCanceled)
+            {
+                await Task.Delay(delay, cancellationToken1).WaitAsync(cancellationToken1);
+            }
+            else
+            {
+                await Task.Delay(delay, cancellationToken1);
+            }
+
+            return true;
+        }
+        catch (OperationCanceledException)
         {
             return false;
         }
