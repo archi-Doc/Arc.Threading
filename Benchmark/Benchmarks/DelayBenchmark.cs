@@ -16,7 +16,7 @@ public class DelayBenchmark
     private readonly CancellationTokenSource Cts2;
     private readonly CancellationToken CancellationToken;
     private readonly CancellationToken CancellationToken2;
-    private readonly TimeSpan MillisecondsTimeSpan = TimeSpan.FromMilliseconds(10);
+    private readonly TimeSpan MillisecondsTimeSpan = default; // TimeSpan.FromMilliseconds(10);
 
     public DelayBenchmark()
     {
@@ -32,33 +32,33 @@ public class DelayBenchmark
     }
 
     [Benchmark]
-    public void Delay10()
+    public async Task Delay10()
     {
-        _ = ThreadCore.Root.Delay(MillisecondsTimeSpan, this.CancellationToken);
+        await ThreadCore.Root.Delay(MillisecondsTimeSpan, this.CancellationToken);
     }
 
+    /*[Benchmark]
+    public async Task Delay10_Ct2()
+    {
+        await ThreadCore.Root.Delay2(MillisecondsTimeSpan, this.CancellationToken);
+    }*/
 
     [Benchmark]
-    public void Delay10_Ct2()
+    public async Task Delay10_Ct3()
     {
-        // _ = ThreadCore.Root.Delay2(MillisecondsTimeSpan, this.CancellationToken);
-    }
-    [Benchmark]
-    public void Delay10_Ct3()
-    {
-        _ = Delay3(MillisecondsTimeSpan, this.CancellationToken, this.CancellationToken2);
-    }
-
-    [Benchmark]
-    public void Delay10_Ct4()
-    {
-        _ = Delay4(MillisecondsTimeSpan, this.CancellationToken, this.CancellationToken2);
+        await Delay3(MillisecondsTimeSpan, this.CancellationToken, this.CancellationToken2);
     }
 
     [Benchmark]
-    public void Delay10_Ct5()
+    public async Task Delay10_Ct4()
     {
-        _ = Delay5(MillisecondsTimeSpan, this.CancellationToken, this.CancellationToken2);
+        await Delay4(MillisecondsTimeSpan, this.CancellationToken, this.CancellationToken2);
+    }
+
+    [Benchmark]
+    public async Task Delay10_Ct5()
+    {
+        await Delay5(MillisecondsTimeSpan, this.CancellationToken, this.CancellationToken2);
     }
 
     // [Benchmark]

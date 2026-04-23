@@ -74,19 +74,58 @@ public sealed class AsyncPulseEvent
     }
 
     /// <summary>
-    /// Waits until a pulse is received, or until cancellation is requested.<br/>
-    /// Only one concurrent waiter is allowed.
+    /// Waits asynchronously for a pulse, with optional cancellation.
     /// </summary>
-    /// <param name="cancellationToken">The CancellationToken to monitor for a cancellation request.</param>
-    /// <returns>The <see cref="Task"/> representing the asynchronous wait.</returns>
-    public Task WaitAsync(CancellationToken cancellationToken = default)
+    /// <param name="cancellationToken"> A token used to observe cancellation while waiting.</param>
+    /// <returns>
+    /// A task that resolves to <see langword="true"/> when a pulse is consumed; otherwise
+    /// <see langword="false"/> if the wait is canceled or times out.
+    /// </returns>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when another wait operation is already in progress. Only one concurrent waiter is supported.
+    /// </exception>
+    public Task<bool> WaitAsync(CancellationToken cancellationToken = default)
         => this.WaitAsync(Timeout.InfiniteTimeSpan, cancellationToken);
 
-    public Task WaitAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Waits asynchronously for a pulse, with a timeout specified in milliseconds and optional cancellation.
+    /// </summary>
+    /// <param name="millisecondsTimeout">The number of milliseconds to wait for a pulse.</param>
+    /// <param name="cancellationToken"> A token used to observe cancellation while waiting.</param>
+    /// <returns>
+    /// A task that resolves to <see langword="true"/> when a pulse is consumed; otherwise
+    /// <see langword="false"/> if the wait is canceled or times out.
+    /// </returns>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when another wait operation is already in progress. Only one concurrent waiter is supported.
+    /// </exception>
+    public Task<bool> WaitAsync(int millisecondsTimeout, CancellationToken cancellationToken = default)
     {
+        ArgumentOutOfRangeException.ThrowIfLessThan(millisecondsTimeout, Timeout.Infinite);
+        return this.WaitAsync(TimeSpan.FromMilliseconds(millisecondsTimeout), cancellationToken);
+    }
+
+    /// <summary>
+    /// Waits asynchronously for a pulse, with optional timeout and cancellation.
+    /// </summary>
+    /// <param name="timeout">The maximum time to wait for a pulse. Use <see cref="Timeout.InfiniteTimeSpan"/> to wait indefinitely.</param>
+    /// <param name="cancellationToken">A token used to observe cancellation while waiting.</param>
+    /// <returns>
+    /// A task that resolves to <see langword="true"/> when a pulse is consumed; otherwise <see langword="false"/> if the wait is canceled or times out.
+    /// </returns>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when another wait operation is already in progress. Only one concurrent waiter is supported.
+    /// </exception>
+    public Task<bool> WaitAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
+    {
+        if (timeout < Timeout.InfiniteTimeSpan)
+        {
+            throw new ArgumentOutOfRangeException(nameof(timeout));
+        }
+
         if (cancellationToken.IsCancellationRequested)
         {
-            return Task.FromCanceled(cancellationToken);
+            return Task.FromResult(false); // Task.FromCanceled(cancellationToken);
         }
 
         while (true)
@@ -96,7 +135,7 @@ public sealed class AsyncPulseEvent
             {// Pulsed
                 if (Interlocked.CompareExchange(ref this.waiter, null, PulsedSentinel) == PulsedSentinel)
                 {
-                    return Task.CompletedTask;
+                    return Task.FromResult(true); // return Task.CompletedTask;
                 }
 
                 continue;
@@ -105,6 +144,11 @@ public sealed class AsyncPulseEvent
             if (current is not null)
             {
                 throw new InvalidOperationException("Only one waiter is allowed at a time.");
+            }
+
+            if (timeout == TimeSpan.Zero)
+            {
+                return Task.FromResult(false);
             }
 
             var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -126,10 +170,11 @@ public sealed class AsyncPulseEvent
                         var cancellationState = (CancellationState)state!;
                         if (Interlocked.CompareExchange(ref cancellationState.Owner.waiter, null, cancellationState.Waiter) == cancellationState.Waiter)
                         {
-                            cancellationState.Waiter.TrySetCanceled(cancellationState.CancellationToken);
+                            // cancellationState.Waiter.TrySetCanceled(cancellationState.CancellationToken);
+                            cancellationState.Waiter.TrySetResult(false);
                         }
                     },
-                    new CancellationState(this, tcs, cancellationToken));
+                    new CancellationState(this, tcs));
 
                 _ = tcs.Task.ContinueWith(
                     static (_, state) => ((CancellationTokenRegistration)state!).Dispose(),
@@ -151,10 +196,11 @@ public sealed class AsyncPulseEvent
                             var cancellationState = (CancellationState)state!;
                             if (Interlocked.CompareExchange(ref cancellationState.Owner.waiter, null, cancellationState.Waiter) == cancellationState.Waiter)
                             {
-                                cancellationState.Waiter.TrySetCanceled(cancellationState.CancellationToken);
+                                // cancellationState.Waiter.TrySetCanceled(cancellationState.CancellationToken);
+                                cancellationState.Waiter.TrySetResult(false);
                             }
                         },
-                        new CancellationState(this, tcs, cancellationToken));
+                        new CancellationState(this, tcs));
                 }
 
                 var timeoutCts = CancellationTokenHelper.Pool.Rent(); // new CancellationTokenSource(timeout);
@@ -165,7 +211,8 @@ public sealed class AsyncPulseEvent
                         var timeoutState = (TimeoutState)state!;
                         if (Interlocked.CompareExchange(ref timeoutState.Owner.waiter, null, timeoutState.Waiter) == timeoutState.Waiter)
                         {
-                            timeoutState.Waiter.TrySetException(new TimeoutException());
+                            // timeoutState.Waiter.TrySetException(new TimeoutException());
+                            timeoutState.Waiter.TrySetResult(false);
                         }
                     },
                     new TimeoutState(this, tcs));
@@ -201,13 +248,13 @@ public sealed class AsyncPulseEvent
 
         public TaskCompletionSource<bool> Waiter { get; }
 
-        public CancellationToken CancellationToken { get; }
+        // public CancellationToken CancellationToken { get; }
 
-        public CancellationState(AsyncPulseEvent owner, TaskCompletionSource<bool> waiter, CancellationToken cancellationToken)
+        public CancellationState(AsyncPulseEvent owner, TaskCompletionSource<bool> waiter/*, CancellationToken cancellationToken*/)
         {
             this.Owner = owner;
             this.Waiter = waiter;
-            this.CancellationToken = cancellationToken;
+            // this.CancellationToken = cancellationToken;
         }
     }
 

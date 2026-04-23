@@ -473,8 +473,7 @@ public class ThreadCoreBase : IDisposable
         }
     }
 
-    /*
-    public async Task<bool> Delay(TimeSpan delay, CancellationToken cancellationToken = default)
+    /*public async Task<bool> Delay2(TimeSpan delay, CancellationToken cancellationToken = default)
     {
         var internalToken = this.CancellationToken;
 

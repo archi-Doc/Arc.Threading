@@ -55,7 +55,10 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
 
             try
             {
-                await addEvent.WaitAsync(worker.CancellationToken).ConfigureAwait(false); // Add or Finish
+                if (await addEvent.WaitAsync(worker.CancellationToken).ConfigureAwait(false) != true)
+                {
+                    goto Terminated;
+                }
             }
             catch
             {
