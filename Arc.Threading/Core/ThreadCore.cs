@@ -434,34 +434,37 @@ public class ThreadCoreBase : IDisposable
     /// <summary>
     /// Wait for the specified time (<see cref="Task.Delay(TimeSpan)"/>).
     /// </summary>
-    /// <param name="timeToWait">The TimeSpan to wait.</param>
+    /// <param name="delay">The TimeSpan to wait.</param>
     /// <param name="cancellationToken">An additional cancellation token that can be used to cancel the delay.</param>
     /// <returns><see langword="true"/> if the time successfully elapsed, <see langword="false"/> if the thread/task is terminated.</returns>
-    public async Task<bool> Delay(TimeSpan timeToWait, CancellationToken cancellationToken = default)
+    public async Task<bool> Delay(TimeSpan delay, CancellationToken cancellationToken = default)
     {
-        if (!cancellationToken.CanBeCanceled)
+        var internalToken = this.CancellationToken;
+
+        if (!cancellationToken.CanBeCanceled ||
+            cancellationToken == internalToken)
         {
             try
             {
-                _ = Task.Delay(timeToWait, this.CancellationToken).ConfigureAwait(false);
+                await Task.Delay(delay, internalToken).ConfigureAwait(false);
                 return true;
             }
-            catch
+            catch (OperationCanceledException)
             {
                 return false;
             }
         }
 
         var linkedCts = CancellationTokenHelper.CtsPool.Rent();
-        var registration1 = this.CancellationToken.UnsafeRegister(static state => ((CancellationTokenSource)state!).Cancel(), linkedCts);
+        var registration1 = internalToken.UnsafeRegister(static state => ((CancellationTokenSource)state!).Cancel(), linkedCts);
         var registration2 = cancellationToken.UnsafeRegister(static state => ((CancellationTokenSource)state!).Cancel(), linkedCts);
 
         try
         {
-            _ = Task.Delay(timeToWait, linkedCts.Token).ConfigureAwait(false);
+            await Task.Delay(delay, linkedCts.Token).ConfigureAwait(false);
             return true;
         }
-        catch
+        catch (OperationCanceledException)
         {
             return false;
         }
@@ -473,33 +476,10 @@ public class ThreadCoreBase : IDisposable
             {
                 CancellationTokenHelper.CtsPool.Return(linkedCts);
             }
-        }
-    }
-
-    /// <summary>
-    /// Wait for the specified time (<see cref="Task.Delay(TimeSpan)"/>).
-    /// </summary>
-    /// <param name="timeToWait">The TimeSpan to wait.</param>
-    /// <param name="cancellationToken">An additional cancellation token that can be used to cancel the delay.</param>
-    /// <returns><see langword="true"/> if the time successfully elapsed, <see langword="false"/> if the thread/task is terminated.</returns>
-    public async Task<bool> Delay2(TimeSpan timeToWait, CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            if (cancellationToken.CanBeCanceled)
-            {
-                await Task.Delay(timeToWait, cancellationToken).WaitAsync(this.CancellationToken).ConfigureAwait(false);
-            }
             else
             {
-                await Task.Delay(timeToWait, cancellationToken).ConfigureAwait(false);
+                linkedCts.Dispose();
             }
-
-            return true;
-        }
-        catch
-        {
-            return false;
         }
     }
 
