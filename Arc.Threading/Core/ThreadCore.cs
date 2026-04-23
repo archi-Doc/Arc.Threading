@@ -500,30 +500,22 @@ public class ThreadCoreBase : IDisposable
     {
         var internalToken = this.CancellationToken;
 
-        if (!cancellationToken.CanBeCanceled ||
-            cancellationToken == internalToken)
+        if (internalToken.IsCancellationRequested || cancellationToken.IsCancellationRequested)
         {
-            try
-            {
-                await Task.Delay(delay, internalToken).ConfigureAwait(false);
-                return true;
-            }
-            catch (OperationCanceledException)
-            {
-                return false;
-            }
+            return false;
         }
-        else
+
+        try
         {
-            try
-            {
-                await Task.Delay(delay, internalToken).WaitAsync(cancellationToken).ConfigureAwait(false);
-                return true;
-            }
-            catch (OperationCanceledException)
-            {
-                return false;
-            }
+            var task = !cancellationToken.CanBeCanceled || cancellationToken == internalToken
+                ? Task.Delay(delay, internalToken)
+                : Task.Delay(delay, internalToken).WaitAsync(cancellationToken);
+            await task.ConfigureAwait(false);
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            return false;
         }
     }
 
