@@ -37,12 +37,12 @@ public class DelayBenchmark
         await ThreadCore.Root.Delay(MillisecondsTimeSpan, this.CancellationToken);
     }
 
-
-    [Benchmark]
+    /*[Benchmark]
     public async Task Delay10_Ct2()
     {
         await ThreadCore.Root.Delay2(MillisecondsTimeSpan, this.CancellationToken);
-    }
+    }*/
+
     [Benchmark]
     public async Task Delay10_Ct3()
     {
