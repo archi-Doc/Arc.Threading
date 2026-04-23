@@ -378,17 +378,27 @@ public class ThreadCoreBase : IDisposable
         }
     }
 
+    public Task WaitForTermination(CancellationToken cancellationToken = default)
+        => this.WaitForTermination(Timeout.InfiniteTimeSpan, cancellationToken);
+
     /// <summary>
     /// Waits for the termination of the thread/task.<br/>
     /// Note that you need to call <see cref="Terminate"/> to terminate the object from outside the thread/task.
     /// </summary>
     /// <param name="millisecondsTimeout">The number of milliseconds to wait before termination, or -1 to wait indefinitely.</param>
+    /// /// <param name="cancellationToken">An additional cancellation token to cancel the wait operation.</param>
     /// <returns>A task that represents waiting for termination.</returns>
-    public async Task<bool> WaitForTermination(int millisecondsTimeout)
-    {
-        var sw = new Stopwatch();
-        sw.Start();
+    public Task<bool> WaitForTermination(int millisecondsTimeout, CancellationToken cancellationToken = default)
+        => this.WaitForTermination(TimeSpan.FromMilliseconds(millisecondsTimeout));
 
+    public async Task<bool> WaitForTermination(TimeSpan timeout, CancellationToken cancellationToken = default)
+    {
+        if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
+        {
+            throw new ArgumentOutOfRangeException(nameof(timeout));
+        }
+
+        var startTimestamp = Stopwatch.GetTimestamp();
         while (true)
         {
             using (TreeLock.EnterScope())
@@ -405,12 +415,11 @@ public class ThreadCoreBase : IDisposable
             }
 
             await Task.Delay(ThreadCore.DefaultInterval).ConfigureAwait(false);
-            if (millisecondsTimeout >= 0 && sw.ElapsedMilliseconds >= millisecondsTimeout)
+            if (timeout != Timeout.InfiniteTimeSpan &&
+                Stopwatch.GetElapsedTime(startTimestamp) >= timeout)
             {
                 return false;
             }
-
-            continue;
         }
     }
 

@@ -35,39 +35,39 @@ public class DelayBenchmark
     }
 
     [Benchmark]
-    public async Task Delay10()
+    public void Delay10()
     {
-        await ThreadCore.Root.Delay(0, this.CancellationToken);
+        _ = ThreadCore.Root.Delay(MillisecondsTimeSpan, this.CancellationToken);
+    }
+
+    [Benchmark]
+    public void Delay10_Ct2()
+    {
+        _ = ThreadCore.Root.Delay2(MillisecondsTimeSpan, this.CancellationToken);
+    }
+
+    [Benchmark]
+    public void Delay10_Ct4()
+    {
+        _ = Delay4(MillisecondsTimeSpan, this.CancellationToken, this.CancellationToken2);
+    }
+
+    [Benchmark]
+    public void Delay10_Ct5()
+    {
+        _ = Delay5(MillisecondsTimeSpan, this.CancellationToken, this.CancellationToken2);
+    }
+
+    [Benchmark]
+    public void Delay10_Ct6()
+    {
+        _ = Delay6(MillisecondsTimeSpan, this.CancellationToken, this.CancellationToken2);
     }
 
     // [Benchmark]
-    public async Task Delay10_Ct2()
+    public void TaskDelay10_Ct()
     {
-        await ThreadCore.Root.Delay2(MillisecondsTimeSpan, this.CancellationToken);
-    }
-
-    [Benchmark]
-    public async Task Delay10_Ct4()
-    {
-        await Delay4(default, this.CancellationToken, this.CancellationToken2);
-    }
-
-    [Benchmark]
-    public async Task Delay10_Ct5()
-    {
-        await Delay5(default, this.CancellationToken, this.CancellationToken2);
-    }
-
-    [Benchmark]
-    public async Task Delay10_Ct6()
-    {
-        await Delay6(default, this.CancellationToken, this.CancellationToken2);
-    }
-
-    // [Benchmark]
-    public async Task TaskDelay10_Ct()
-    {
-        await Task.Delay(MillisecondsTimeSpan, this.CancellationToken);
+        _ = Task.Delay(MillisecondsTimeSpan, this.CancellationToken);
     }
 
     public static async Task<bool> Delay6(TimeSpan delay, CancellationToken cancellationToken1, CancellationToken cancellationToken2)
@@ -76,7 +76,7 @@ public class DelayBenchmark
         {
             try
             {
-                await Task.Delay(delay, cancellationToken1).ConfigureAwait(false);
+                _ = Task.Delay(delay, cancellationToken1).ConfigureAwait(false);
                 return true;
             }
             catch
@@ -90,7 +90,7 @@ public class DelayBenchmark
 
         try
         {
-            // await Task.Delay(delay, cts.Token).ConfigureAwait(false);
+            _ = Task.Delay(delay, cts.Token).ConfigureAwait(false);
             return true;
         }
         catch
@@ -109,13 +109,11 @@ public class DelayBenchmark
 
     public static async Task<bool> Delay5(TimeSpan delay, CancellationToken cancellationToken1, CancellationToken cancellationToken2)
     {
-
-
         if (!cancellationToken2.CanBeCanceled)
         {
             try
             {
-                await Task.Delay(delay, cancellationToken1).ConfigureAwait(false);
+                _ = Task.Delay(delay, cancellationToken1).ConfigureAwait(false);
                 return true;
             }
             catch
@@ -130,7 +128,7 @@ public class DelayBenchmark
 
         try
         {
-            await Task.Delay(delay, linkedCts.Token).ConfigureAwait(false);
+            _ = Task.Delay(delay, linkedCts.Token).ConfigureAwait(false);
             return true;
         }
         catch
@@ -153,7 +151,7 @@ public class DelayBenchmark
         try
         {
             var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken1, cancellationToken2);
-            await Task.Delay(delay, linkedCts.Token).ConfigureAwait(false);
+            _ = Task.Delay(delay, linkedCts.Token).ConfigureAwait(false);
             return true;
         }
         catch
