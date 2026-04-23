@@ -122,6 +122,11 @@ public sealed class AsyncPulseEvent
         {
             throw new ArgumentOutOfRangeException(nameof(timeout));
         }
+        else if (timeout != Timeout.InfiniteTimeSpan &&
+            timeout.TotalMilliseconds > int.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(nameof(timeout));
+        }
 
         if (cancellationToken.IsCancellationRequested)
         {
