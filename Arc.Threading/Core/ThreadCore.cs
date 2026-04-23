@@ -496,6 +496,37 @@ public class ThreadCoreBase : IDisposable
         }
     }
 
+    public async Task<bool> Delay2(TimeSpan delay, CancellationToken cancellationToken = default)
+    {
+        var internalToken = this.CancellationToken;
+
+        if (!cancellationToken.CanBeCanceled ||
+            cancellationToken == internalToken)
+        {
+            try
+            {
+                await Task.Delay(delay, internalToken).ConfigureAwait(false);
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                return false;
+            }
+        }
+        else
+        {
+            try
+            {
+                await Task.Delay(delay, internalToken).WaitAsync(cancellationToken).ConfigureAwait(false);
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                return false;
+            }
+        }
+    }
+
     /// <summary>
     /// Wait for the specified time (<see cref="Task.Delay(TimeSpan)"/>).
     /// </summary>
