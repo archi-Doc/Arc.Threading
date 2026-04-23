@@ -1,7 +1,6 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
-using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Arc.Threading;
@@ -77,7 +76,7 @@ public class DelayBenchmark
             }
         }
 
-        var linkedCts = CancellationTokenHelper.CtsPool.Rent();
+        var linkedCts = CancellationTokenHelper.Pool.Rent();
         var registration1 = cancellationToken1.UnsafeRegister(static state => ((CancellationTokenSource)state!).Cancel(), linkedCts);
         var registration2 = cancellationToken2.UnsafeRegister(static state => ((CancellationTokenSource)state!).Cancel(), linkedCts);
 
@@ -96,7 +95,7 @@ public class DelayBenchmark
             registration2.Dispose();
             if (linkedCts.TryReset())
             {
-                CancellationTokenHelper.CtsPool.Return(linkedCts);
+                CancellationTokenHelper.Pool.Return(linkedCts);
             }
         }
     }

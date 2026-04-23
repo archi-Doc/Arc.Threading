@@ -378,6 +378,12 @@ public class ThreadCoreBase : IDisposable
         }
     }
 
+    /// <summary>
+    /// Waits for the termination of the thread/task.<br/>
+    /// Note that you need to call <see cref="Terminate"/> to terminate the object from outside the thread/task.
+    /// </summary>
+    /// <param name="cancellationToken">An additional cancellation token to cancel the wait operation.</param>
+    /// <returns>A task that represents waiting for termination.</returns>
     public Task WaitForTermination(CancellationToken cancellationToken = default)
         => this.WaitForTermination(Timeout.InfiniteTimeSpan, cancellationToken);
 
@@ -386,11 +392,18 @@ public class ThreadCoreBase : IDisposable
     /// Note that you need to call <see cref="Terminate"/> to terminate the object from outside the thread/task.
     /// </summary>
     /// <param name="millisecondsTimeout">The number of milliseconds to wait before termination, or -1 to wait indefinitely.</param>
-    /// /// <param name="cancellationToken">An additional cancellation token to cancel the wait operation.</param>
+    /// <param name="cancellationToken">An additional cancellation token to cancel the wait operation.</param>
     /// <returns>A task that represents waiting for termination.</returns>
     public Task<bool> WaitForTermination(int millisecondsTimeout, CancellationToken cancellationToken = default)
         => this.WaitForTermination(TimeSpan.FromMilliseconds(millisecondsTimeout));
 
+    /// <summary>
+    /// Waits for the termination of the thread/task.<br/>
+    /// Note that you need to call <see cref="Terminate"/> to terminate the object from outside the thread/task.
+    /// </summary>
+    /// <param name="timeout">The <see cref="TimeSpan"/> to wait before termination.</param>
+    /// <param name="cancellationToken">An additional cancellation token to cancel the wait operation.</param>
+    /// <returns>A task that represents waiting for termination.</returns>
     public async Task<bool> WaitForTermination(TimeSpan timeout, CancellationToken cancellationToken = default)
     {
         if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
@@ -455,7 +468,7 @@ public class ThreadCoreBase : IDisposable
             }
         }
 
-        var linkedCts = CancellationTokenHelper.CtsPool.Rent();
+        var linkedCts = CancellationTokenHelper.Pool.Rent();
         var registration1 = internalToken.UnsafeRegister(static state => ((CancellationTokenSource)state!).Cancel(), linkedCts);
         var registration2 = cancellationToken.UnsafeRegister(static state => ((CancellationTokenSource)state!).Cancel(), linkedCts);
 
@@ -474,7 +487,7 @@ public class ThreadCoreBase : IDisposable
             registration2.Dispose();
             if (linkedCts.TryReset())
             {
-                CancellationTokenHelper.CtsPool.Return(linkedCts);
+                CancellationTokenHelper.Pool.Return(linkedCts);
             }
             else
             {
