@@ -208,7 +208,7 @@ public sealed class AsyncPulseEvent
                         new CancellationState(this, tcs));
                 }
 
-                var timeoutCts = CancellationTokenHelper.Pool.Rent(); // new CancellationTokenSource(timeout);
+                var timeoutCts = CancellationTokenPool.Rent(); // new CancellationTokenSource(timeout);
                 timeoutCts.CancelAfter(timeout);
                 var timeoutRegistration = timeoutCts.Token.UnsafeRegister(
                     static state =>
@@ -228,14 +228,7 @@ public sealed class AsyncPulseEvent
                         var cleanupState = (CleanupState)state!;
                         cleanupState.CancellationRegistration.Dispose();
                         cleanupState.TimeoutRegistration.Dispose();
-                        if (cleanupState.TimeoutCts.TryReset())
-                        {
-                            CancellationTokenHelper.Pool.Return(cleanupState.TimeoutCts);
-                        }
-                        else
-                        {
-                            cleanupState.TimeoutCts.Dispose();
-                        }
+                        CancellationTokenPool.TryResetAndReturn(cleanupState.TimeoutCts);
                     },
                     new CleanupState(cancellationRegistration, timeoutRegistration, timeoutCts),
                     CancellationToken.None,

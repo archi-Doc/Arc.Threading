@@ -82,7 +82,7 @@ public class DelayBenchmark
             }
         }
 
-        var linkedCts = CancellationTokenHelper.Pool.Rent();
+        var linkedCts = CancellationTokenPool.Rent();
         var registration1 = cancellationToken1.UnsafeRegister(static state => ((CancellationTokenSource)state!).Cancel(), linkedCts);
         var registration2 = cancellationToken2.UnsafeRegister(static state => ((CancellationTokenSource)state!).Cancel(), linkedCts);
 
@@ -99,10 +99,7 @@ public class DelayBenchmark
         {
             registration1.Dispose();
             registration2.Dispose();
-            if (linkedCts.TryReset())
-            {
-                CancellationTokenHelper.Pool.Return(linkedCts);
-            }
+            CancellationTokenPool.TryResetAndReturn(linkedCts);
         }
     }
 
