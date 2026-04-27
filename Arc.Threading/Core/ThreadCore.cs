@@ -273,6 +273,15 @@ public class ThreadCoreBase : IDisposable
     public bool IsTerminated => this.CancellationToken.IsCancellationRequested; // Volatile.Read(ref this.terminated);
 
     /// <summary>
+    /// Gets a value indicating whether the thread/task can continue execution.
+    /// </summary>
+    /// <remarks>
+    /// This property returns <see langword="true"/> when no termination signal has been requested
+    /// through <see cref="CancellationToken"/>; otherwise, it returns <see langword="false"/>.
+    /// </remarks>
+    public bool CanContinue => !this.CancellationToken.IsCancellationRequested;
+
+    /// <summary>
     /// Gets a value indicating whether this thread/task is paused.
     /// </summary>
     public bool IsPaused => Volatile.Read(ref this.paused);
