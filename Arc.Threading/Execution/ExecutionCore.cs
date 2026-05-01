@@ -159,7 +159,20 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
         => this.GetCompletionSource().TrySetResult();
 
     public void SendSignal(ExecutionSignal signal)
-        => this.executionSignalHandler?.Invoke(this, signal);
+    {
+        if (this.executionSignalHandler is null)
+        {
+            this.OnSignalReceived(signal);
+        }
+        else
+        {
+            this.executionSignalHandler.Invoke(this, signal);
+        }
+    }
+
+    public virtual void OnSignalReceived(ExecutionSignal signal)
+    {
+    }
 
     public new void Cancel()
     {
