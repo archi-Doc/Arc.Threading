@@ -50,9 +50,9 @@ class Program
         Console.WriteLine();
 
         var root = new ExecutionRoot();
-        var c1 = new ExecutionCore(root);
+        var c1 = new ExecutionCore(root.Base);
 
-        c1.RequestTermination();
+        root.RequestTermination();
         await root.WaitForTermination();
 
         await Test2();
