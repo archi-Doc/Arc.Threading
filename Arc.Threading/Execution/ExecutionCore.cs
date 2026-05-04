@@ -225,15 +225,19 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
             if (core.childrenList is null ||
                 core.childrenList.Count == 0)
             {// Empty
-                return;
-            }
-            else
-            {
-                var children = core.GetChildrenArrayInternal();
-                foreach (var x in children)
+                if (core.GetType() == typeof(TaskCore2))
                 {
-                    CountObjects(x, ref notTerminated);
                 }
+                else
+                {
+                    return;
+                }
+            }
+
+            var children = core.GetChildrenArrayInternal();
+            foreach (var x in children)
+            {
+                CountObjects(x, ref notTerminated);
             }
 
             if (!core.IsTerminated)

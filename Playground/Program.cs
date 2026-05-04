@@ -50,33 +50,34 @@ class Program
     {
         AppDomain.CurrentDomain.ProcessExit += (s, e) =>
         {// Closing the console window or terminating the process.
-            ThreadCore.Root.Terminate(); // Send a termination signal to the root.
-            ThreadCore.Root.WaitForTermination(TimeSpan.FromSeconds(2)).Wait();
-            // ThreadCore.Root.TerminationEvent.WaitOne(2000); // Wait until the termination process is complete (#1).
-            // Root?.WaitForTermination().Wait();
+            Root?.RequestTermination(); // Send a termination signal to the root.
+            Root?.WaitForTermination().Wait();
         };
 
         Console.CancelKeyPress += (s, e) =>
         {// Ctrl+C pressed.
             e.Cancel = true;
-            ThreadCore.Root.Terminate(); // Send a termination signal to the root.
-            Root?.RequestTermination();
+            Root?.RequestTermination(); // Send a termination signal to the root.
         };
 
         Console.WriteLine("Hello World!");
         Console.WriteLine();
 
         Root = new ExecutionRoot();
+        var c1 = new TaskCore2(Root, async obj =>
+        {
+            Console.WriteLine("1");
+            await Task.Delay(1000);
+            Console.WriteLine("2");
+        }, false);
+
+        c1.SendSignal(ExecutionSignal.Start);
         // var c1 = new ExecutionCore(Root.Base);
 
-        await Test2();
+        // await Test2();
 
-        ThreadCore.Root.Terminate();
-
-        Console.WriteLine("1");
+        Root.RequestTermination();
         await Root.WaitForTermination();
-        Console.WriteLine("2");
-        ThreadCore.Root.TerminationEvent.Set();
     }
 
     static async Task Test2()
