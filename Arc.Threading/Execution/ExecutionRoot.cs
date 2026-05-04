@@ -43,7 +43,7 @@ public class ExecutionRoot : ExecutionCore
     {
         if (this.Base.IsActive)
         {
-            this.Base.RequestTermination();
+            this.Base.RequestTermination(RequestTerminationOptions.IncludeIndependent);
         }
 
         return base.WaitForTermination(timeout, cancellationToken);

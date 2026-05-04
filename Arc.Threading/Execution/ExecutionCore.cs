@@ -11,10 +11,7 @@ namespace Arc.Threading;
 
 public class ExecutionCore : CancellationTokenSource, IDisposable
 {
-    /// <summary>
-    /// The wait interval time in milliseconds.
-    /// </summary>
-    public const int WaitInterval = 10;
+    private const int WaitInterval = 10;
 
     #region FieldAndProperty
 
@@ -225,10 +222,18 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
 
         static void CountObjects(ExecutionCore core, ref int notTerminated)
         {
-            var children = core.GetChildrenArrayInternal();
-            foreach (var x in children)
+            if (core.childrenList is null ||
+                core.childrenList.Count == 0)
+            {// Empty
+                return;
+            }
+            else
             {
-                CountObjects(x, ref notTerminated);
+                var children = core.GetChildrenArrayInternal();
+                foreach (var x in children)
+                {
+                    CountObjects(x, ref notTerminated);
+                }
             }
 
             if (!core.IsTerminated)

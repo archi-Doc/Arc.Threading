@@ -44,20 +44,39 @@ public class TestCore : TaskCore
 
 class Program
 {
+    public static ExecutionRoot? Root { get; private set; }
+
     static async Task Main(string[] args)
     {
+        AppDomain.CurrentDomain.ProcessExit += (s, e) =>
+        {// Closing the console window or terminating the process.
+            ThreadCore.Root.Terminate(); // Send a termination signal to the root.
+            ThreadCore.Root.WaitForTermination(TimeSpan.FromSeconds(2)).Wait();
+            // ThreadCore.Root.TerminationEvent.WaitOne(2000); // Wait until the termination process is complete (#1).
+            // Root?.WaitForTermination().Wait();
+        };
+
+        Console.CancelKeyPress += (s, e) =>
+        {// Ctrl+C pressed.
+            e.Cancel = true;
+            ThreadCore.Root.Terminate(); // Send a termination signal to the root.
+            Root?.RequestTermination();
+        };
+
         Console.WriteLine("Hello World!");
         Console.WriteLine();
 
-        var root = new ExecutionRoot();
-        var c1 = new ExecutionCore(root.Base);
-
-        root.RequestTermination();
-        await root.WaitForTermination();
+        Root = new ExecutionRoot();
+        // var c1 = new ExecutionCore(Root.Base);
 
         await Test2();
 
         ThreadCore.Root.Terminate();
+
+        Console.WriteLine("1");
+        await Root.WaitForTermination();
+        Console.WriteLine("2");
+        ThreadCore.Root.TerminationEvent.Set();
     }
 
     static async Task Test2()
