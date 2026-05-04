@@ -49,6 +49,12 @@ class Program
         Console.WriteLine("Hello World!");
         Console.WriteLine();
 
+        var root = new ExecutionRoot();
+        var c1 = new ExecutionCore(root);
+
+        c1.RequestTermination();
+        await root.WaitForTermination();
+
         await Test2();
 
         ThreadCore.Root.Terminate();

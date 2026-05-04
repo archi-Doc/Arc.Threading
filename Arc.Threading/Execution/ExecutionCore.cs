@@ -11,6 +11,11 @@ namespace Arc.Threading;
 
 public class ExecutionCore : CancellationTokenSource, IDisposable
 {
+    /// <summary>
+    /// The wait interval time in milliseconds.
+    /// </summary>
+    public const int WaitInterval = 10;
+
     #region FieldAndProperty
 
     private readonly ExecutionSignalHandler? executionSignalHandler;
@@ -73,20 +78,16 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// </summary>
     public bool IsRoot => this.Id == 0;
 
+    public bool IsIndependent { get; set; }
+
+    public virtual bool IsActive => !this.IsCancellationRequested;
+
+    public virtual bool IsTerminated => this.IsCancellationRequested;
+
     /// <summary>
     /// Gets the <see cref="System.Threading.CancellationToken"/> associated with this execution.
     /// </summary>
     public CancellationToken CancellationToken => this.Token;
-
-    public bool IsTerminated => this.IsCancellationRequested;
-
-    /// <summary>
-    /// Gets a value indicating whether this execution can continue running.
-    /// </summary>
-    /// <remarks>
-    /// Returns <see langword="false"/> after <see cref="CancellationToken"/> has been canceled.
-    /// </remarks>
-    public bool CanContinue => !this.IsCancellationRequested;
 
     /// <summary>
     /// Gets a task that completes when this execution is explicitly marked as completed.
@@ -95,7 +96,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
 
     #endregion
 
-    public static ExecutionCore? TryCreate(ExecutionCore parent, long id, ExecutionStack? stack = default, ExecutionSignalHandler? executionSignalHandler = default)
+    /*public static ExecutionCore? TryCreate(ExecutionCore parent, long id, ExecutionStack? stack = default, ExecutionSignalHandler? executionSignalHandler = default)
     {
         var root = parent.Root;
         using (root.SyncObject.EnterScope())
@@ -110,7 +111,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
             stack?.AddInternal(core);
             return core;
         }
-    }
+    }*/
 
     public ExecutionCore(ExecutionCore parent, ExecutionSignalHandler? executionSignalHandler = default)
         : this(parent, null, executionSignalHandler)
@@ -146,13 +147,89 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
         this.Root.IdToCore[0] = this;
     }
 
-    private ExecutionCore(ExecutionCore parent, long id, ExecutionSignalHandler? executionSignalHandler)
+    /*private ExecutionCore(ExecutionCore parent, long id, ExecutionSignalHandler? executionSignalHandler)
     {// Create an ExecutionCore with the specified Id.
         this.Root = parent.Root;
         this.Id = id;
         this.executionSignalHandler = executionSignalHandler;
 
         parent.AddChildInternal(this);
+    }*/
+
+    /// <summary>
+    /// Asynchronously waits indefinitely for this execution to terminate.
+    /// </summary>
+    /// <param name="cancellationToken">An additional token that can cancel the wait operation.</param>
+    /// <returns>A task that represents the wait operation.</returns>
+    public Task WaitForTermination(CancellationToken cancellationToken = default)
+        => this.WaitForTermination(Timeout.InfiniteTimeSpan, cancellationToken);
+
+    /// <summary>
+    /// Asynchronously waits for the termination of the thread/task.<br/>
+    /// Note that you need to call <see cref="RequestTermination()"/> to terminate the object from outside the thread/task.
+    /// </summary>
+    /// <param name="millisecondsTimeout">The number of milliseconds to wait before termination, or -1 to wait indefinitely.</param>
+    /// <param name="cancellationToken">An additional cancellation token to cancel the wait operation.</param>
+    /// <returns>A task that represents waiting for termination.</returns>
+    public Task<bool> WaitForTermination(int millisecondsTimeout, CancellationToken cancellationToken = default)
+        => this.WaitForTermination(TimeSpan.FromMilliseconds(millisecondsTimeout));
+
+    /// <summary>
+    /// Asynchronously waits for the termination of the thread/task.<br/>
+    /// Note that you need to call <see cref="RequestTermination()"/> to terminate the object from outside the thread/task.
+    /// </summary>
+    /// <param name="timeout">The <see cref="TimeSpan"/> to wait before termination.</param>
+    /// <param name="cancellationToken">An additional cancellation token to cancel the wait operation.</param>
+    /// <returns>A task that represents waiting for termination.</returns>
+    public async Task<bool> WaitForTermination(TimeSpan timeout, CancellationToken cancellationToken = default)
+    {
+        if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
+        {
+            throw new ArgumentOutOfRangeException(nameof(timeout));
+        }
+
+        var startTimestamp = Stopwatch.GetTimestamp();
+        while (true)
+        {
+            var notTerminated = 0;
+            using (this.Root.SyncObject.EnterScope())
+            {
+                CountObjects(this, ref notTerminated);
+                if (notTerminated == 0)
+                {
+                    return true;
+                }
+            }
+
+            try
+            {
+                await Task.Delay(WaitInterval, cancellationToken).ConfigureAwait(false);
+            }
+            catch
+            {
+                return false;
+            }
+
+            if (timeout != Timeout.InfiniteTimeSpan &&
+                Stopwatch.GetElapsedTime(startTimestamp) >= timeout)
+            {
+                return false;
+            }
+        }
+
+        static void CountObjects(ExecutionCore core, ref int notTerminated)
+        {
+            var children = core.GetChildrenArrayInternal();
+            foreach (var x in children)
+            {
+                CountObjects(x, ref notTerminated);
+            }
+
+            if (!core.IsTerminated)
+            {
+                notTerminated++;
+            }
+        }
     }
 
     public void TrySetCompleted()
@@ -198,15 +275,15 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
         }
     }
 
-    public void TryCancel()
-        => this.TryCancel(false);
+    public void RequestTermination()
+        => this.RequestTermination(false);
 
     /// <summary>
     /// Removes this execution from its owning <see cref="Stack"/>.
     /// </summary>using (this.Root.SyncObject.EnterScope())
     public new void Dispose()
     {
-        this.TryCancel(true);
+        this.RequestTermination(true);
         base.Dispose();
     }
 
@@ -220,7 +297,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     {
         if (this.Root != child.Root)
         {
-            throw new InvalidOperationException("The parent and child objects must be created from the same Root.");
+            ExecutionHelper.ThrowDifferentParentException();
         }
 
         using (this.Root.SyncObject.EnterScope())
@@ -316,7 +393,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
         return true;
     }
 
-    private void TryCancel(bool remove)
+    private void RequestTermination(bool remove)
     {
         List<ExecutionCore>? list = default;
         while (true)

@@ -54,40 +54,29 @@ public class ExecutionStack
     /// When the parent is deleted, this execution is automatically canceled and deleted as well.</param>
     /// <param name="processSignalHandler">An optional handler invoked when this execution processes an <see cref="ExecutionSignal"/>.</param>
     /// <returns>The newly created execution.</returns>
-    public ExecutionCore Push(ExecutionCore parent, ExecutionSignalHandler? processSignalHandler = default)
+    public ExecutionCore PushNew(ExecutionCore parent, ExecutionSignalHandler? processSignalHandler = default)
     {
         if (this.Root != parent.Root)
         {
-            ThrowDifferentRootException();
+            ExecutionHelper.ThrowDifferentRootException();
         }
 
         var core = new ExecutionCore(parent, this, processSignalHandler);
         return core;
     }
 
-    public ExecutionCore? TryPush(ExecutionCore parent, long id, ExecutionSignalHandler? processSignalHandler = default)
-    {
-        if (this.Root != parent.Root)
-        {
-            ThrowDifferentRootException();
-        }
-
-        var core = ExecutionCore.TryCreate(parent, id, this, processSignalHandler);
-        return core;
-    }
-
-    public bool TryPush(ExecutionCore core)
+    public bool Push(ExecutionCore core)
     {
         if (this.Root != core.Root)
         {
-            ThrowDifferentRootException();
+            ExecutionHelper.ThrowDifferentRootException();
         }
 
         using (this.Root.SyncObject.EnterScope())
         {
             if (core.Stack is not null)
             {
-                return false;
+                return core.Stack == this;
             }
 
             this.AddInternal(core);
@@ -95,6 +84,17 @@ public class ExecutionStack
 
         return true;
     }
+
+    /*public ExecutionCore? TryPush(ExecutionCore parent, long id, ExecutionSignalHandler? processSignalHandler = default)
+    {
+        if (this.Root != parent.Root)
+        {
+            ExecutionHelper.ThrowDifferentRootException();
+        }
+
+        var core = ExecutionCore.TryCreate(parent, id, this, processSignalHandler);
+        return core;
+    }*/
 
     /// <summary>
     /// Finds the first execution with the specified identifier.
@@ -128,8 +128,4 @@ public class ExecutionStack
         core.Stack = null;
         this.list.Remove(core);
     }
-
-    [DoesNotReturn]
-    private static void ThrowDifferentRootException()
-        => throw new InvalidOperationException("The stack and parent objects must be created from the same Root.");
 }

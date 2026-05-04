@@ -1,6 +1,7 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Threading;
 
@@ -20,4 +21,12 @@ public static class ExecutionHelper
             return null;
         }
     }
+
+    [DoesNotReturn]
+    internal static void ThrowDifferentRootException()
+        => throw new InvalidOperationException("The stack and parent objects must be created from the same Root.");
+
+    [DoesNotReturn]
+    internal static void ThrowDifferentParentException()
+        => throw new InvalidOperationException("The parent and child objects must be created from the same Root.");
 }
