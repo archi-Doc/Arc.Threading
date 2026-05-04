@@ -160,6 +160,44 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     }*/
 
     /// <summary>
+    /// Wait for the specified time (<see cref="Task.Delay(TimeSpan)"/>).
+    /// </summary>
+    /// <param name="millisecondsToWait">The number of milliseconds to wait.</param>
+    /// <param name="cancellationToken">An additional cancellation token that can be used to cancel the delay.</param>
+    /// <returns><see langword="true"/> if the time successfully elapsed, <see langword="false"/> if the thread/task is terminated.</returns>
+    public Task<bool> Delay(int millisecondsToWait, CancellationToken cancellationToken = default)
+        => this.Delay(TimeSpan.FromMilliseconds(millisecondsToWait), cancellationToken);
+
+    /// <summary>
+    /// Wait for the specified time (<see cref="Task.Delay(TimeSpan)"/>).
+    /// </summary>
+    /// <param name="delay">The TimeSpan to wait.</param>
+    /// <param name="cancellationToken">An additional cancellation token that can be used to cancel the delay.</param>
+    /// <returns><see langword="true"/> if the time successfully elapsed, <see langword="false"/> if the thread/task is terminated.</returns>
+    public async Task<bool> Delay(TimeSpan delay, CancellationToken cancellationToken = default)
+    {
+        var internalToken = this.CancellationToken;
+
+        if (internalToken.IsCancellationRequested || cancellationToken.IsCancellationRequested)
+        {
+            return false;
+        }
+
+        try
+        {
+            var task = !cancellationToken.CanBeCanceled || cancellationToken == internalToken
+                ? Task.Delay(delay, internalToken)
+                : Task.Delay(delay, internalToken).WaitAsync(cancellationToken);
+            await task.ConfigureAwait(false);
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Asynchronously waits indefinitely for this execution to terminate.
     /// </summary>
     /// <param name="cancellationToken">An additional token that can cancel the wait operation.</param>
@@ -240,7 +278,8 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
                 CountObjects(x, ref notTerminated);
             }
 
-            if (!core.IsTerminated)
+            if (core.GetType() != typeof(ExecutionCore) &&
+                !core.IsTerminated)
             {
                 notTerminated++;
             }
