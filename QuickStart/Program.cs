@@ -37,7 +37,7 @@ internal class Program
     {
         // Create ThreadCore object.
         // ThreadCore.Root is the root object of all ThreadCoreBase classes.
-        var c1 = new ThreadCore(ThreadCore.Root, parameter =>
+        var c1 = new ThreadCore(Root, parameter =>
         {// Core 1 (ThreadCore): Shows a message every 1 second, and terminates after 5 second.
             var core = (ThreadCore)parameter!; // Get ThreadCore from the parameter.
             Console.WriteLine("ThreadCore 1: Start");
@@ -61,9 +61,8 @@ internal class Program
         });
 
         var group = new ExecutionGroup(Root, "Test", false); // ThreadCoreGroup is a collection of ThreadCore objects and it's not associated with Thread/Task.
-        var c2 = new TaskCore<bool>(group, async parameter =>
+        var c2 = new TaskCore(group, async core =>
         {// Core 2 (TaskCore): Shows a message, wait for 3 seconds, and terminates.
-            var core = (TaskCore<bool>)parameter!; // Get TaskCore from the parameter.
             Console.WriteLine("TaskCore 2: Start");
             Console.WriteLine("TaskCore 2: Delay 3 seconds");
 
@@ -78,33 +77,32 @@ internal class Program
 
             Console.WriteLine("TaskCore 2: End");
             core.Dispose(); // You can dispose the object if you want (automatically disposed anyway).
-            return true;
         });
 
         try
         {
-            await Task.Delay(1500, ThreadCore.Root.CancellationToken);
+            await Task.Delay(1500, Root.CancellationToken);
         }
         catch
         {
         }
 
-        c2.Terminate(); // Send a termination signal to the TaskCore2.
+        c2.RequestTermination(); // Send a termination signal to the TaskCore2.
         // group.Dispose(); // Same as above
     }
 
     private class WaitPulseCore : TaskCore
     {
-        public WaitPulseCore(ThreadCoreBase parent, AsyncPulseEvent pulseEvent, int index)
+        public WaitPulseCore(ExecutionGroup parent, AsyncPulseEvent pulseEvent, int index)
             : base(parent, Process)
         {
             this.pulseEvent = pulseEvent;
             this.index = index;
         }
 
-        private static async Task Process(object? parameter)
+        private static async Task Process(TaskCore taskCore)
         {
-            var core = (WaitPulseCore)parameter!;
+            var core = (WaitPulseCore)taskCore;
 
             Console.WriteLine($"Wait start {core.index}");
             await core.pulseEvent.WaitAsync();
@@ -113,25 +111,5 @@ internal class Program
 
         private AsyncPulseEvent pulseEvent;
         private int index;
-    }
-
-    private class ExampleTask : TaskCore
-    {
-        public ExampleTask(object parent)
-            : base(null, Process)
-        {
-            this.parent = parent;
-        }
-
-        private static async Task Process(object? parameter)
-        {
-            var core = (ExampleTask)parameter!;
-
-            while (await core.Delay(1000).ConfigureAwait(false))
-            {
-            }
-        }
-
-        private readonly object parent;
     }
 }
