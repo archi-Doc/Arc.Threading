@@ -30,7 +30,7 @@ public class TaskCore2 : ExecutionCore
     /// <param name="method">The method that executes on a <see cref="System.Threading.Tasks.Task"/>.</param>
     /// <param name="startImmediately">Starts the task immediately.<br/>
     /// <see langword="false"/>: Manually call <see cref="Start"/> to start the task.</param>
-    public TaskCore2(ExecutionCore parent, Func<object?, Task> method, bool startImmediately = true)
+    public TaskCore2(ExecutionGroup parent, Func<object?, Task> method, bool startImmediately = true)
         : base(parent)
     {
         // this.Task = System.Threading.Tasks.Task.Run(async () => { await method(this); });
@@ -55,13 +55,6 @@ public class TaskCore2 : ExecutionCore
             {
                 this.Task.Start();
             }
-
-            foreach (var x in this.GetChildren())
-            {
-                x.SendSignal(signal);
-            }
         }
-
-        base.OnSignalReceived(signal);
     }
 }

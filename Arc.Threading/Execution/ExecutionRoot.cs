@@ -7,20 +7,6 @@ using System.Threading.Tasks;
 
 namespace Arc.Threading;
 
-public class ExecutionGroup : ExecutionCore
-{
-    public ExecutionGroup(ExecutionCore parent, string name, bool isIndependent)
-        : base(parent, isIndependent)
-    {
-        this.Name = name;
-    }
-
-    private protected ExecutionGroup()
-        : base()
-    {
-    }
-}
-
 public class ExecutionRoot : ExecutionGroup
 {
 #pragma warning disable SA1401 // Fields should be private

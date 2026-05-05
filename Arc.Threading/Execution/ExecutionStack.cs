@@ -54,7 +54,7 @@ public class ExecutionStack
     /// When the parent is deleted, this execution is automatically canceled and deleted as well.</param>
     /// <param name="processSignalHandler">An optional handler invoked when this execution processes an <see cref="ExecutionSignal"/>.</param>
     /// <returns>The newly created execution.</returns>
-    public ExecutionCore PushNew(ExecutionCore parent, ExecutionSignalHandler? processSignalHandler = default)
+    public ExecutionCore PushNew(ExecutionGroup parent, ExecutionSignalHandler? processSignalHandler = default)
     {
         if (this.Root != parent.Root)
         {

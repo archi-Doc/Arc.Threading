@@ -3,7 +3,6 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -18,9 +17,14 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
 
     private readonly ExecutionSignalHandler? executionSignalHandler;
     private TaskCompletionSource? completionSource;
-    private ExecutionCore? parent; // Root.SyncObject
-    private List<ExecutionCore>? childrenList; // Root.SyncObject
-    private ExecutionCore[]? childrenArray; // Root.SyncObject
+
+#pragma warning disable SA1307 // Accessible fields should begin with upper-case letter
+#pragma warning disable SA1401 // Fields should be private
+#pragma warning disable SA1202 // Elements should be ordered by access
+    internal ExecutionGroup? parent; // Root.SyncObject
+#pragma warning restore SA1202 // Elements should be ordered by access
+#pragma warning restore SA1401 // Fields should be private
+#pragma warning restore SA1307 // Accessible fields should begin with upper-case letter
 
     public ExecutionRoot Root { get; }
 
@@ -31,7 +35,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// </summary>
     public ExecutionStack? Stack { get; internal set; } // Root.SyncObject
 
-    public ExecutionCore? Parent
+    public ExecutionGroup? Parent
     {
         get => this.parent;
         set
@@ -52,19 +56,6 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
             {
                 value.AddChild(this);
             }
-        }
-    }
-
-    public ExecutionCore[] GetChildren()
-    {
-        if (this.childrenArray is { } array)
-        {
-            return array;
-        }
-
-        using (this.Root.SyncObject.EnterScope())
-        {
-            return this.GetChildrenArrayInternal();
         }
     }
 
@@ -96,8 +87,6 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// </summary>
     public Task Completion => this.GetCompletionSource().Task;
 
-    public int Count => this.childrenArray is null ? 0 : this.childrenArray.Length;
-
     #endregion
 
     /*public static ExecutionCore? TryCreate(ExecutionCore parent, long id, ExecutionStack? stack = default, ExecutionSignalHandler? executionSignalHandler = default)
@@ -117,18 +106,18 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
         }
     }*/
 
-    public ExecutionCore(ExecutionCore parent, ExecutionSignalHandler? executionSignalHandler = default)
+    public ExecutionCore(ExecutionGroup parent, ExecutionSignalHandler? executionSignalHandler = default)
         : this(parent, null, executionSignalHandler)
     {
     }
 
-    public ExecutionCore(ExecutionCore parent, bool isIndependent, ExecutionSignalHandler? executionSignalHandler = default)
+    public ExecutionCore(ExecutionGroup parent, bool isIndependent, ExecutionSignalHandler? executionSignalHandler = default)
         : this(parent, null, executionSignalHandler)
     {
         this.IsIndependent = isIndependent;
     }
 
-    internal ExecutionCore(ExecutionCore parent, ExecutionStack? stack, ExecutionSignalHandler? executionSignalHandler)
+    internal ExecutionCore(ExecutionGroup parent, ExecutionStack? stack, ExecutionSignalHandler? executionSignalHandler)
     {
         this.Root = parent.Root;
         this.executionSignalHandler = executionSignalHandler;
@@ -268,19 +257,23 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
 
         static void CountObjects(ExecutionCore core, ref int notTerminated)
         {
-            if (core.childrenList?.Count > 0)
+            if (core is ExecutionGroup group)
             {
-                var children = core.GetChildrenArrayInternal();
-                foreach (var x in children)
+                if (group.childrenList?.Count > 0)
                 {
-                    CountObjects(x, ref notTerminated);
+                    var children = group.GetChildrenArrayInternal();
+                    foreach (var x in children)
+                    {
+                        CountObjects(x, ref notTerminated);
+                    }
                 }
             }
-
-            if (!core.IsGroup &&
-                !core.IsTerminated)
+            else
             {
-                notTerminated++;
+                if (!core.IsTerminated)
+                {
+                    notTerminated++;
+                }
             }
         }
     }
@@ -343,37 +336,21 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// <inheritdoc/>
     public override string ToString()
     {
-        return $"Core {this.Name}({this.Count}) {(ushort)this.Id:x4}";
-    }
-
-    public void AddChild(ExecutionCore child)
-    {
-        if (this.Root != child.Root)
-        {
-            ExecutionHelper.ThrowDifferentParentException();
-        }
-
-        using (this.Root.SyncObject.EnterScope())
-        {
-            if (child.Parent == this)
-            {
-                return;
-            }
-
-            child.Parent?.RemoveChildInternal(child);
-            this.AddChildInternal(child);
-        }
+        return $"Core {this.Name} {(ushort)this.Id:x4}";
     }
 
     private static void ProcessCancellationInternal(ref List<ExecutionCore>? list, ExecutionCore core, bool remove, RequestTerminationOptions options)
     {
-        var children = core.GetChildrenArrayInternal();
-        foreach (var x in children)
+        if (core is ExecutionGroup group)
         {
-            if (!x.IsIndependent ||
-                options.HasFlag(RequestTerminationOptions.IncludeIndependent))
+            var children = group.GetChildrenArrayInternal();
+            foreach (var x in children)
             {
-                ProcessCancellationInternal(ref list, x, remove, options);
+                if (!x.IsIndependent ||
+                    options.HasFlag(RequestTerminationOptions.IncludeIndependent))
+                {
+                    ProcessCancellationInternal(ref list, x, remove, options);
+                }
             }
         }
 
@@ -404,50 +381,6 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
 
         var created = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         return Interlocked.CompareExchange(ref this.completionSource, created, null) ?? created;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void ClearChildrenArrayInternal()
-    {
-        this.childrenArray = default;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private ExecutionCore[] GetChildrenArrayInternal()
-    {
-        if (this.childrenArray is null)
-        {
-            this.childrenArray = this.childrenList is null ? [] : this.childrenList.ToArray();
-        }
-
-        return this.childrenArray;
-    }
-
-    private void AddChildInternal(ExecutionCore child)
-    {
-        Debug.Assert(child.Parent is null);
-
-        this.childrenList ??= new();
-        this.childrenList.Add(child);
-        this.ClearChildrenArrayInternal();
-        child.parent = this;
-    }
-
-    private bool RemoveChildInternal(ExecutionCore child)
-    {
-        if (this.childrenList is null)
-        {
-            return false;
-        }
-
-        if (!this.childrenList.Remove(child))
-        {
-            return false;
-        }
-
-        this.ClearChildrenArrayInternal();
-        child.parent = null;
-        return true;
     }
 
     private void RequestTermination(bool remove, RequestTerminationOptions options)
