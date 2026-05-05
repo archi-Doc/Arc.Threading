@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 
 namespace Arc.Threading;
 
+[DebuggerDisplay("{ToString()}")]
 public class ExecutionCore : CancellationTokenSource, IDisposable
 {
     private const int WaitInterval = 10;
@@ -22,6 +23,8 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     private ExecutionCore[]? childrenArray; // Root.SyncObject
 
     public ExecutionRoot Root { get; }
+
+    public string Name { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets the owning <see cref="Arc.Threading.ExecutionStack"/> instance.
@@ -81,6 +84,8 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
 
     public virtual bool IsTerminated => this.IsCancellationRequested;
 
+    public bool IsGroup => typeof(ExecutionGroup).IsAssignableFrom(this.GetType());
+
     /// <summary>
     /// Gets the <see cref="System.Threading.CancellationToken"/> associated with this execution.
     /// </summary>
@@ -90,6 +95,8 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// Gets a task that completes when this execution is explicitly marked as completed.
     /// </summary>
     public Task Completion => this.GetCompletionSource().Task;
+
+    public int Count => this.childrenArray is null ? 0 : this.childrenArray.Length;
 
     #endregion
 
@@ -146,6 +153,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     private protected ExecutionCore()
     {// Root
         this.Root = (ExecutionRoot)this;
+        this.Name = "Root";
         this.Id = 0;
         this.Root.IdToCore[0] = this;
     }
@@ -260,25 +268,16 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
 
         static void CountObjects(ExecutionCore core, ref int notTerminated)
         {
-            if (core.childrenList is null ||
-                core.childrenList.Count == 0)
-            {// Empty
-                if (core.GetType() == typeof(TaskCore2))
-                {
-                }
-                else
-                {
-                    return;
-                }
-            }
-
-            var children = core.GetChildrenArrayInternal();
-            foreach (var x in children)
+            if (core.childrenList?.Count > 0)
             {
-                CountObjects(x, ref notTerminated);
+                var children = core.GetChildrenArrayInternal();
+                foreach (var x in children)
+                {
+                    CountObjects(x, ref notTerminated);
+                }
             }
 
-            if (core.GetType() != typeof(ExecutionCore) &&
+            if (!core.IsGroup &&
                 !core.IsTerminated)
             {
                 notTerminated++;
@@ -344,7 +343,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// <inheritdoc/>
     public override string ToString()
     {
-        return $"Execution {this.Id:x4}";
+        return $"Core {this.Name}({this.Count}) {(ushort)this.Id:x4}";
     }
 
     public void AddChild(ExecutionCore child)

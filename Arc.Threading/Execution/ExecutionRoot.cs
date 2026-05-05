@@ -7,7 +7,21 @@ using System.Threading.Tasks;
 
 namespace Arc.Threading;
 
-public class ExecutionRoot : ExecutionCore
+public class ExecutionGroup : ExecutionCore
+{
+    public ExecutionGroup(ExecutionCore parent, string name, bool isIndependent)
+        : base(parent, isIndependent)
+    {
+        this.Name = name;
+    }
+
+    private protected ExecutionGroup()
+        : base()
+    {
+    }
+}
+
+public class ExecutionRoot : ExecutionGroup
 {
 #pragma warning disable SA1401 // Fields should be private
 #pragma warning disable SA1304 // Non-private readonly fields should begin with upper-case letter
@@ -18,15 +32,15 @@ public class ExecutionRoot : ExecutionCore
 #pragma warning restore SA1304 // Non-private readonly fields should begin with upper-case letter
 #pragma warning restore SA1401 // Fields should be private
 
-    public ExecutionCore Base { get; }
+    public ExecutionGroup Base { get; }
 
-    public ExecutionCore Independent { get; }
+    public ExecutionGroup Independent { get; }
 
     public ExecutionRoot()
         : base()
     {
-        this.Independent = new(this, true);
-        this.Base = new(this, true);
+        this.Independent = new(this, "Independent", true);
+        this.Base = new(this, "Base", true);
     }
 
     public ExecutionCore? Find(long id)

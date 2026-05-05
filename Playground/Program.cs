@@ -64,7 +64,7 @@ class Program
         Console.WriteLine();
 
         Root = new ExecutionRoot();
-        var c1 = new TaskCore2(Root.Independent, async obj =>
+        var c1 = new TaskCore2(Root, async obj =>
         {
             var core = (TaskCore2)obj!;
             Console.WriteLine("1");
@@ -85,7 +85,7 @@ class Program
 
         // await Test2();
 
-        Root.RequestTermination();
+        // Root.RequestTermination();
         await Root.WaitForTermination();
     }
 
