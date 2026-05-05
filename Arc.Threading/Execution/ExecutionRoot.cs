@@ -18,15 +18,15 @@ public class ExecutionRoot : ExecutionGroup
 #pragma warning restore SA1304 // Non-private readonly fields should begin with upper-case letter
 #pragma warning restore SA1401 // Fields should be private
 
-    public ExecutionGroup Base { get; }
+    public ExecutionGroup BaseGroup { get; }
 
-    public ExecutionGroup Independent { get; }
+    public ExecutionGroup IndependentGroup { get; }
 
     public ExecutionRoot()
         : base()
     {
-        this.Independent = new(this, "Independent", true);
-        this.Base = new(this, "Base", true);
+        this.IndependentGroup = new(this, "Independent", true);
+        this.BaseGroup = new(this, "Base", true);
     }
 
     public ExecutionCore? Find(long id)
@@ -41,9 +41,9 @@ public class ExecutionRoot : ExecutionGroup
     /// <inheritdoc/>
     public override Task<bool> WaitForTermination(TimeSpan timeout, CancellationToken cancellationToken = default)
     {
-        if (this.Base.IsActive)
+        if (this.BaseGroup.IsActive)
         {
-            this.Base.RequestTermination(RequestTerminationOptions.IncludeIndependent);
+            this.BaseGroup.RequestTermination(RequestTerminationOptions.IncludeIndependent);
         }
 
         return base.WaitForTermination(timeout, cancellationToken);

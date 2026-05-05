@@ -56,7 +56,7 @@ class Program
 
         Console.CancelKeyPress += (s, e) =>
         {// Ctrl+C pressed.
-            e.Cancel = true;//
+            e.Cancel = true;
             Root?.RequestTermination(); // Send a termination signal to the root.
         };
 
@@ -71,7 +71,7 @@ class Program
 
             try
             {
-                await core.Delay(2000);
+                await core.Delay(1000);
             }
             catch
             {
@@ -80,7 +80,25 @@ class Program
             Console.WriteLine("2");
         }, false);
 
-        c1.SendSignal(ExecutionSignal.Start);
+        var g = new ExecutionGroup(Root, "g", false);
+        var c2 = new TaskCore2(g, async obj =>
+        {
+            var core = (TaskCore2)obj!;
+            Console.WriteLine("3");
+
+            try
+            {
+                await core.Delay(1500);
+            }
+            catch
+            {
+            }
+
+            Console.WriteLine("4");
+        }, false);
+
+        // c1.SendSignal(ExecutionSignal.Start);
+        Root.SendSignal(ExecutionSignal.Start);
         // var c1 = new ExecutionCore(Root.Base);
 
         // await Test2();
