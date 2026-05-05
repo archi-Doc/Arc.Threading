@@ -289,12 +289,6 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     {
     }
 
-    public virtual void OnRemoved()
-    {
-        this.Id = 0;
-        this.parent = default;
-    }
-
     public new void Cancel()
     {
         List<ExecutionCore>? list = default;
@@ -366,7 +360,14 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
         if (remove)
         {
             core.Root.IdToCore.Remove(core.Id);
-            core.OnRemoved();
+
+            core.Id = 0;
+            core.parent = default;
+
+            if (core is ExecutionGroup group2)
+            {
+                group2.ClearInternal();
+            }
         }
     }
 

@@ -49,7 +49,7 @@ internal class Program
                 for (var m = 0; m < 10; m++)
                 {
                     Thread.Sleep(100);
-                    if (core.IsTerminated)
+                    if (!core.IsActive)
                     {
                         Console.WriteLine("ThreadCore 1: Canceled");
                         return;

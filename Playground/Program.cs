@@ -27,7 +27,7 @@ public class TestWorker : ReusableJobWorker<ReusableThreadJob>
     }
 }
 
-public class CustomCore : TaskCore2<CustomCore>
+public class CustomCore : TaskCore<CustomCore>
 {
     public CustomCore(ExecutionGroup parent)
         : base(parent, Process)

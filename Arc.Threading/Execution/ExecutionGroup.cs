@@ -70,14 +70,6 @@ public class ExecutionGroup : ExecutionCore
         }
     }
 
-    public override void OnRemoved()
-    {
-        base.OnRemoved();
-
-        this.childrenList.Clear();
-        this.ClearChildrenArrayInternal();
-    }
-
     public override string ToString()
     {
         return $"{this.Name}({this.Count}) {(ushort)this.Id:x4}";
@@ -87,6 +79,12 @@ public class ExecutionGroup : ExecutionCore
     internal void ClearChildrenArrayInternal()
     {
         this.childrenArray = default;
+    }
+
+    internal void ClearInternal()
+    {
+        this.childrenList.Clear();
+        this.ClearChildrenArrayInternal();
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

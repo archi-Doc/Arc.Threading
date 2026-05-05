@@ -34,7 +34,7 @@ namespace Arc.Threading;
 /// <see cref="ReusableJobState.Initial"/> -> <see cref="ReusableJobState.Pending"/> ->
 /// <see cref="ReusableJobState.Running"/> -> <see cref="ReusableJobState.Completed"/>.
 /// </remarks>
-public class ReusableJobWorker<TJob> : TaskCore2<ReusableJobWorker<TJob>>, IDisposable
+public class ReusableJobWorker<TJob> : TaskCore<ReusableJobWorker<TJob>>, IDisposable
     where TJob : ReusableJob, new()
 {
     private const int DefaultPoolCapacity = 32;
