@@ -3,6 +3,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Arc;
 using Arc.Threading;
 
 namespace QuickStart;
@@ -11,11 +12,11 @@ internal class Program
 {
     public static async Task Main(string[] args)
     {
-        AppDomain.CurrentDomain.ProcessExit += (s, e) =>
+        AppCloseHandler.Set(() =>
         {// Closing the console window or terminating the process.
             ThreadCore.Root.Terminate(); // Send a termination signal to the root.
             ThreadCore.Root.TerminationEvent.WaitOne(2000); // Wait until the termination process is complete (#1).
-        };
+        });
 
         Console.CancelKeyPress += (s, e) =>
         {// Ctrl+C pressed.

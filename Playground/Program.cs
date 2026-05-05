@@ -1,6 +1,8 @@
 ﻿using System;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Arc;
 using Arc.Threading;
 
 namespace Playground;
@@ -71,11 +73,11 @@ class Program
 
     static async Task Main(string[] args)
     {
-        AppDomain.CurrentDomain.ProcessExit += (s, e) =>
+        AppCloseHandler.Set(() =>
         {// Closing the console window or terminating the process.
             Root?.RequestTermination(); // Send a termination signal to the root.
-            Root?.WaitForTermination().Wait();
-        };
+            Root?.WaitForTermination(TimeSpan.FromSeconds(2)).Wait();
+        });
 
         Console.CancelKeyPress += (s, e) =>
         {// Ctrl+C pressed.
