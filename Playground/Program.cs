@@ -124,9 +124,10 @@ class Program
 
         c1.SendSignal(ExecutionSignal.Start);
         Root.SendSignal(ExecutionSignal.Start);
+        await cc.Task;
         // var c1 = new ExecutionCore(Root.Base);
 
-        // await Test2();
+        await Test2();
 
         // Root.RequestTermination();
         await Root.WaitForTermination();
