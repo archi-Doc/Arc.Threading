@@ -38,7 +38,6 @@ public class ExecutionRoot : ExecutionGroup
         }
     }
 
-    /// <inheritdoc/>
     public override Task<bool> WaitForTermination(TimeSpan timeout, CancellationToken cancellationToken = default)
     {
         if (this.BaseGroup.IsActive)

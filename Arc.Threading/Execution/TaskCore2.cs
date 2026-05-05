@@ -7,17 +7,14 @@ using System.Threading.Tasks;
 
 namespace Arc.Threading;
 
-public class TaskCore2<TCore> : TaskCore2
-    where TCore : TaskCore2
+public class TaskCore2<TSelf> : TaskCore2
+    where TSelf : TaskCore2<TSelf>
 {
-    public TaskCore2(ExecutionGroup parent, Func<TCore, Task> method, bool startImmediately = true)
+    public TaskCore2(ExecutionGroup parent, Func<TSelf, Task> method, bool startImmediately = true)
         : base(parent)
     {
-        var task = new Task(() => method(this).GetAwaiter().GetResult(), TaskCreationOptions.LongRunning);
-        if (startImmediately)
-        {
-            this.SendSignal(ExecutionSignal.Start);
-        }
+        var task = new Task(() => method((TSelf)this).GetAwaiter().GetResult(), TaskCreationOptions.LongRunning);
+        this.Initialize(task, startImmediately);
     }
 }
 
