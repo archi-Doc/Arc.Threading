@@ -29,7 +29,7 @@ public class TaskCore2 : ExecutionCore
     /// Specify <see langword="null"/> to be independent (does not receive a termination signal from parent).</param>
     /// <param name="method">The method that executes on a <see cref="System.Threading.Tasks.Task"/>.</param>
     /// <param name="startImmediately">Starts the task immediately.<br/>
-    /// <see langword="false"/>: Manually call <see cref="Start"/> to start the task.</param>
+    /// <see langword="false"/>: Manually call <see cref="ExecutionCore.SendSignal(ExecutionSignal)"/> to start the task.</param>
     public TaskCore2(ExecutionGroup parent, Func<object?, Task> method, bool startImmediately = true)
         : base(parent)
     {

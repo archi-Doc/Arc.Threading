@@ -259,7 +259,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
         {
             if (core is ExecutionGroup group)
             {
-                if (group.childrenList?.Count > 0)
+                if (group.Count > 0)
                 {
                     var children = group.GetChildrenArrayInternal();
                     foreach (var x in children)
@@ -295,6 +295,12 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
 
     public virtual void OnSignalReceived(ExecutionSignal signal)
     {
+    }
+
+    public virtual void OnRemoved()
+    {
+        this.Id = 0;
+        this.parent = default;
     }
 
     public new void Cancel()
@@ -363,11 +369,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
         if (remove)
         {
             core.Root.IdToCore.Remove(core.Id);
-
-            core.Id = long.MinValue;
-            core.parent = default;
-            core.childrenList = default;
-            core.ClearChildrenArrayInternal();
+            core.OnRemoved();
         }
     }
 

@@ -6,6 +6,9 @@ public delegate void ExecutionSignalHandler(ExecutionCore executionCore, Executi
 
 public enum ExecutionSignal : byte
 {
+    /// <summary>
+    /// Requests start of of the execution.
+    /// </summary>
     Start,
 
     /// <summary>

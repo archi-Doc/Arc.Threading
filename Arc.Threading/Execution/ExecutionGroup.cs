@@ -70,7 +70,14 @@ public class ExecutionGroup : ExecutionCore
         }
     }
 
-    /// <inheritdoc/>
+    public override void OnRemoved()
+    {
+        base.OnRemoved();
+
+        this.childrenList.Clear();
+        this.ClearChildrenArrayInternal();
+    }
+
     public override string ToString()
     {
         return $"{this.Name}({this.Count}) {(ushort)this.Id:x4}";
