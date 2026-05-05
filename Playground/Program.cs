@@ -71,7 +71,7 @@ class Program
         Console.WriteLine("Hello World!");
         Console.WriteLine();
 
-        var c1 = new TaskCore2(Root, async core =>
+        var c1 = new TaskCore(Root, async core =>
         {
             Console.WriteLine("1");
 
@@ -87,7 +87,7 @@ class Program
         }, false);
 
         var g = new ExecutionGroup(Root, "g", false);
-        var c2 = new TaskCore2(g, async core =>
+        var c2 = new TaskCore(g, async core =>
         {
             Console.WriteLine("3");
 

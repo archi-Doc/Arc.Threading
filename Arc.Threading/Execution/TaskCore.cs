@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace Arc.Threading;
 
-public class TaskCore2<TSelf> : TaskCore2
+public class TaskCore2<TSelf> : TaskCore
     where TSelf : TaskCore2<TSelf>
 {
     public TaskCore2(ExecutionGroup parent, Func<TSelf, Task> method, bool startImmediately = true)
@@ -21,9 +21,10 @@ public class TaskCore2<TSelf> : TaskCore2
 /// <summary>
 /// Support class for <see cref="System.Threading.Tasks.Task"/>.
 /// </summary>
-public class TaskCore2 : ExecutionCore
+public class TaskCore : ExecutionCore
 {
-    /// <inheritdoc/>
+    private int started;
+
     public override bool IsTerminated => this.Task.Status != TaskStatus.Running;
 
     /// <summary>
@@ -31,10 +32,8 @@ public class TaskCore2 : ExecutionCore
     /// </summary>
     public Task Task { get; private set; }
 
-    private int started;
-
     /// <summary>
-    /// Initializes a new instance of the <see cref="TaskCore2"/> class.<br/>
+    /// Initializes a new instance of the <see cref="TaskCore"/> class.<br/>
     /// method: async <see cref="System.Threading.Tasks.Task"/> Method(<see cref="object"/>? parameter).
     /// </summary>
     /// <param name="parent">The parent of this thread/task.<br/>
@@ -42,7 +41,7 @@ public class TaskCore2 : ExecutionCore
     /// <param name="method">The method that executes on a <see cref="System.Threading.Tasks.Task"/>.</param>
     /// <param name="startImmediately">Starts the task immediately.<br/>
     /// <see langword="false"/>: Manually call <see cref="ExecutionCore.SendSignal(ExecutionSignal)"/> to start the task.</param>
-    public TaskCore2(ExecutionGroup parent, Func<TaskCore2, Task> method, bool startImmediately = true)
+    public TaskCore(ExecutionGroup parent, Func<TaskCore, Task> method, bool startImmediately = true)
         : base(parent)
     {
         // this.Task = System.Threading.Tasks.Task.Run(async () => { await method(this); });
@@ -55,7 +54,7 @@ public class TaskCore2 : ExecutionCore
         this.Initialize(task, startImmediately);
     }
 
-    protected TaskCore2(ExecutionGroup parent)
+    protected TaskCore(ExecutionGroup parent)
         : base(parent)
     {
         this.Task = default!;

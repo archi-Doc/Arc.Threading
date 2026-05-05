@@ -82,11 +82,6 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// </summary>
     public CancellationToken CancellationToken => this.Token;
 
-    /// <summary>
-    /// Gets a task that completes when this execution is explicitly marked as completed.
-    /// </summary>
-    public Task Completion => this.GetCompletionSource().Task;
-
     #endregion
 
     /*public static ExecutionCore? TryCreate(ExecutionCore parent, long id, ExecutionStack? stack = default, ExecutionSignalHandler? executionSignalHandler = default)

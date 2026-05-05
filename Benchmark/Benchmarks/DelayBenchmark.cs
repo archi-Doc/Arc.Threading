@@ -34,7 +34,7 @@ public class DelayBenchmark
     [Benchmark]
     public async Task Delay10()
     {
-        await ThreadCore.Root.Delay(MillisecondsTimeSpan, this.CancellationToken);
+        await Program.Root.Delay(MillisecondsTimeSpan, this.CancellationToken);
     }
 
     /*[Benchmark]

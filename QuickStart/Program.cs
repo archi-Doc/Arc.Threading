@@ -93,7 +93,7 @@ internal class Program
         // group.Dispose(); // Same as above
     }
 
-    private class WaitPulseCore : TaskCore2
+    private class WaitPulseCore : TaskCore
     {
         public WaitPulseCore(ThreadCoreBase parent, AsyncPulseEvent pulseEvent, int index)
             : base(parent, Process)
@@ -115,7 +115,7 @@ internal class Program
         private int index;
     }
 
-    private class ExampleTask : TaskCore2
+    private class ExampleTask : TaskCore
     {
         public ExampleTask(object parent)
             : base(null, Process)
