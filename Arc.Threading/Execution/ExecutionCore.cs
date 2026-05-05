@@ -21,6 +21,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
 #pragma warning disable SA1307 // Accessible fields should begin with upper-case letter
 #pragma warning disable SA1401 // Fields should be private
 #pragma warning disable SA1202 // Elements should be ordered by access
+    protected bool disposed;
     internal ExecutionGroup? parent; // Root.SyncObject
 #pragma warning restore SA1202 // Elements should be ordered by access
 #pragma warning restore SA1401 // Fields should be private
@@ -335,8 +336,13 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// </summary>using (this.Root.SyncObject.EnterScope())
     public new void Dispose()
     {
-        this.RequestTermination(true, default);
-        base.Dispose();
+        if (!this.disposed)
+        {
+            this.disposed = true;
+
+            this.RequestTermination(true, default);
+            base.Dispose();
+        }
     }
 
     /// <inheritdoc/>

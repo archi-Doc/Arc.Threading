@@ -34,7 +34,7 @@ namespace Arc.Threading;
 /// <see cref="ReusableJobState.Initial"/> -> <see cref="ReusableJobState.Pending"/> ->
 /// <see cref="ReusableJobState.Running"/> -> <see cref="ReusableJobState.Completed"/>.
 /// </remarks>
-public class ReusableJobWorker<TJob> : TaskCore, IDisposable
+public class ReusableJobWorker<TJob> : TaskCore2<ReusableJobWorker<TJob>>, IDisposable
     where TJob : ReusableJob, new()
 {
     private const int DefaultPoolCapacity = 32;
@@ -42,9 +42,8 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
 
     public delegate void ProcessJobDelegate(object worker, TJob job);
 
-    private static async Task Process(object? parameter)
+    private static async Task Process(ReusableJobWorker<TJob> worker)
     {
-        var worker = (ReusableJobWorker<TJob>)parameter!;
         while (!worker.IsTerminated)
         {
             var addEvent = worker.addEvent;
@@ -219,7 +218,7 @@ Terminated:
     /// <param name="startImmediately">
     /// <see langword="true"/> to start the worker thread during construction; otherwise, manual start is required.
     /// </param>
-    public ReusableJobWorker(ThreadCoreBase? parent, ProcessJobDelegate? processJob = default, int poolCapacity = DefaultPoolCapacity, bool startImmediately = true)
+    public ReusableJobWorker(ExecutionGroup parent, ProcessJobDelegate? processJob = default, int poolCapacity = DefaultPoolCapacity, bool startImmediately = true)
         : base(parent, Process, startImmediately)
     {
         this.processJob = processJob;

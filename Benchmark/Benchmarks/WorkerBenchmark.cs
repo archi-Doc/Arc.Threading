@@ -49,7 +49,7 @@ internal class TestReusableWorker : ReusableJobWorker<TestReusableJob>
 {
     private int count;
 
-    public TestReusableWorker(ThreadCoreBase? parent)
+    public TestReusableWorker(ExecutionGroup parent)
         : base(parent)
     {
     }
@@ -72,11 +72,12 @@ public class WorkerBenchmark
 
     public WorkerBenchmark()
     {
+        var root = new ExecutionRoot();
         this.threadWorker = new ThreadWorker<TestWork>(ThreadCore.Root, EmptyMethod2);
         this.taskWorkerSlim = new TaskWorkerSlim<TestTaskWorkSlim>(ThreadCore.Root, EmptyMethodTaskSlim);
-        this.jobWorker = new(ThreadCore.Root, (worker, job) => { Interlocked.Increment(ref WorkerBenchmark.count); });
-        this.jobWorker2 = new(ThreadCore.Root);
-        this.jobWorker3 = new(ThreadCore.Root, (worker, job) => { Interlocked.Increment(ref WorkerBenchmark.count); });
+        this.jobWorker = new(root, (worker, job) => { Interlocked.Increment(ref WorkerBenchmark.count); });
+        this.jobWorker2 = new(root);
+        this.jobWorker3 = new(root, (worker, job) => { Interlocked.Increment(ref WorkerBenchmark.count); });
     }
 
     [Benchmark]

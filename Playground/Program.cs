@@ -9,8 +9,8 @@ namespace Playground;
 
 public class TestWorker : ReusableJobWorker<ReusableThreadJob>
 {
-    public TestWorker()
-        : base(ThreadCore.Root, default)
+    public TestWorker(ExecutionGroup parent)
+        : base(parent)
     {
     }
 
@@ -127,15 +127,15 @@ class Program
         await cc.Task;
         // var c1 = new ExecutionCore(Root.Base);
 
-        await Test2();
+        await Test2(Root);
 
         // Root.RequestTermination();
         await Root.WaitForTermination();
     }
 
-    static async Task Test2()
+    static async Task Test2(ExecutionGroup root)
     {
-        var worker = new TestWorker();
+        var worker = new TestWorker(root);
         var job1 = worker.Rent();
         worker.Add(job1);
         Console.WriteLine(job1.State);

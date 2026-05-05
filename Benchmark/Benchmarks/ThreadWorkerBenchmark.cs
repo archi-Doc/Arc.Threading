@@ -1,14 +1,11 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Arc.Threading;
 using Benchmark.Obsolete;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Benchmark;
 
@@ -89,6 +86,7 @@ internal class ThreadWorkerBenchmark
     internal const int N = 1_000_000;
     internal const int N2 = 100;
     internal static int Count;
+    internal static readonly ExecutionRoot Root = new();
 
     internal static async Task Benchmark()
     {
@@ -99,14 +97,14 @@ internal class ThreadWorkerBenchmark
         Console.WriteLine();
 
         Console.WriteLine($"ReusableJobWorker (Thread)");
-        var jobWorkerTask = new ReusableJobWorker<TestJob>(ThreadCore.Root, EmptyMethodThread, N);
+        var jobWorkerTask = new ReusableJobWorker<TestJob>(Root, EmptyMethodThread, N);
         BenchWorker3(N, jobWorkerTask);
         jobWorkerTask.Dispose();
         Console.WriteLine(Count.ToString());
         Count = 0;
 
         Console.WriteLine($"ReusableJobWorker (Task)");
-        var jobWorker2 = new ReusableJobWorker<TestJob2>(ThreadCore.Root, EmptyMethodThread, N);
+        var jobWorker2 = new ReusableJobWorker<TestJob2>(Root, EmptyMethodThread, N);
         BenchWorker3(N, jobWorker2, default);
         jobWorker2.Dispose();
         Console.WriteLine(Count.ToString());
@@ -115,7 +113,7 @@ internal class ThreadWorkerBenchmark
         for (var i = 0; i < 1; i++)
         {
             Console.WriteLine($"ReusableJobWorker (Task fire-and-forget)");
-            jobWorker2 = new ReusableJobWorker<TestJob2>(ThreadCore.Root, EmptyMethodThread, N);
+            jobWorker2 = new ReusableJobWorker<TestJob2>(Root, EmptyMethodThread, N);
             BenchWorker3(N, jobWorker2, ReusableJobFlags.ReturnToPoolOnCompletion);
             jobWorker2.Dispose();
             Console.WriteLine(Count.ToString());
@@ -143,21 +141,21 @@ internal class ThreadWorkerBenchmark
         Console.WriteLine(Count.ToString());*/
 
         Console.WriteLine($"ReusableJobWorker heavy (Thread)");
-        var jobWorker3 = new ReusableJobWorker<TestJob>(ThreadCore.Root, HeavyMethod3, N2);
+        var jobWorker3 = new ReusableJobWorker<TestJob>(Root, HeavyMethod3, N2);
         jobWorker3.MaxConcurrentTasks = 4;
         BenchWorker3(N2, jobWorker3);
         jobWorker3.Dispose();
         Console.WriteLine(Count.ToString());
 
         Console.WriteLine($"ReusableJobWorker heavy (Task)");
-        var jobWorker4 = new ReusableJobWorker<TestJob2>(ThreadCore.Root, HeavyMethod3, N2);
+        var jobWorker4 = new ReusableJobWorker<TestJob2>(Root, HeavyMethod3, N2);
         jobWorker4.MaxConcurrentTasks = 5;
         BenchWorker3(N2, jobWorker4, default);
         jobWorker4.Dispose();
         Console.WriteLine(Count.ToString());
 
         Console.WriteLine($"ReusableJobWorker heavy (Task fire-and-forget)");
-        jobWorker4 = new ReusableJobWorker<TestJob2>(ThreadCore.Root, HeavyMethod3, N2);
+        jobWorker4 = new ReusableJobWorker<TestJob2>(Root, HeavyMethod3, N2);
         jobWorker4.MaxConcurrentTasks = 4;
         BenchWorker3(N2, jobWorker4, ReusableJobFlags.ReturnToPoolOnCompletion);
         jobWorker4.Dispose();
