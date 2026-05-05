@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 #pragma warning disable SA1124 // Do not use regions
 
-namespace Arc.Threading;
+namespace Benchmark.Obsolete;
 
 /// <summary>
 /// Support class for <see cref="System.Threading.Tasks.Task"/>.

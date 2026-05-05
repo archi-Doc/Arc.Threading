@@ -27,23 +27,6 @@ public class TestWorker : ReusableJobWorker<ReusableThreadJob>
     }
 }
 
-public class TestCore : TaskCore
-{
-    private static async Task Method(object? core)
-    {
-        Console.WriteLine("1");
-        await Task.Delay(300);
-        Console.WriteLine("2");
-        await Task.Delay(300);
-        Console.WriteLine("3");
-    }
-
-    public TestCore(ThreadCoreBase? parent, bool startImmediately = true)
-        : base(parent, Method, startImmediately)
-    {
-    }
-}
-
 public class CustomCore : TaskCore2<CustomCore>
 {
     public CustomCore(ExecutionGroup parent)
@@ -69,26 +52,25 @@ public class CustomCore : TaskCore2<CustomCore>
 
 class Program
 {
-    public static ExecutionRoot? Root { get; private set; }
+    public static ExecutionRoot Root { get; } = new();
 
     static async Task Main(string[] args)
     {
         AppCloseHandler.Set(() =>
         {// Closing the console window or terminating the process.
-            Root?.RequestTermination(); // Send a termination signal to the root.
-            Root?.WaitForTermination(TimeSpan.FromSeconds(2)).Wait();
+            Root.RequestTermination(); // Send a termination signal to the root.
+            Root.WaitForTermination(TimeSpan.FromSeconds(2)).Wait();
         });
 
         Console.CancelKeyPress += (s, e) =>
         {// Ctrl+C pressed.
             e.Cancel = true;
-            Root?.RequestTermination(); // Send a termination signal to the root.
+            Root.RequestTermination(); // Send a termination signal to the root.
         };
 
         Console.WriteLine("Hello World!");
         Console.WriteLine();
 
-        Root = new ExecutionRoot();
         var c1 = new TaskCore2(Root, async core =>
         {
             Console.WriteLine("1");

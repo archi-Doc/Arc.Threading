@@ -5,7 +5,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Arc.Threading;
 using Benchmark.Obsolete;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Benchmark;
 

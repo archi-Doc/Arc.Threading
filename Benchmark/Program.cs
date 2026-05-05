@@ -16,6 +16,8 @@ namespace Benchmark;
 
 public class Program
 {
+    public static ExecutionRoot Root { get; } = new();
+
     public static Stopwatch Stopwatch { get; } = new();
 
     public static async Task Main(string[] args)
@@ -45,7 +47,8 @@ public class Program
 
         _ = switcher.Run(args);
 
-        ThreadCore.Root.Terminate();
+        Root.RequestTermination();
+        await Root.WaitForTermination();
     }
 
     public static void DebugRun<T>()
