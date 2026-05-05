@@ -97,8 +97,8 @@ class Program
             Console.WriteLine("4");
         }, false);
 
-        // c1.SendSignal(ExecutionSignal.Start);
-        Root.SendSignal(ExecutionSignal.Start);
+        c1.SendSignal(ExecutionSignal.Start);
+        // Root.SendSignal(ExecutionSignal.Start);
         // var c1 = new ExecutionCore(Root.Base);
 
         // await Test2();

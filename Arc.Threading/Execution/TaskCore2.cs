@@ -12,7 +12,7 @@ namespace Arc.Threading;
 public class TaskCore2 : ExecutionCore
 {
     /// <inheritdoc/>
-    public override bool IsTerminated => this.Task.IsCompleted;
+    public override bool IsTerminated => this.Task.Status != TaskStatus.Running;
 
     /// <summary>
     /// Gets an instance of <see cref="System.Threading.Tasks.Task"/>.
