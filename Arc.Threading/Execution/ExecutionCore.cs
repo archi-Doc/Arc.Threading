@@ -16,7 +16,6 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     #region FieldAndProperty
 
     private readonly ExecutionSignalHandler? executionSignalHandler;
-    private TaskCompletionSource? completionSource;
 
 #pragma warning disable SA1307 // Accessible fields should begin with upper-case letter
 #pragma warning disable SA1401 // Fields should be private
@@ -279,9 +278,6 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
         }
     }
 
-    public void TrySetCompleted()
-        => this.GetCompletionSource().TrySetResult();
-
     public void SendSignal(ExecutionSignal signal)
     {
         if (this.executionSignalHandler is null)
@@ -377,18 +373,6 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
             core.Root.IdToCore.Remove(core.Id);
             core.OnRemoved();
         }
-    }
-
-    private TaskCompletionSource GetCompletionSource()
-    {
-        var current = Volatile.Read(ref this.completionSource);
-        if (current is not null)
-        {
-            return current;
-        }
-
-        var created = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        return Interlocked.CompareExchange(ref this.completionSource, created, null) ?? created;
     }
 
     private void RequestTermination(bool remove, RequestTerminationOptions options)
