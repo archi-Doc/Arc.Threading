@@ -42,6 +42,29 @@ public class TestCore : TaskCore
     }
 }
 
+public class CustomCore : TaskCore2<CustomCore>
+{
+    public CustomCore(ExecutionGroup parent)
+        : base(parent, Process)
+    {
+    }
+
+    private static async Task Process(CustomCore core)
+    {
+        Console.WriteLine("5");
+
+        try
+        {
+            await core.Delay(2000);
+        }
+        catch
+        {
+        }
+
+        Console.WriteLine("6");
+    }
+}
+
 class Program
 {
     public static ExecutionRoot? Root { get; private set; }
@@ -64,9 +87,8 @@ class Program
         Console.WriteLine();
 
         Root = new ExecutionRoot();
-        var c1 = new TaskCore2(Root, async obj =>
+        var c1 = new TaskCore2(Root, async core =>
         {
-            var core = (TaskCore2)obj!;
             Console.WriteLine("1");
 
             try
@@ -81,9 +103,8 @@ class Program
         }, false);
 
         var g = new ExecutionGroup(Root, "g", false);
-        var c2 = new TaskCore2(g, async obj =>
+        var c2 = new TaskCore2(g, async core =>
         {
-            var core = (TaskCore2)obj!;
             Console.WriteLine("3");
 
             try
@@ -97,8 +118,10 @@ class Program
             Console.WriteLine("4");
         }, false);
 
+        var cc = new CustomCore(Root);
+
         c1.SendSignal(ExecutionSignal.Start);
-        // Root.SendSignal(ExecutionSignal.Start);
+        Root.SendSignal(ExecutionSignal.Start);
         // var c1 = new ExecutionCore(Root.Base);
 
         // await Test2();
