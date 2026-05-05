@@ -129,7 +129,7 @@ class Program
 
         await Test2(Root);
 
-        // Root.RequestTermination();
+        Root.RequestTermination();
         await Root.WaitForTermination();
     }
 
@@ -143,6 +143,8 @@ class Program
         await worker.WaitForCompletion();
         // job1.Wait();
         Console.WriteLine(job1.State);
+
+        // worker.Dispose();
     }
 
     static async Task Test1()
