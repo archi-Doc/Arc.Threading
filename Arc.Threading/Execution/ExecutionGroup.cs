@@ -3,7 +3,6 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using System.Threading;
 
 namespace Arc.Threading;
 
@@ -18,10 +17,10 @@ public class ExecutionGroup : ExecutionCore
 
     #endregion
 
-    public ExecutionGroup(ExecutionGroup parent, string name, bool isIndependent)
+    public ExecutionGroup(ExecutionGroup parent, bool isIndependent = false, string? name = default)
         : base(parent, isIndependent)
     {
-        this.Name = name;
+        this.Name = name ?? string.Empty;
     }
 
     private protected ExecutionGroup()

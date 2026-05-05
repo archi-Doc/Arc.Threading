@@ -60,7 +60,7 @@ internal class Program
             Console.WriteLine("ThreadCore 1: End");
         });
 
-        var group = new ExecutionGroup(Root, "Test", false); // ThreadCoreGroup is a collection of ThreadCore objects and it's not associated with Thread/Task.
+        var group = new ExecutionGroup(Root); // ThreadCoreGroup is a collection of ThreadCore objects and it's not associated with Thread/Task.
         var c2 = new TaskCore(group, async core =>
         {// Core 2 (TaskCore): Shows a message, wait for 3 seconds, and terminates.
             Console.WriteLine("TaskCore 2: Start");

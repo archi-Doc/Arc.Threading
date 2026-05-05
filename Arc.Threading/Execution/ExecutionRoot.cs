@@ -25,8 +25,8 @@ public class ExecutionRoot : ExecutionGroup
     public ExecutionRoot()
         : base()
     {
-        this.IndependentGroup = new(this, "Independent", true);
-        this.BaseGroup = new(this, "Base", true);
+        this.IndependentGroup = new(this, true, "Independent");
+        this.BaseGroup = new(this, true, "Base");
     }
 
     public ExecutionCore? Find(long id)

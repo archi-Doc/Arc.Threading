@@ -330,7 +330,6 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
         }
     }
 
-    /// <inheritdoc/>
     public override string ToString()
     {
         return $"Core {this.Name} {(ushort)this.Id:x4}";

@@ -105,7 +105,7 @@ internal class Program
         // await TestLock();
         // await TestThreadCore_Termination();
         // await TestAsyncPulseEvent();
-        await TestExecutionStack();
+        // await TestExecutionStack();
 
         await Root.WaitForTermination(-1); // Wait for the termination infinitely.
     }
@@ -319,7 +319,7 @@ internal class Program
         }, false);
 
         c1.SendSignal(ExecutionSignal.Start);
-        var c2 = new ExecutionGroup(Root, "Test", false);
+        var c2 = new ExecutionGroup(Root);
 
         try
         {
