@@ -20,7 +20,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
 #pragma warning disable SA1307 // Accessible fields should begin with upper-case letter
 #pragma warning disable SA1401 // Fields should be private
 #pragma warning disable SA1202 // Elements should be ordered by access
-    protected bool disposed;
+    private int disposed;
     internal ExecutionGroup? parent; // Root.SyncObject
 #pragma warning restore SA1202 // Elements should be ordered by access
 #pragma warning restore SA1401 // Fields should be private
@@ -79,6 +79,8 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     public virtual bool IsActive => !this.IsCancellationRequested;
 
     public virtual bool IsTerminated => this.IsCancellationRequested;
+
+    public bool IsDisposed => Volatile.Read(ref this.disposed) != 0;
 
     // public bool IsGroup => this is ExecutionGroup; // typeof(ExecutionGroup).IsAssignableFrom(this.GetType());
 
@@ -299,22 +301,31 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
 
             list = default;
         }
-    }*/
-
-    public void RequestTermination(RequestTerminationOptions options = default)
-        => this.RequestTermination(false, options);
+    }
 
     /// <summary>
     /// Removes this execution from its owning <see cref="Stack"/>.
     /// </summary>
     public new void Dispose()
     {
-        if (Interlocked.CompareExchange(ref this.disposed, true, false) == false)
+        if (Interlocked.Exchange(ref this.disposed, 1) == 0)
         {
             this.RequestTermination(true, default);
             base.Dispose();
         }
+    }*/
+
+    protected override void Dispose(bool disposing)
+    {
+        if (Interlocked.Exchange(ref this.disposed, 1) == 0)
+        {
+            this.RequestTermination(true, default);
+            base.Dispose(disposing);
+        }
     }
+
+    public void RequestTermination(RequestTerminationOptions options = default)
+        => this.RequestTermination(false, options);
 
     void IDisposable.Dispose()
         => this.Dispose();

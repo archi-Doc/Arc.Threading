@@ -335,7 +335,7 @@ Terminated:
     /// <returns><see langword="true"/>: All works are complete.<br/><see langword="false"/>: Timeout or cancelled.</returns>
     public async Task<bool> WaitForCompletion(int millisecondsTimeout, CancellationToken cancellationToken = default)
     {
-        if (this.disposed)
+        if (this.IsDisposed)
         {
             throw new ObjectDisposedException(this.GetType().Name);
         }
@@ -356,7 +356,7 @@ Terminated:
             {
                 return true;
             }
-            else if (this.disposed)
+            else if (this.IsDisposed)
             {
                 return false;
             }
@@ -435,7 +435,7 @@ Terminated:
 
     protected override void Dispose(bool disposing)
     {
-        if (!this.disposed)
+        if (!this.IsDisposed)
         {
             if (disposing)
             {
