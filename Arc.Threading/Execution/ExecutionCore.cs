@@ -8,6 +8,22 @@ using Arc.Collections;
 
 namespace Arc.Threading;
 
+/// <summary>
+/// Represents a cancellable execution unit in the execution tree.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <see cref="ExecutionCore"/> is the base runtime object used by the threading model to represent
+/// an active or terminable execution. It participates in a parent/child hierarchy rooted at
+/// <see cref="ExecutionRoot"/> and uses <see cref="CancellationTokenSource"/> cancellation semantics
+/// to request termination.
+/// </para>
+/// <para>
+/// Instances can be attached to an <see cref="ExecutionStack"/>, grouped under an
+/// <see cref="ExecutionGroup"/>, and optionally receive application-defined signals via
+/// <see cref="SendSignal(ExecutionSignal)"/>.
+/// </para>
+/// </remarks>
 [DebuggerDisplay("{ToString()}")]
 public class ExecutionCore : CancellationTokenSource, IDisposable
 {
@@ -26,8 +42,14 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
 #pragma warning restore SA1401 // Fields should be private
 #pragma warning restore SA1307 // Accessible fields should begin with upper-case letter
 
+    /// <summary>
+    /// Gets the execution root that owns this execution tree.
+    /// </summary>
     public ExecutionRoot Root { get; }
 
+    /// <summary>
+    /// Gets or sets a display name for this execution.
+    /// </summary>
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
@@ -35,6 +57,17 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// </summary>
     public ExecutionStack? Stack { get; internal set; } // Root.SyncObject
 
+    /// <summary>
+    /// Gets or sets the parent execution group.
+    /// </summary>
+    /// <remarks>
+    /// Setting this property updates group membership under <c>Root.SyncObject</c> synchronization.<br/>
+    /// The operation rejects invalid relationships such as self-parenting, cycles, and cross-root moves.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when assigning this instance as its own parent, or when assigning one of its descendants
+    /// as the new parent.
+    /// </exception>
     public ExecutionGroup? Parent
     {
         get => this.parent;
@@ -79,24 +112,35 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     }
 
     /// <summary>
-    /// Gets the identifier of this execution within the owning <see cref="Stack"/>.
+    /// Gets the identifier of this execution.
     /// </summary>
     public int Id { get; private set; }
 
     /// <summary>
-    /// Gets a value indicating whether this execution is the root execution (<c>Id == 0</c>).
+    /// Gets a value indicating whether this is the execution root.
     /// </summary>
     public bool IsRoot => ReferenceEquals(this, this.Root); // this.Id == 0;
 
+    /// <summary>
+    /// Gets or sets a value indicating whether this execution should be excluded from default
+    /// recursive termination requests.
+    /// </summary>
     public bool IsIndependent { get; set; }
 
+    /// <summary>
+    /// Gets a value indicating whether this execution is currently active.
+    /// </summary>
     public virtual bool IsActive => !this.IsCancellationRequested;
 
+    /// <summary>
+    /// Gets a value indicating whether this execution has been terminated.
+    /// </summary>
     public virtual bool IsTerminated => this.IsCancellationRequested;
 
+    /// <summary>
+    /// Gets a value indicating whether this instance has been disposed.
+    /// </summary>
     public bool IsDisposed => Volatile.Read(ref this.disposed) != 0;
-
-    // public bool IsGroup => this is ExecutionGroup; // typeof(ExecutionGroup).IsAssignableFrom(this.GetType());
 
     /// <summary>
     /// Gets the <see cref="System.Threading.CancellationToken"/> associated with this execution.
@@ -108,11 +152,28 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
 
     #endregion
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ExecutionCore"/> class.
+    /// </summary>
+    /// <param name="parent">The parent group that owns this execution.</param>
+    /// <param name="executionSignalHandler">
+    /// Optional signal callback invoked by <see cref="SendSignal(ExecutionSignal)"/>.
+    /// </param>
     public ExecutionCore(ExecutionGroup parent, ExecutionSignalHandler? executionSignalHandler = default)
         : this(parent, null, executionSignalHandler)
     {
     }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ExecutionCore"/> class.
+    /// </summary>
+    /// <param name="parent">The parent group that owns this execution.</param>
+    /// <param name="isIndependent">
+    /// A value indicating whether this execution is independent from default recursive termination.
+    /// </param>
+    /// <param name="executionSignalHandler">
+    /// Optional signal callback invoked by <see cref="SendSignal(ExecutionSignal)"/>.
+    /// </param>
     public ExecutionCore(ExecutionGroup parent, bool isIndependent, ExecutionSignalHandler? executionSignalHandler = default)
         : this(parent, null, executionSignalHandler)
     {
@@ -135,7 +196,6 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
                     break;
                 }
             }*/
-
             this.Id = (int)Random.Shared.NextInt64();
             stack?.AddInternal(this);
             parent.AddChildInternal(this);
@@ -165,6 +225,9 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// <param name="delay">The TimeSpan to wait.</param>
     /// <param name="cancellationToken">An additional cancellation token that can be used to cancel the delay.</param>
     /// <returns><see langword="true"/> if the time successfully elapsed, <see langword="false"/> if the thread/task is terminated.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown when <paramref name="delay"/> is negative and not <see cref="Timeout.InfiniteTimeSpan"/>.
+    /// </exception>
     public async Task<bool> Delay(TimeSpan delay, CancellationToken cancellationToken = default)
     {
         if (delay < TimeSpan.Zero && delay != Timeout.InfiniteTimeSpan)
@@ -196,7 +259,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// Asynchronously waits indefinitely for this execution to terminate.
     /// </summary>
     /// <param name="cancellationToken">An additional token that can cancel the wait operation.</param>
-    /// <returns>A task that represents the wait operation.</returns>
+    /// <returns><see langword="true"/> if termination was observed; otherwise, <see langword="false"/>.</returns>
     public Task<bool> WaitForTermination(CancellationToken cancellationToken = default)
         => this.WaitForTermination(Timeout.InfiniteTimeSpan, cancellationToken);
 
@@ -206,7 +269,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// </summary>
     /// <param name="millisecondsTimeout">The number of milliseconds to wait before termination, or -1 to wait indefinitely.</param>
     /// <param name="cancellationToken">An additional cancellation token to cancel the wait operation.</param>
-    /// <returns>A task that represents waiting for termination.</returns>
+    /// <returns><see langword="true"/> if termination was observed; otherwise, <see langword="false"/>.</returns>
     public Task<bool> WaitForTermination(int millisecondsTimeout, CancellationToken cancellationToken = default)
         => this.WaitForTermination(TimeSpan.FromMilliseconds(millisecondsTimeout), cancellationToken);
 
@@ -216,7 +279,10 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// </summary>
     /// <param name="timeout">The <see cref="TimeSpan"/> to wait before termination.</param>
     /// <param name="cancellationToken">An additional cancellation token to cancel the wait operation.</param>
-    /// <returns>A task that represents waiting for termination.</returns>
+    /// <returns><see langword="true"/> if termination was observed before timeout/cancellation; otherwise, <see langword="false"/>.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown when <paramref name="timeout"/> is negative and not <see cref="Timeout.InfiniteTimeSpan"/>.
+    /// </exception>
     public virtual async Task<bool> WaitForTermination(TimeSpan timeout, CancellationToken cancellationToken = default)
     {
         if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
@@ -276,6 +342,14 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
         }
     }
 
+    /// <summary>
+    /// Sends a signal to this execution.
+    /// </summary>
+    /// <param name="signal">The signal payload to dispatch.</param>
+    /// <remarks>
+    /// If a custom signal handler was provided at construction time, that handler is invoked;
+    /// otherwise <see cref="OnSignalReceived(ExecutionSignal)"/> is called.
+    /// </remarks>
     public void SendSignal(ExecutionSignal signal)
     {
         if (this.executionSignalHandler is null)
@@ -288,10 +362,26 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
         }
     }
 
+    /// <summary>
+    /// Called when a signal is delivered and no external signal handler was supplied.
+    /// </summary>
+    /// <param name="signal">The received signal.</param>
+    /// <remarks>
+    /// The base implementation does nothing. Override in derived types to react to signals.
+    /// </remarks>
     public virtual void OnSignalReceived(ExecutionSignal signal)
     {
     }
 
+    /// <summary>
+    /// Requests termination for this execution.
+    /// </summary>
+    /// <param name="options">
+    /// Termination behavior flags controlling how child executions are processed.
+    /// </param>
+    /// <remarks>
+    /// Calling this method is idempotent and safe to invoke multiple times.
+    /// </remarks>
     public void RequestTermination(RequestTerminationOptions options = default)
     {
         if (this.IsDisposed)
@@ -302,9 +392,10 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
         this.RequestTerminationCore(false, options);
     }
 
-    void IDisposable.Dispose()
-        => this.Dispose();
-
+    /// <summary>
+    /// Returns a compact debug string for this execution.
+    /// </summary>
+    /// <returns>A display string containing type, name, and truncated identifier.</returns>
     public override string ToString()
     {
         return $"Core {this.Name} {(ushort)this.Id:x4}"; // Display only the lower 16 bits to keep DebuggerDisplay compact.

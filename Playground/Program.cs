@@ -102,6 +102,22 @@ class Program
             Console.WriteLine("4");
         }, false);
 
+        var tc = new ThreadCore(Root, async core =>
+        {
+            Console.WriteLine("A");
+
+            try
+            {
+                Thread.Sleep(500);
+            }
+            catch
+            {
+            }
+
+            Console.WriteLine("B");
+        }, false);
+        tc.Name = "ThreadCore";
+
         var cc = new CustomCore(Root);
 
         c1.SendSignal(ExecutionSignal.Start);

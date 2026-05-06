@@ -94,7 +94,8 @@ public class ExecutionGroup : ExecutionCore
 
     public override string ToString()
     {
-        return $"{this.Name}({this.Count}) {(ushort)this.Id:x4}";
+        var name = string.IsNullOrEmpty(this.Name) ? "Group" : this.Name;
+        return $"{name}({this.Count}) {(ushort)this.Id:x4}";
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
