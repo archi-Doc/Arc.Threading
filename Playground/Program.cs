@@ -84,13 +84,12 @@ class Program
             }
 
             Console.WriteLine("2");
-        }, false);
+        });
 
         var g = new ExecutionGroup(Root);
         var c2 = new TaskCore(g, async core =>
         {
             Console.WriteLine("3");
-
             try
             {
                 await core.Delay(1500);
@@ -100,7 +99,8 @@ class Program
             }
 
             Console.WriteLine("4");
-        }, false);
+        }
+        );
 
         var tc = new ThreadCore(Root, async core =>
         {

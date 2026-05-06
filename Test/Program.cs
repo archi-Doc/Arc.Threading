@@ -316,7 +316,7 @@ internal class Program
             }
 
             Console.WriteLine("TaskCore 1: End");
-        }, false);
+        });
 
         c1.SendSignal(ExecutionSignal.Start);
         var c2 = new ExecutionGroup(Root);

@@ -215,11 +215,9 @@ Terminated:
     /// Optional delegate used to process each job. If <see langword="null"/>, <see cref="OnJobProcessing(TJob, CancellationToken)"/> is invoked.
     /// </param>
     /// <param name="poolCapacity">Initial capacity of the reusable job object pool.</param>
-    /// <param name="startImmediately">
-    /// <see langword="true"/> to start the worker thread during construction; otherwise, manual start is required.
-    /// </param>
-    public ReusableJobWorker(ExecutionGroup parent, ProcessJobDelegate? processJob = default, int poolCapacity = DefaultPoolCapacity, bool startImmediately = true)
-        : base(parent, Process, startImmediately)
+    /// <param name="options">Behavior flags controlling startup and completion semantics.</param>
+    public ReusableJobWorker(ExecutionGroup parent, ProcessJobDelegate? processJob = default, int poolCapacity = DefaultPoolCapacity, ExecutionCoreOptions options = ExecutionCoreOptions.Default)
+        : base(parent, Process, options)
     {
         this.processJob = processJob;
         this.freeJobs = new(() => new(), poolCapacity);

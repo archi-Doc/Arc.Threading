@@ -10,11 +10,11 @@ namespace Arc.Threading;
 public class TaskCore<TSelf> : TaskCore
     where TSelf : TaskCore<TSelf>
 {
-    public TaskCore(ExecutionGroup parent, Func<TSelf, Task> method, bool startImmediately = true)
-        : base(parent)
+    public TaskCore(ExecutionGroup parent, Func<TSelf, Task> method, ExecutionCoreOptions options = ExecutionCoreOptions.Default)
+        : base(parent, options)
     {
         var task = new Task(() => method((TSelf)this).GetAwaiter().GetResult(), TaskCreationOptions.LongRunning);
-        this.Initialize(task, startImmediately);
+        this.Initialize(task);
     }
 }
 
@@ -33,17 +33,26 @@ public class TaskCore : ExecutionCore
     public Task Task { get; private set; }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="TaskCore"/> class.<br/>
-    /// method: async <see cref="System.Threading.Tasks.Task"/> Method(<see cref="object"/>? parameter).
+    /// Gets the behavior flags controlling this thread core.
     /// </summary>
-    /// <param name="parent">The parent of this thread/task.<br/>
-    /// Specify <see langword="null"/> to be independent (does not receive a termination signal from parent).</param>
-    /// <param name="method">The method that executes on a <see cref="System.Threading.Tasks.Task"/>.</param>
-    /// <param name="startImmediately">Starts the task immediately.<br/>
-    /// <see langword="false"/>: Manually call <see cref="ExecutionCore.SendSignal(ExecutionSignal)"/> to start the task.</param>
-    public TaskCore(ExecutionGroup parent, Func<TaskCore, Task> method, bool startImmediately = true)
+    public ExecutionCoreOptions Options { get; }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="TaskCore"/> class.
+    /// </summary>
+    /// <param name="parent">The parent execution group that owns this core.</param>
+    /// <param name="method">The delegate executed on the dedicated thread.</param>
+    /// <param name="options">Behavior flags controlling startup and completion semantics.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="method"/> is <see langword="null"/>.</exception>
+    /// <remarks>
+    /// If <see cref="ExecutionCoreOptions.StartImmediately"/> is specified, a start signal is sent during construction.
+    /// If <see cref="ExecutionCoreOptions.DisposeOnCompletion"/> is specified, this instance is disposed in a <see langword="finally"/> block.
+    /// </remarks>
+    public TaskCore(ExecutionGroup parent, Func<TaskCore, Task> method, ExecutionCoreOptions options = ExecutionCoreOptions.Default)
         : base(parent)
     {
+        this.Options = options;
+
         // this.Task = System.Threading.Tasks.Task.Run(async () => { await method(this); });
         // this.Task = System.Threading.Tasks.Task.Factory.StartNew(async () => { await method(this); }, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
         // this.Task = new Task(() => method(this).Wait(this.CancellationToken), TaskCreationOptions.LongRunning);
@@ -51,13 +60,14 @@ public class TaskCore : ExecutionCore
         // this.Task = new Task(async () => await method(this).ConfigureAwait(false), TaskCreationOptions.LongRunning);
 
         var task = new Task(() => method(this).GetAwaiter().GetResult(), TaskCreationOptions.LongRunning);
-        this.Initialize(task, startImmediately);
+        this.Initialize(task);
     }
 
-    protected TaskCore(ExecutionGroup parent)
+    protected TaskCore(ExecutionGroup parent, ExecutionCoreOptions options)
         : base(parent)
     {
         this.Task = default!;
+        this.Options = options;
     }
 
     public override void OnSignalReceived(ExecutionSignal signal)
@@ -72,10 +82,10 @@ public class TaskCore : ExecutionCore
     }
 
     [MemberNotNull(nameof(Task))]
-    protected void Initialize(Task task, bool startImmediately)
+    protected void Initialize(Task task)
     {
         this.Task = task;
-        if (startImmediately)
+        if (this.Options.HasFlag(ExecutionCoreOptions.StartImmediately))
         {
             this.SendSignal(ExecutionSignal.Start);
         }
