@@ -3,8 +3,10 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Arc.Collections;
 
 namespace Arc.Threading;
 
@@ -283,7 +285,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
 
     public new void Cancel()
     {
-        List<ExecutionCore>? list = default;
+        TemporaryList<ExecutionCore> list = default;
         while (true)
         {
             using (this.Root.SyncObject.EnterScope())
@@ -291,7 +293,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
                 ProcessCancellationInternal(ref list, this, false, default);
             }
 
-            if (list is null || list.Count == 0)
+            if (list.Count == 0)
             {
                 break;
             }
@@ -301,7 +303,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
                 ((CancellationTokenSource)x).Cancel();
             }
 
-            list.Clear();
+            list = default;
         }
     }
 
@@ -325,7 +327,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
         return $"Core {this.Name} {(ushort)this.Id:x4}";
     }
 
-    private static void ProcessCancellationInternal(ref List<ExecutionCore>? list, ExecutionCore core, bool remove, RequestTerminationOptions options)
+    private static void ProcessCancellationInternal(ref TemporaryList<ExecutionCore> list, ExecutionCore core, bool remove, RequestTerminationOptions options)
     {
         if (core is ExecutionGroup group)
         {
@@ -342,7 +344,6 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
 
         if (!core.IsCancellationRequested)
         {
-            list ??= new();
             list.Add(core);
         }
 
@@ -352,7 +353,6 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
 
             core.Id = 0;
             core.parent = default;
-
             if (core is ExecutionGroup group2)
             {
                 group2.ClearInternal();
@@ -360,9 +360,15 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
         }
     }
 
+    [InlineArray(4)]
+    private struct InlineBuffer4
+    {
+        private ExecutionCore? element0;
+    }
+
     private void RequestTermination(bool remove, RequestTerminationOptions options)
     {
-        List<ExecutionCore>? list = default;
+        TemporaryList<ExecutionCore> list = default;
         while (true)
         {
             using (this.Root.SyncObject.EnterScope())
@@ -377,7 +383,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
                 remove = false;
             }
 
-            if (list is null || list.Count == 0)
+            if (list.Count == 0)
             {
                 break;
             }
@@ -393,7 +399,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
                 }
             }
 
-            list.Clear();
+            list = default;
         }
     }
 }

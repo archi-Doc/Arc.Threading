@@ -33,10 +33,19 @@ public class ExecutionCoreBenchmark
         return cts;
     }
 
-    // [Benchmark]
+    [Benchmark]
     public CancellationTokenSource CreateAndDisposeCts()
     {
         var cts = new CancellationTokenSource();
+        cts.Dispose();
+        return cts;
+    }
+
+    [Benchmark]
+    public CancellationTokenSource CreateAndCancelAndDisposeCts()
+    {
+        var cts = new CancellationTokenSource();
+        cts.Cancel();
         cts.Dispose();
         return cts;
     }
