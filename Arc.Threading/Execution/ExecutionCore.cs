@@ -40,21 +40,26 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
         get => this.parent;
         set
         {
-            if (this.IsRoot ||
-                this.parent == value)
+            using (this.Root.SyncObject.EnterScope())
             {
-                return;
-            }
-            else if (value is null)
-            {
-                using (this.Root.SyncObject.EnterScope())
+                if (this.IsRoot || this.parent == value)
+                {
+                    return;
+                }
+                else if (value is null)
                 {
                     this.parent?.RemoveChildInternal(this);
                 }
-            }
-            else
-            {
-                value.AddChild(this);
+                else
+                {
+                    if (this.Root != value.Root)
+                    {
+                        ExecutionHelper.ThrowDifferentParentException();
+                    }
+
+                    this.Parent?.RemoveChildInternal(this);
+                    value.AddChildInternal(this);
+                }
             }
         }
     }
@@ -67,7 +72,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// <summary>
     /// Gets a value indicating whether this execution is the root execution (<c>Id == 0</c>).
     /// </summary>
-    public bool IsRoot => this.Id == 0;
+    public bool IsRoot => ReferenceEquals(this, this.Root); // this.Id == 0;
 
     public bool IsIndependent { get; set; }
 
@@ -75,7 +80,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
 
     public virtual bool IsTerminated => this.IsCancellationRequested;
 
-    public bool IsGroup => typeof(ExecutionGroup).IsAssignableFrom(this.GetType());
+    public bool IsGroup => this is ExecutionGroup; // typeof(ExecutionGroup).IsAssignableFrom(this.GetType());
 
     /// <summary>
     /// Gets the <see cref="System.Threading.CancellationToken"/> associated with this execution.
@@ -84,22 +89,9 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
 
     #endregion
 
-    /*public static ExecutionCore? TryCreate(ExecutionCore parent, long id, ExecutionStack? stack = default, ExecutionSignalHandler? executionSignalHandler = default)
+    public ExecutionCore(int x)
     {
-        var root = parent.Root;
-        using (root.SyncObject.EnterScope())
-        {
-            if (root.IdToCore.TryGetValue(id, out var core))
-            {// Already exists
-                return core;
-            }
-
-            core = new ExecutionCore(parent, id, executionSignalHandler);
-            root.IdToCore.Add(id, core);
-            stack?.AddInternal(core);
-            return core;
-        }
-    }*/
+    }
 
     public ExecutionCore(ExecutionGroup parent, ExecutionSignalHandler? executionSignalHandler = default)
         : this(parent, null, executionSignalHandler)
@@ -119,7 +111,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
 
         using (this.Root.SyncObject.EnterScope())
         {
-            while (true)
+            /*while (true)
             {
                 var id = Random.Shared.NextInt64();
                 if (this.Root.IdToCore.TryAdd(id, this))
@@ -127,7 +119,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
                     this.Id = id;
                     break;
                 }
-            }
+            }*/
 
             stack?.AddInternal(this);
             parent.AddChildInternal(this);
@@ -139,7 +131,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
         this.Root = (ExecutionRoot)this;
         this.Name = "Root";
         this.Id = 0;
-        this.Root.IdToCore[0] = this;
+        // this.Root.IdToCore[0] = this;
     }
 
     /*private ExecutionCore(ExecutionCore parent, long id, ExecutionSignalHandler? executionSignalHandler)
@@ -205,7 +197,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// <param name="cancellationToken">An additional cancellation token to cancel the wait operation.</param>
     /// <returns>A task that represents waiting for termination.</returns>
     public Task<bool> WaitForTermination(int millisecondsTimeout, CancellationToken cancellationToken = default)
-        => this.WaitForTermination(TimeSpan.FromMilliseconds(millisecondsTimeout));
+        => this.WaitForTermination(TimeSpan.FromMilliseconds(millisecondsTimeout), cancellationToken);
 
     /// <summary>
     /// Asynchronously waits for the termination of the thread/task.<br/>
@@ -238,7 +230,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
             {
                 await Task.Delay(WaitInterval, cancellationToken).ConfigureAwait(false);
             }
-            catch
+            catch (OperationCanceledException)
             {
                 return false;
             }
@@ -318,13 +310,11 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
 
     /// <summary>
     /// Removes this execution from its owning <see cref="Stack"/>.
-    /// </summary>using (this.Root.SyncObject.EnterScope())
+    /// </summary>
     public new void Dispose()
     {
-        if (!this.disposed)
+        if (Interlocked.CompareExchange(ref this.disposed, true, false) == false)
         {
-            this.disposed = true;
-
             this.RequestTermination(true, default);
             base.Dispose();
         }
@@ -358,7 +348,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
 
         if (remove)
         {
-            core.Root.IdToCore.Remove(core.Id);
+            // core.Root.IdToCore.Remove(core.Id);
 
             core.Id = 0;
             core.parent = default;

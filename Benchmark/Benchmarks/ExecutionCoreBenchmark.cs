@@ -26,14 +26,14 @@ public class ExecutionCoreBenchmark
     {
     }
 
-    [Benchmark]
+    // [Benchmark]
     public CancellationTokenSource CreateCts()
     {
         var cts = new CancellationTokenSource();
         return cts;
     }
 
-    [Benchmark]
+    // [Benchmark]
     public CancellationTokenSource CreateAndDisposeCts()
     {
         var cts = new CancellationTokenSource();
@@ -46,5 +46,11 @@ public class ExecutionCoreBenchmark
     {
         using var core = new ExecutionCore(Program.Root);
         return core;
+    }
+
+    [Benchmark]
+    public ExecutionCore CreateExecutionCore2()
+    {
+        return new ExecutionCore(1);
     }
 }

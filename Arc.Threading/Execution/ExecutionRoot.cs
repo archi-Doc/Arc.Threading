@@ -13,7 +13,7 @@ public class ExecutionRoot : ExecutionGroup
 #pragma warning disable SA1304 // Non-private readonly fields should begin with upper-case letter
 
     internal readonly Lock SyncObject = new();
-    internal readonly Dictionary<long, ExecutionCore> IdToCore = new(); // SyncObject
+    // internal readonly Dictionary<long, ExecutionCore> IdToCore = new(); // SyncObject
 
 #pragma warning restore SA1304 // Non-private readonly fields should begin with upper-case letter
 #pragma warning restore SA1401 // Fields should be private
@@ -29,15 +29,6 @@ public class ExecutionRoot : ExecutionGroup
         this.BaseGroup = new(this, true, "Base");
     }
 
-    public ExecutionCore? Find(long id)
-    {
-        using (this.SyncObject.EnterScope())
-        {
-            this.IdToCore.TryGetValue(id, out var core);
-            return core;
-        }
-    }
-
     public override Task<bool> WaitForTermination(TimeSpan timeout, CancellationToken cancellationToken = default)
     {
         if (this.BaseGroup.IsActive)
@@ -46,6 +37,15 @@ public class ExecutionRoot : ExecutionGroup
         }
 
         return base.WaitForTermination(timeout, cancellationToken);
+    }
+
+    /*public ExecutionCore? Find(long id)
+    {
+        using (this.SyncObject.EnterScope())
+        {
+            this.IdToCore.TryGetValue(id, out var core);
+            return core;
+        }
     }
 
     public bool FindCancellationToken(long id, out CancellationToken cancellationToken)
@@ -60,5 +60,5 @@ public class ExecutionRoot : ExecutionGroup
             cancellationToken = default;
             return false;
         }
-    }
+    }*/
 }

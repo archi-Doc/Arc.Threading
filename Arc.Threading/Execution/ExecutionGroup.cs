@@ -3,6 +3,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace Arc.Threading;
 
@@ -57,6 +58,28 @@ public class ExecutionGroup : ExecutionCore
         using (this.Root.SyncObject.EnterScope())
         {
             return this.GetChildrenArrayInternal();
+        }
+    }
+
+    public ExecutionCore? Find(long id)
+    {
+        using (this.Root.SyncObject.EnterScope())
+        {
+            return this.childrenList.Find(x => x.Id == id);
+        }
+    }
+
+    public bool FindCancellationToken(long id, out CancellationToken cancellationToken)
+    {
+        if (this.Find(id) is { } core)
+        {
+            cancellationToken = core.CancellationToken;
+            return true;
+        }
+        else
+        {
+            cancellationToken = default;
+            return false;
         }
     }
 
