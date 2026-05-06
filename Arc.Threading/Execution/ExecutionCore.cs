@@ -315,15 +315,6 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
         }
     }*/
 
-    protected override void Dispose(bool disposing)
-    {
-        if (Interlocked.Exchange(ref this.disposed, 1) == 0)
-        {
-            this.RequestTermination(true, default);
-            base.Dispose(disposing);
-        }
-    }
-
     public void RequestTermination(RequestTerminationOptions options = default)
         => this.RequestTermination(false, options);
 
@@ -333,6 +324,21 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     public override string ToString()
     {
         return $"Core {this.Name} {(ushort)this.Id:x4}"; // Display only the lower 16 bits to keep DebuggerDisplay compact.
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (Interlocked.Exchange(ref this.disposed, 1) != 0)
+        {
+            return;
+        }
+
+        if (disposing)
+        {
+            this.RequestTermination(remove: true, default);
+        }
+
+        base.Dispose(disposing);
     }
 
     private static void ProcessCancellationInternal(ref TemporaryList<ExecutionCore> list, ExecutionCore core, bool remove, RequestTerminationOptions options)
