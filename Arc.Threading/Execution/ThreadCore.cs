@@ -59,7 +59,7 @@ public class ThreadCore : ExecutionCore
             }
             finally
             {
-                if ((core.Options & ExecutionCoreOptions.DisposeOnCompletion) != 0)
+                if (this.Options.HasFlag(ExecutionCoreOptions.DisposeOnCompletion))
                 {
                     core.Dispose();
                 }
