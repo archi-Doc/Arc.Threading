@@ -7,9 +7,25 @@ using System.Threading.Tasks;
 
 namespace Arc.Threading;
 
+/// <summary>
+/// Provides a strongly typed <see cref="TaskCore"/> implementation that exposes the current instance
+/// as <typeparamref name="TSelf"/> to the execution delegate.
+/// </summary>
+/// <typeparam name="TSelf">
+/// The concrete <see cref="TaskCore{TSelf}"/> type used by the execution delegate.
+/// </typeparam>
 public class TaskCore<TSelf> : TaskCore
     where TSelf : TaskCore<TSelf>
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="TaskCore{TSelf}"/> class.
+    /// </summary>
+    /// <param name="parent">The parent execution group that owns this core.</param>
+    /// <param name="method">
+    /// The asynchronous delegate executed by the underlying long-running task.
+    /// The current instance is passed as <typeparamref name="TSelf"/>.
+    /// </param>
+    /// <param name="options">Behavior flags controlling startup and completion semantics.</param>
     public TaskCore(ExecutionGroup parent, Func<TSelf, Task> method, ExecutionCoreOptions options = ExecutionCoreOptions.Default)
         : base(parent, options)
     {
@@ -19,21 +35,24 @@ public class TaskCore<TSelf> : TaskCore
 }
 
 /// <summary>
-/// Support class for <see cref="System.Threading.Tasks.Task"/>.
+/// Represents an <see cref="ExecutionCore"/> backed by a dedicated long-running <see cref="System.Threading.Tasks.Task"/>.
 /// </summary>
 public class TaskCore : ExecutionCore
 {
     private int started;
 
+    /// <summary>
+    /// Gets a value indicating whether the underlying task is no longer in the <see cref="TaskStatus.Running"/> state.
+    /// </summary>
     public override bool IsTerminated => this.Task.Status != TaskStatus.Running;
 
     /// <summary>
-    /// Gets an instance of <see cref="System.Threading.Tasks.Task"/>.
+    /// Gets the underlying task managed by this execution core.
     /// </summary>
     public Task Task { get; private set; }
 
     /// <summary>
-    /// Gets the behavior flags controlling this thread core.
+    /// Gets the behavior flags controlling this task core.
     /// </summary>
     public ExecutionCoreOptions Options { get; }
 
@@ -41,12 +60,10 @@ public class TaskCore : ExecutionCore
     /// Initializes a new instance of the <see cref="TaskCore"/> class.
     /// </summary>
     /// <param name="parent">The parent execution group that owns this core.</param>
-    /// <param name="method">The delegate executed on the dedicated thread.</param>
+    /// <param name="method">The asynchronous delegate executed by the underlying long-running task.</param>
     /// <param name="options">Behavior flags controlling startup and completion semantics.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="method"/> is <see langword="null"/>.</exception>
     /// <remarks>
     /// If <see cref="ExecutionCoreOptions.StartImmediately"/> is specified, a start signal is sent during construction.
-    /// If <see cref="ExecutionCoreOptions.DisposeOnCompletion"/> is specified, this instance is disposed in a <see langword="finally"/> block.
     /// </remarks>
     public TaskCore(ExecutionGroup parent, Func<TaskCore, Task> method, ExecutionCoreOptions options = ExecutionCoreOptions.Default)
         : base(parent)
@@ -63,6 +80,12 @@ public class TaskCore : ExecutionCore
         this.Initialize(task);
     }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="TaskCore"/> class for derived types
+    /// that defer task creation until a later call to <see cref="Initialize(Task)"/>.
+    /// </summary>
+    /// <param name="parent">The parent execution group that owns this core.</param>
+    /// <param name="options">Behavior flags controlling startup and completion semantics.</param>
     protected TaskCore(ExecutionGroup parent, ExecutionCoreOptions options)
         : base(parent)
     {
