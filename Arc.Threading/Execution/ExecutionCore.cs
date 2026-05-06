@@ -321,7 +321,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
 
     public override string ToString()
     {
-        return $"Core {this.Name} {(ushort)this.Id:x4}";
+        return $"Core {this.Name} {(ushort)this.Id:x4}"; // Display only the lower 16 bits to keep DebuggerDisplay compact.
     }
 
     private static void ProcessCancellationInternal(ref TemporaryList<ExecutionCore> list, ExecutionCore core, bool remove, RequestTerminationOptions options)
