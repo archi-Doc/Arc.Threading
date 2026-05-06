@@ -29,25 +29,8 @@ public class TaskCore<TSelf> : TaskCore
     public TaskCore(ExecutionGroup parent, Func<TSelf, Task> method, ExecutionCoreOptions options = ExecutionCoreOptions.Default)
         : base(parent, options)
     {
-        // var task = new Task(() => method((TSelf)this).GetAwaiter().GetResult(), TaskCreationOptions.LongRunning);
-        var task = new Task(
-            () =>
-            {
-                try
-                {
-                    method((TSelf)this).GetAwaiter().GetResult();
-                }
-                finally
-                {
-                    if ((this.Options & ExecutionCoreOptions.DisposeOnCompletion) != 0)
-                    {
-                        this.Dispose();
-                    }
-                }
-            },
-            TaskCreationOptions.LongRunning);
-
-        this.Initialize(task);
+        ArgumentNullException.ThrowIfNull(method);
+        this.Initialize(this.CreateLongRunningTask(() => method((TSelf)this)));
     }
 }
 
@@ -96,24 +79,7 @@ public class TaskCore : ExecutionCore
         // this.Task = new Task(async () => await method(this).ConfigureAwait(false), TaskCreationOptions.LongRunning);
 
         // var task = new Task(() => method(this).GetAwaiter().GetResult(), TaskCreationOptions.LongRunning);
-        var task = new Task(
-            () =>
-            {
-                try
-                {
-                    method(this).GetAwaiter().GetResult();
-                }
-                finally
-                {
-                    if ((this.Options & ExecutionCoreOptions.DisposeOnCompletion) != 0)
-                    {
-                        this.Dispose();
-                    }
-                }
-            },
-            TaskCreationOptions.LongRunning);
-
-        this.Initialize(task);
+        this.Initialize(this.CreateLongRunningTask(() => method(this)));
     }
 
     /// <summary>
@@ -148,5 +114,27 @@ public class TaskCore : ExecutionCore
         {
             this.SendSignal(ExecutionSignal.Start);
         }
+    }
+
+    protected Task CreateLongRunningTask(Func<Task> method)
+    {
+        ArgumentNullException.ThrowIfNull(method);
+
+        return new Task(
+            () =>
+            {
+                try
+                {
+                    method().GetAwaiter().GetResult();
+                }
+                finally
+                {
+                    if ((this.Options & ExecutionCoreOptions.DisposeOnCompletion) != 0)
+                    {
+                        this.Dispose();
+                    }
+                }
+            },
+            TaskCreationOptions.LongRunning);
     }
 }
