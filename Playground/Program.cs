@@ -142,7 +142,7 @@ class Program
         // job1.Wait();
         Console.WriteLine(job1.State);
 
-        // worker.Dispose();
+        worker.Dispose();
     }
 
     static async Task Test1()

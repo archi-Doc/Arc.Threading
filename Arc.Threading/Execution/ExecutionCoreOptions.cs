@@ -7,8 +7,6 @@ namespace Arc.Threading;
 [Flags]
 public enum ExecutionCoreOptions
 {
-    None = 0,
-
     /// <summary>
     /// Starts the thread immediately after the instance is initialized.
     /// </summary>
@@ -20,7 +18,9 @@ public enum ExecutionCoreOptions
     DisposeOnCompletion = 1 << 1,
 
     /// <summary>
-    /// Default behavior.
+    /// Default behavior.<br/>
+    /// Starts the thread immediately after the instance is initialized.<br/>
+    /// Disposes the ThreadCore instance when the thread method exits.
     /// </summary>
     Default = StartImmediately | DisposeOnCompletion,
 }

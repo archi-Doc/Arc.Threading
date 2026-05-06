@@ -29,7 +29,24 @@ public class TaskCore<TSelf> : TaskCore
     public TaskCore(ExecutionGroup parent, Func<TSelf, Task> method, ExecutionCoreOptions options = ExecutionCoreOptions.Default)
         : base(parent, options)
     {
-        var task = new Task(() => method((TSelf)this).GetAwaiter().GetResult(), TaskCreationOptions.LongRunning);
+        // var task = new Task(() => method((TSelf)this).GetAwaiter().GetResult(), TaskCreationOptions.LongRunning);
+        var task = new Task(
+            () =>
+            {
+                try
+                {
+                    method((TSelf)this).GetAwaiter().GetResult();
+                }
+                finally
+                {
+                    if ((this.Options & ExecutionCoreOptions.DisposeOnCompletion) != 0)
+                    {
+                        this.Dispose();
+                    }
+                }
+            },
+            TaskCreationOptions.LongRunning);
+
         this.Initialize(task);
     }
 }
@@ -44,7 +61,7 @@ public class TaskCore : ExecutionCore
     /// <summary>
     /// Gets a value indicating whether the underlying task is no longer in the <see cref="TaskStatus.Running"/> state.
     /// </summary>
-    public override bool IsTerminated => this.Task.Status != TaskStatus.Running;
+    public override bool IsTerminated => Volatile.Read(ref this.started) != 0 && this.Task.IsCompleted; // this.Task.Status != TaskStatus.Running;
 
     /// <summary>
     /// Gets the underlying task managed by this execution core.
@@ -68,6 +85,8 @@ public class TaskCore : ExecutionCore
     public TaskCore(ExecutionGroup parent, Func<TaskCore, Task> method, ExecutionCoreOptions options = ExecutionCoreOptions.Default)
         : base(parent)
     {
+        ArgumentNullException.ThrowIfNull(method);
+
         this.Options = options;
 
         // this.Task = System.Threading.Tasks.Task.Run(async () => { await method(this); });
@@ -76,7 +95,24 @@ public class TaskCore : ExecutionCore
         // this.Task = new Task(() => method(this).Wait(), TaskCreationOptions.LongRunning);
         // this.Task = new Task(async () => await method(this).ConfigureAwait(false), TaskCreationOptions.LongRunning);
 
-        var task = new Task(() => method(this).GetAwaiter().GetResult(), TaskCreationOptions.LongRunning);
+        // var task = new Task(() => method(this).GetAwaiter().GetResult(), TaskCreationOptions.LongRunning);
+        var task = new Task(
+            () =>
+            {
+                try
+                {
+                    method(this).GetAwaiter().GetResult();
+                }
+                finally
+                {
+                    if ((this.Options & ExecutionCoreOptions.DisposeOnCompletion) != 0)
+                    {
+                        this.Dispose();
+                    }
+                }
+            },
+            TaskCreationOptions.LongRunning);
+
         this.Initialize(task);
     }
 
@@ -99,7 +135,7 @@ public class TaskCore : ExecutionCore
         {
             if (Interlocked.CompareExchange(ref this.started, 1, 0) == 0)
             {
-                this.Task.Start();
+                this.Task.Start(TaskScheduler.Default);
             }
         }
     }
