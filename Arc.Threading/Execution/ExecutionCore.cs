@@ -101,6 +101,9 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// <summary>
     /// Gets the <see cref="System.Threading.CancellationToken"/> associated with this execution.
     /// </summary>
+    /// <remarks>
+    /// This property must not be accessed after this instance has been disposed.
+    /// </remarks>
     public CancellationToken CancellationToken => this.Token;
 
     #endregion
@@ -146,15 +149,6 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
         this.Id = 0;
         // this.Root.IdToCore[0] = this;
     }
-
-    /*private ExecutionCore(ExecutionCore parent, long id, ExecutionSignalHandler? executionSignalHandler)
-    {// Create an ExecutionCore with the specified Id.
-        this.Root = parent.Root;
-        this.Id = id;
-        this.executionSignalHandler = executionSignalHandler;
-
-        parent.AddChildInternal(this);
-    }*/
 
     /// <summary>
     /// Wait for the specified time (<see cref="Task.Delay(TimeSpan)"/>).
@@ -408,8 +402,8 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
                 {
                     ((CancellationTokenSource)x).Cancel();
                 }
-                catch (ObjectDisposedException)
-                {
+                catch
+                {// Intentionally ignored. Termination must continue.
                 }
             }
 
