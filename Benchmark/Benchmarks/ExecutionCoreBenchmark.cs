@@ -56,10 +56,4 @@ public class ExecutionCoreBenchmark
         using var core = new ExecutionCore(Program.Root);
         return core;
     }
-
-    [Benchmark]
-    public ExecutionCore CreateExecutionCore2()
-    {
-        return new ExecutionCore(1);
-    }
 }

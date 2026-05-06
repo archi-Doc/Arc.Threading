@@ -1,9 +1,7 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Arc.Collections;
@@ -82,7 +80,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
 
     public virtual bool IsTerminated => this.IsCancellationRequested;
 
-    public bool IsGroup => this is ExecutionGroup; // typeof(ExecutionGroup).IsAssignableFrom(this.GetType());
+    // public bool IsGroup => this is ExecutionGroup; // typeof(ExecutionGroup).IsAssignableFrom(this.GetType());
 
     /// <summary>
     /// Gets the <see cref="System.Threading.CancellationToken"/> associated with this execution.
@@ -90,10 +88,6 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     public CancellationToken CancellationToken => this.Token;
 
     #endregion
-
-    public ExecutionCore(int x)
-    {
-    }
 
     public ExecutionCore(ExecutionGroup parent, ExecutionSignalHandler? executionSignalHandler = default)
         : this(parent, null, executionSignalHandler)
@@ -283,7 +277,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     {
     }
 
-    public new void Cancel()
+    /*public new void Cancel()
     {
         TemporaryList<ExecutionCore> list = default;
         while (true)
@@ -305,7 +299,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
 
             list = default;
         }
-    }
+    }*/
 
     public void RequestTermination(RequestTerminationOptions options = default)
         => this.RequestTermination(false, options);
@@ -321,6 +315,9 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
             base.Dispose();
         }
     }
+
+    void IDisposable.Dispose()
+        => this.Dispose();
 
     public override string ToString()
     {
@@ -350,6 +347,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
         if (remove)
         {
             // core.Root.IdToCore.Remove(core.Id);
+            core.Stack?.RemoveInternal(core);
 
             core.Id = 0;
             core.parent = default;
@@ -358,12 +356,6 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
                 group2.ClearInternal();
             }
         }
-    }
-
-    [InlineArray(4)]
-    private struct InlineBuffer4
-    {
-        private ExecutionCore? element0;
     }
 
     private void RequestTermination(bool remove, RequestTerminationOptions options)
@@ -376,7 +368,6 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
                 if (remove)
                 {
                     this.parent?.RemoveChildInternal(this);
-                    this.Stack?.RemoveInternal(this);
                 }
 
                 ProcessCancellationInternal(ref list, this, remove, options);

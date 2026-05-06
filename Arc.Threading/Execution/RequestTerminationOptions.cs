@@ -7,10 +7,10 @@ namespace Arc.Threading;
 [Flags]
 public enum RequestTerminationOptions
 {
-    /// <summary>
+    /*/// <summary>
     /// Terminates only this instance. Child elements are not terminated.
     /// </summary>
-    SelfOnly = 1 << 0,
+    SelfOnly = 1 << 0,*/
 
     /// <summary>
     /// Terminate independent elements.
