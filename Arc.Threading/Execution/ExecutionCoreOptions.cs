@@ -1,0 +1,26 @@
+﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
+
+using System;
+
+namespace Arc.Threading;
+
+[Flags]
+public enum ExecutionCoreOptions
+{
+    None = 0,
+
+    /// <summary>
+    /// Starts the thread immediately after the instance is initialized.
+    /// </summary>
+    StartImmediately = 1 << 0,
+
+    /// <summary>
+    /// Disposes the ThreadCore instance when the thread method exits.
+    /// </summary>
+    DisposeOnCompletion = 1 << 1,
+
+    /// <summary>
+    /// Default behavior.
+    /// </summary>
+    Default = StartImmediately | DisposeOnCompletion,
+}

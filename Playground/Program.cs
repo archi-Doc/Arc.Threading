@@ -115,7 +115,7 @@ class Program
             }
 
             Console.WriteLine("B");
-        }, false);
+        });
         tc.Name = "ThreadCore";
 
         var cc = new CustomCore(Root);

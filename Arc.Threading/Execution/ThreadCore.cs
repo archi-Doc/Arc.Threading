@@ -3,39 +3,70 @@
 using System;
 using System.Threading;
 
-#pragma warning disable SA1124 // Do not use regions
-
 namespace Arc.Threading;
 
+/// <summary>
+/// Represents an <see cref="ExecutionCore"/> implementation backed by a dedicated <see cref="System.Threading.Thread"/>.
+/// </summary>
+/// <remarks>
+/// This type starts at most once. When started, it executes the provided delegate and can optionally dispose itself
+/// when execution completes.
+/// </remarks>
 public class ThreadCore : ExecutionCore
 {
     private int started;
 
+    /// <summary>
+    /// Gets a value indicating whether this execution has started and the underlying thread is no longer alive.
+    /// </summary>
     public override bool IsTerminated => Volatile.Read(ref this.started) != 0 && !this.Thread.IsAlive; // this.Thread.ThreadState != ThreadState.Running;
 
     /// <summary>
-    /// Gets an instance of <see cref="System.Threading.Thread"/>.
+    /// Gets the dedicated thread instance used to run this core.
     /// </summary>
     public Thread Thread { get; }
 
-    public bool DisposeOnCompletion { get; init; } = true;
+    /// <summary>
+    /// Gets the behavior flags controlling this thread core.
+    /// </summary>
+    public ExecutionCoreOptions Options { get; }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ThreadCore"/> class.
     /// </summary>
-    /// <param name="parent">The parent group that owns this execution.
-    /// Specify <see langword="null"/> to be independent (does not receive a termination signal from parent).</param>
-    /// <param name="method">The method that executes on a System.Threading.Thread.</param>
-    /// <param name="startImmediately">Starts the thread immediately.<br/>
-    /// <see langword="false"/>: Manually call <see cref="ExecutionCore.SendSignal(ExecutionSignal)"/>
-    /// with <see cref="ExecutionSignal.Start"/> to start the thread.</param>
-    public ThreadCore(ExecutionGroup parent, Action<object?> method, bool startImmediately = true)
+    /// <param name="parent">The parent execution group that owns this core.</param>
+    /// <param name="method">The delegate executed on the dedicated thread.</param>
+    /// <param name="options">Behavior flags controlling startup and completion semantics.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="method"/> is <see langword="null"/>.</exception>
+    /// <remarks>
+    /// If <see cref="ExecutionCoreOptions.StartImmediately"/> is specified, a start signal is sent during construction.
+    /// If <see cref="ExecutionCoreOptions.DisposeOnCompletion"/> is specified, this instance is disposed in a <see langword="finally"/> block.
+    /// </remarks>
+    public ThreadCore(ExecutionGroup parent, Action<ThreadCore> method, ExecutionCoreOptions options = ExecutionCoreOptions.Default)
         : base(parent)
     {
         ArgumentNullException.ThrowIfNull(method);
 
-        this.Thread = new Thread(new ParameterizedThreadStart(method));
-        if (startImmediately)
+        this.Options = options;
+
+        // this.Thread = new Thread(new ParameterizedThreadStart(method));
+        this.Thread = new Thread(state =>
+        {
+            var core = (ThreadCore)state!;
+            try
+            {
+                method(core);
+            }
+            finally
+            {
+                if ((core.Options & ExecutionCoreOptions.DisposeOnCompletion) != 0)
+                {
+                    core.Dispose();
+                }
+            }
+        });
+
+        if (this.Options.HasFlag(ExecutionCoreOptions.StartImmediately))
         {
             this.SendSignal(ExecutionSignal.Start);
         }
