@@ -20,7 +20,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
 #pragma warning disable SA1307 // Accessible fields should begin with upper-case letter
 #pragma warning disable SA1401 // Fields should be private
 #pragma warning disable SA1202 // Elements should be ordered by access
-    private int disposed;
+    private bool disposed;
     internal ExecutionGroup? parent; // Root.SyncObject
 #pragma warning restore SA1202 // Elements should be ordered by access
 #pragma warning restore SA1401 // Fields should be private
@@ -42,6 +42,19 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
         {
             using (this.Root.SyncObject.EnterScope())
             {
+                if (value is not null)
+                {
+                    if (ReferenceEquals(this, value))
+                    {
+                        throw new InvalidOperationException("An execution cannot be its own parent.");
+                    }
+
+                    if (IsAncestorOf(this, value))
+                    {
+                        throw new InvalidOperationException("An execution cannot be moved under one of its descendants.");
+                    }
+                }
+
                 if (this.IsRoot || this.parent == value)
                 {
                     return;
@@ -80,7 +93,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
 
     public virtual bool IsTerminated => this.IsCancellationRequested;
 
-    public bool IsDisposed => Volatile.Read(ref this.disposed) != 0;
+    public bool IsDisposed => Volatile.Read(ref this.disposed);
 
     // public bool IsGroup => this is ExecutionGroup; // typeof(ExecutionGroup).IsAssignableFrom(this.GetType());
 
@@ -184,7 +197,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// </summary>
     /// <param name="cancellationToken">An additional token that can cancel the wait operation.</param>
     /// <returns>A task that represents the wait operation.</returns>
-    public Task WaitForTermination(CancellationToken cancellationToken = default)
+    public Task<bool> WaitForTermination(CancellationToken cancellationToken = default)
         => this.WaitForTermination(Timeout.InfiniteTimeSpan, cancellationToken);
 
     /// <summary>
@@ -243,7 +256,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
         static void CountObjects(ExecutionCore core, ref int notTerminated)
         {
             if (core is ExecutionGroup group)
-            {
+            {// ExecutionGroup is treated as a container. This method waits for non-group executions only.
                 if (group.Count > 0)
                 {
                     var children = group.GetChildrenArrayInternal();
@@ -279,44 +292,15 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     {
     }
 
-    /*public new void Cancel()
-    {
-        TemporaryList<ExecutionCore> list = default;
-        while (true)
-        {
-            using (this.Root.SyncObject.EnterScope())
-            {
-                ProcessCancellationInternal(ref list, this, false, default);
-            }
-
-            if (list.Count == 0)
-            {
-                break;
-            }
-
-            foreach (var x in list)
-            {
-                ((CancellationTokenSource)x).Cancel();
-            }
-
-            list = default;
-        }
-    }
-
-    /// <summary>
-    /// Removes this execution from its owning <see cref="Stack"/>.
-    /// </summary>
-    public new void Dispose()
-    {
-        if (Interlocked.Exchange(ref this.disposed, 1) == 0)
-        {
-            this.RequestTermination(true, default);
-            base.Dispose();
-        }
-    }*/
-
     public void RequestTermination(RequestTerminationOptions options = default)
-        => this.RequestTermination(false, options);
+    {
+        if (this.IsDisposed)
+        {
+            return;
+        }
+
+        this.RequestTermination(false, options);
+    }
 
     void IDisposable.Dispose()
         => this.Dispose();
@@ -328,7 +312,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
 
     protected override void Dispose(bool disposing)
     {
-        if (Interlocked.Exchange(ref this.disposed, 1) != 0)
+        if (Interlocked.CompareExchange(ref this.disposed, true, false))
         {
             return;
         }
@@ -339,6 +323,22 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
         }
 
         base.Dispose(disposing);
+    }
+
+    private static bool IsAncestorOf(ExecutionCore ancestor, ExecutionCore core)
+    {
+        var current = core.parent;
+        while (current is not null)
+        {
+            if (ReferenceEquals(current, ancestor))
+            {
+                return true;
+            }
+
+            current = current.parent;
+        }
+
+        return false;
     }
 
     private static void ProcessCancellationInternal(ref TemporaryList<ExecutionCore> list, ExecutionCore core, bool remove, RequestTerminationOptions options)
@@ -364,7 +364,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
         if (remove)
         {
             // core.Root.IdToCore.Remove(core.Id);
-            core.Stack?.RemoveInternal(core);
+            core.Stack?.RemoveInternal(core); // core.Stack is cleared inside the called method.
 
             core.Id = 0;
             core.parent = default;
