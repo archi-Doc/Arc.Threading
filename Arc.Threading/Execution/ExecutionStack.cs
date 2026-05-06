@@ -101,7 +101,7 @@ public class ExecutionStack
     /// </summary>
     /// <param name="id">The execution identifier.</param>
     /// <returns>The matching execution; otherwise, <see langword="null"/>.</returns>
-    public ExecutionCore? Find(long id)
+    public ExecutionCore? Find(int id)
     {
         using (this.Root.SyncObject.EnterScope())
         {

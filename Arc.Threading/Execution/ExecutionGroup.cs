@@ -61,7 +61,7 @@ public class ExecutionGroup : ExecutionCore
         }
     }
 
-    public ExecutionCore? Find(long id)
+    public ExecutionCore? Find(int id)
     {
         using (this.Root.SyncObject.EnterScope())
         {
@@ -69,7 +69,7 @@ public class ExecutionGroup : ExecutionCore
         }
     }
 
-    public bool FindCancellationToken(long id, out CancellationToken cancellationToken)
+    public bool FindCancellationToken(int id, out CancellationToken cancellationToken)
     {
         if (this.Find(id) is { } core)
         {
