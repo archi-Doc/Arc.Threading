@@ -5,7 +5,7 @@ using System;
 namespace Arc.Threading;
 
 [Flags]
-public enum ExecutionCoreOptions
+public enum ExecutionCoreOptions : byte
 {
     /// <summary>
     /// Starts the thread immediately after the instance is initialized.

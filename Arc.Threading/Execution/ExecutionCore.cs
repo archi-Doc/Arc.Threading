@@ -268,34 +268,38 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     }
 
     /// <summary>
-    /// Asynchronously waits indefinitely for this execution to terminate.
+    /// Asynchronously waits for the termination of the execution.<br/>
+    /// Note that you need to call <see cref="RequestTermination(TerminationOptions)"/> to terminate the execution.
     /// </summary>
     /// <param name="cancellationToken">An additional token that can cancel the wait operation.</param>
+    /// <param name="options">An additional options for controlling termination behavior.</param>
     /// <returns><see langword="true"/> if termination was observed; otherwise, <see langword="false"/>.</returns>
-    public Task<bool> WaitForTermination(CancellationToken cancellationToken = default)
-        => this.WaitForTermination(Timeout.InfiniteTimeSpan, cancellationToken);
+    public Task<bool> WaitForTermination(CancellationToken cancellationToken = default, TerminationOptions options = default)
+        => this.WaitForTermination(Timeout.InfiniteTimeSpan, cancellationToken, options);
 
     /// <summary>
-    /// Asynchronously waits for the termination of the thread/task.<br/>
-    /// Note that you need to call <see cref="RequestTermination(RequestTerminationOptions)"/> to terminate the object from outside the thread/task.
+    /// Asynchronously waits for the termination of the execution.<br/>
+    /// Note that you need to call <see cref="RequestTermination(TerminationOptions)"/> to terminate the execution.
     /// </summary>
     /// <param name="millisecondsTimeout">The number of milliseconds to wait before termination, or -1 to wait indefinitely.</param>
     /// <param name="cancellationToken">An additional cancellation token to cancel the wait operation.</param>
+    /// <param name="options">An additional options for controlling termination behavior.</param>
     /// <returns><see langword="true"/> if termination was observed; otherwise, <see langword="false"/>.</returns>
-    public Task<bool> WaitForTermination(int millisecondsTimeout, CancellationToken cancellationToken = default)
-        => this.WaitForTermination(TimeSpan.FromMilliseconds(millisecondsTimeout), cancellationToken);
+    public Task<bool> WaitForTermination(int millisecondsTimeout, CancellationToken cancellationToken = default, TerminationOptions options = default)
+        => this.WaitForTermination(TimeSpan.FromMilliseconds(millisecondsTimeout), cancellationToken, options);
 
     /// <summary>
-    /// Asynchronously waits for the termination of the thread/task.<br/>
-    /// Note that you need to call <see cref="RequestTermination(RequestTerminationOptions)"/> to terminate the object from outside the thread/task.
+    /// Asynchronously waits for the termination of the execution.<br/>
+    /// Note that you need to call <see cref="RequestTermination(TerminationOptions)"/> to terminate the execution.
     /// </summary>
     /// <param name="timeout">The <see cref="TimeSpan"/> to wait before termination.</param>
     /// <param name="cancellationToken">An additional cancellation token to cancel the wait operation.</param>
+    /// <param name="options">An additional options for controlling termination behavior.</param>
     /// <returns><see langword="true"/> if termination was observed before timeout/cancellation; otherwise, <see langword="false"/>.</returns>
     /// <exception cref="ArgumentOutOfRangeException">
     /// Thrown when <paramref name="timeout"/> is negative and not <see cref="Timeout.InfiniteTimeSpan"/>.
     /// </exception>
-    public virtual async Task<bool> WaitForTermination(TimeSpan timeout, CancellationToken cancellationToken = default)
+    public virtual async Task<bool> WaitForTermination(TimeSpan timeout, CancellationToken cancellationToken = default, TerminationOptions options = default)
     {
         if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
         {
@@ -308,7 +312,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
             var notTerminated = 0;
             using (this.Root.SyncObject.EnterScope())
             {
-                CountObjects(this, ref notTerminated);
+                CountObjects(this, ref notTerminated, options);
                 if (notTerminated == 0)
                 {
                     return true;
@@ -331,10 +335,11 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
             }
         }
 
-        static void CountObjects(ExecutionCore core, ref int notTerminated)
+        static void CountObjects(ExecutionCore core, ref int notTerminated, TerminationOptions options)
         {
-            if (core.IsIndependent)
-            {//
+            if (core.IsIndependent &&
+                (options & TerminationOptions.IncludeIndependent) == 0)
+            {
                 return;
             }
 
@@ -345,7 +350,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
                     var children = group.GetChildrenArrayInternal();
                     foreach (var x in children)
                     {
-                        CountObjects(x, ref notTerminated);
+                        CountObjects(x, ref notTerminated, options);
                     }
                 }
             }
@@ -399,7 +404,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// <remarks>
     /// Calling this method is idempotent and safe to invoke multiple times.
     /// </remarks>
-    public void RequestTermination(RequestTerminationOptions options = default)
+    public void RequestTermination(TerminationOptions options = default)
     {
         if (this.IsDisposed)
         {
@@ -449,7 +454,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
         return false;
     }
 
-    private static void ProcessCancellationInternal(ref TemporaryList<ExecutionCore> list, ExecutionCore core, bool remove, RequestTerminationOptions options)
+    private static void ProcessCancellationInternal(ref TemporaryList<ExecutionCore> list, ExecutionCore core, bool remove, TerminationOptions options)
     {
         if (core is ExecutionGroup group)
         {
@@ -457,7 +462,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
             foreach (var x in children)
             {
                 if (!x.IsIndependent ||
-                    options.HasFlag(RequestTerminationOptions.IncludeIndependent))
+                    options.HasFlag(TerminationOptions.IncludeIndependent))
                 {
                     ProcessCancellationInternal(ref list, x, remove, options);
                 }
@@ -483,7 +488,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
         }
     }
 
-    private void RequestTerminationCore(bool remove, RequestTerminationOptions options)
+    private void RequestTerminationCore(bool remove, TerminationOptions options)
     {
         TemporaryList<ExecutionCore> list = default;
         while (true)
