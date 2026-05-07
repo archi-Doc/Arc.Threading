@@ -71,6 +71,12 @@ class Program
         Console.WriteLine("Hello World!");
         Console.WriteLine();
 
+        var c0 = new ExecutionCore(Root);
+        Console.WriteLine(Root.Count.ToString());
+        c0.RequestTermination();
+        Console.WriteLine(Root.Count.ToString());
+        Console.WriteLine();
+
         var c1 = new TaskCore(Root, async core =>
         {
             Console.WriteLine("1");
@@ -105,13 +111,13 @@ class Program
         var g2 = Root.GetOrAddGroup(true, "TestGroup");
         var rr = ReferenceEquals(g, g2);
 
-        var tc = new ThreadCore(Root, async core =>
+        var tc = new ThreadCore(Root, core =>
         {
             Console.WriteLine("A");
 
             try
             {
-                Thread.Sleep(500);
+                Thread.Sleep(1_000);
             }
             catch
             {
@@ -120,6 +126,7 @@ class Program
             Console.WriteLine("B");
         });
         tc.Name = "ThreadCore";
+        // tc.IsIndependent = true;
 
         var cc = new CustomCore(Root);
 
@@ -134,7 +141,7 @@ class Program
         await Test2(Root);
 
         Root.RequestTermination();
-        await Root.WaitForTermination();
+        await Root.WaitForTermination(2_000, default, TerminationOptions.IncludeIndependent);
     }
 
     static async Task Test2(ExecutionGroup root)

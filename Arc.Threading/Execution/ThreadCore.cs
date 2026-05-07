@@ -42,11 +42,7 @@ public class ThreadCore : ExecutionCore
     /// <param name="method">The delegate executed on the dedicated thread.</param>
     /// <param name="options">Behavior flags controlling startup and completion semantics.</param>
     /// <exception cref="ArgumentNullException"><paramref name="method"/> is <see langword="null"/>.</exception>
-    /// <remarks>
-    /// If <see cref="ExecutionCoreOptions.StartImmediately"/> is specified, a start signal is sent during construction.
-    /// If <see cref="ExecutionCoreOptions.DisposeOnCompletion"/> is specified, this instance is disposed in a <see langword="finally"/> block.
-    /// </remarks>
-    public ThreadCore(ExecutionGroup parent, Action<ThreadCore> method, ExecutionCoreOptions options = ExecutionCoreOptions.Default)
+    public ThreadCore(ExecutionGroup parent, Action<ThreadCore> method, ExecutionCoreOptions options = default)
         : base(parent)
     {
         ArgumentNullException.ThrowIfNull(method);
@@ -63,7 +59,7 @@ public class ThreadCore : ExecutionCore
             }
             finally
             {
-                if ((core.Options & ExecutionCoreOptions.DisposeOnCompletion) != 0)
+                if ((core.Options & ExecutionCoreOptions.KeepAliveOnCompletion) == 0)
                 {
                     // Do not join this thread from Dispose().
                     // DisposeOnCompletion calls Dispose from the thread itself.
@@ -72,7 +68,7 @@ public class ThreadCore : ExecutionCore
             }
         });
 
-        if ((this.Options & ExecutionCoreOptions.StartImmediately) != 0)
+        if ((this.Options & ExecutionCoreOptions.DelayedStart) == 0)
         {
             this.SendSignal(ExecutionSignal.Start);
         }

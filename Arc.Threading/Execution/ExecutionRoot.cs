@@ -14,7 +14,7 @@ namespace Arc.Threading;
 /// <remarks>
 /// <para>
 /// <see cref="BaseGroup"/> manages executions that provide base services for the application.<br/>
-/// Executions are managed independently, and when <see cref="WaitForTermination(TimeSpan, CancellationToken)"/> is called, <see cref="ExecutionCore.RequestTermination(Arc.Threading.RequestTerminationOptions)"/> is called on the BaseGroup.
+/// Executions are managed independently, and when <see cref="WaitForTermination(TimeSpan, CancellationToken, TerminationOptions)"/> is called, <see cref="ExecutionCore.RequestTermination(Arc.Threading.TerminationOptions)"/> is called on the BaseGroup.
 /// </para>
 /// <para>
 /// <see cref="IndependentGroup"/> is intended for executions that can be managed independently,
@@ -32,7 +32,7 @@ public class ExecutionRoot : ExecutionGroup
 
     /// <summary>
     /// Gets the execution group that provides base services for the application.<br/>
-    /// Executions are managed independently, and when <see cref="WaitForTermination(TimeSpan, CancellationToken)"/> is called, <see cref="ExecutionCore.RequestTermination(Arc.Threading.RequestTerminationOptions)"/> is called on the BaseGroup.
+    /// Executions are managed independently, and when <see cref="WaitForTermination(TimeSpan, CancellationToken, TerminationOptions)"/> is called, <see cref="ExecutionCore.RequestTermination(Arc.Threading.TerminationOptions)"/> is called on the BaseGroup.
     /// </summary>
     public ExecutionGroup BaseGroup { get; }
 
@@ -58,24 +58,14 @@ public class ExecutionRoot : ExecutionGroup
         this.IndependentGroup = new(this, true, "Independent");
     }
 
-    /// <summary>
-    /// Requests termination of the base group (including independent work) if it is still active,
-    /// then waits for this root group to terminate.
-    /// </summary>
-    /// <param name="timeout">The maximum time to wait for termination.</param>
-    /// <param name="cancellationToken">A token used to cancel the wait operation.</param>
-    /// <returns>
-    /// A task that resolves to <see langword="true"/> if termination completed before timeout;
-    /// otherwise <see langword="false"/>.
-    /// </returns>
-    public override Task<bool> WaitForTermination(TimeSpan timeout, CancellationToken cancellationToken = default)
+    public override Task<bool> WaitForTermination(TimeSpan timeout, CancellationToken cancellationToken = default, TerminationOptions options = default)
     {
         if (this.BaseGroup.CanContinue)
         {
-            this.BaseGroup.RequestTermination(RequestTerminationOptions.IncludeIndependent);
+            this.BaseGroup.RequestTermination(TerminationOptions.IncludeIndependent);
         }
 
-        return base.WaitForTermination(timeout, cancellationToken);
+        return base.WaitForTermination(timeout, cancellationToken, options);
     }
 
     /*public ExecutionCore? Find(long id)
