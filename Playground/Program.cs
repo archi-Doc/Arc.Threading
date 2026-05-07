@@ -71,6 +71,12 @@ class Program
         Console.WriteLine("Hello World!");
         Console.WriteLine();
 
+        var c0 = new ExecutionCore(Root);
+        Console.WriteLine(Root.Count.ToString());
+        c0.RequestTermination();
+        Console.WriteLine(Root.Count.ToString());
+        Console.WriteLine();
+
         var c1 = new TaskCore(Root, async core =>
         {
             Console.WriteLine("1");

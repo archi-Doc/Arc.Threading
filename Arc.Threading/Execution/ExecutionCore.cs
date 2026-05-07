@@ -187,7 +187,6 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     {
         this.Root = parent.Root;
         this.executionSignalHandler = executionSignalHandler;
-
         bool terminateImmediately;
         using (this.Root.SyncObject.EnterScope())
         {
@@ -517,6 +516,13 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
                 }
                 catch
                 {// Intentionally ignored. Termination must continue.
+                }
+                finally
+                {
+                    if (x is ExecutionCore)
+                    {// Automatically remove the ExecutionCore after calling Cancel.
+                        x.Dispose();
+                    }
                 }
             }
 
