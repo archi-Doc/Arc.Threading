@@ -384,28 +384,4 @@ public sealed class AsyncPulseEventTests
         var task = ev.WaitAsync(TestContext.Current.CancellationToken);
         Assert.True(task.IsCompletedSuccessfully);
     }
-
-    [Fact(Skip = "CancellationState is a private nested class; cannot test constructor directly without reflection")]
-    public void CancellationState_Constructor_InitializesProperties()
-    {
-        // CancellationState is a private nested class used internally by AsyncPulseEvent.
-        // Direct testing would require reflection, which is brittle and forbidden by test guidelines.
-        // The constructor's behavior is indirectly tested through AsyncPulseEvent.WaitAsync with cancellation tokens.
-    }
-
-    [Fact(Skip = "TimeoutState is a private nested class; cannot test constructor directly without reflection")]
-    public void TimeoutState_Constructor_InitializesProperties()
-    {
-        // TimeoutState is a private nested class used internally by AsyncPulseEvent.
-        // Direct testing would require reflection, which is brittle and forbidden by test guidelines.
-        // The constructor's behavior is indirectly tested through AsyncPulseEvent.WaitAsync with timeout parameters.
-    }
-
-    [Fact(Skip = "CleanupState is a private nested class; cannot test constructor directly without reflection")]
-    public void CleanupState_Constructor_InitializesProperties()
-    {
-        // CleanupState is a private nested class used internally by AsyncPulseEvent.
-        // Direct testing would require reflection, which is brittle and forbidden by test guidelines.
-        // The constructor's behavior is indirectly tested through AsyncPulseEvent.WaitAsync cleanup paths.
-    }
 }
