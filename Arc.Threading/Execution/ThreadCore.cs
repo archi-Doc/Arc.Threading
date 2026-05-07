@@ -14,12 +14,16 @@ namespace Arc.Threading;
 /// </remarks>
 public class ThreadCore : ExecutionCore
 {
+    private readonly Action<ThreadCore> method;
     private int started;
 
     /// <summary>
-    /// Gets a value indicating whether this execution has started and the underlying thread is no longer alive.
+    /// Gets a value indicating whether the underlying thread has completed,<br/>
+    /// or whether this execution was canceled before the thread was started.
     /// </summary>
-    public override bool IsTerminated => Volatile.Read(ref this.started) != 0 && !this.Thread.IsAlive; // this.Thread.ThreadState != ThreadState.Running;
+    public override bool IsTerminated
+        => !this.Thread.IsAlive &&
+        (Volatile.Read(ref this.started) != 0 || this.IsCancellationRequested);
 
     /// <summary>
     /// Gets the dedicated thread instance used to run this core.
@@ -47,26 +51,28 @@ public class ThreadCore : ExecutionCore
     {
         ArgumentNullException.ThrowIfNull(method);
 
+        this.method = method;
         this.Options = options;
 
-        // this.Thread = new Thread(new ParameterizedThreadStart(method));
-        this.Thread = new Thread(state =>
+        this.Thread = new Thread(static state =>
         {
             var core = (ThreadCore)state!;
             try
             {
-                method(core);
+                core.method(core);
             }
             finally
             {
-                if (this.Options.HasFlag(ExecutionCoreOptions.DisposeOnCompletion))
+                if ((core.Options & ExecutionCoreOptions.DisposeOnCompletion) != 0)
                 {
+                    // Do not join this thread from Dispose().
+                    // DisposeOnCompletion calls Dispose from the thread itself.
                     core.Dispose();
                 }
             }
         });
 
-        if (this.Options.HasFlag(ExecutionCoreOptions.StartImmediately))
+        if ((this.Options & ExecutionCoreOptions.StartImmediately) != 0)
         {
             this.SendSignal(ExecutionSignal.Start);
         }
@@ -74,12 +80,29 @@ public class ThreadCore : ExecutionCore
 
     public override void OnSignalReceived(ExecutionSignal signal)
     {
-        if (signal == ExecutionSignal.Start)
+        if (signal != ExecutionSignal.Start)
         {
-            if (Interlocked.CompareExchange(ref this.started, 1, 0) == 0)
-            {
-                this.Thread.Start(this);
-            }
+            return;
+        }
+
+        if (this.IsDisposed || this.IsCancellationRequested)
+        {
+            return;
+        }
+
+        if (Interlocked.CompareExchange(ref this.started, 1, 0) != 0)
+        {
+            return;
+        }
+
+        try
+        {
+            this.Thread.Start(this);
+        }
+        catch
+        {
+            Interlocked.CompareExchange(ref this.started, 0, 1);
+            throw;
         }
     }
 }
