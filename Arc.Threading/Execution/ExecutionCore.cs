@@ -519,7 +519,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
                 }
                 finally
                 {
-                    if (x is ExecutionCore)
+                    if (x.GetType() == typeof(ExecutionCore))
                     {// Automatically remove the ExecutionCore after calling Cancel.
                         x.Dispose();
                     }
