@@ -270,35 +270,35 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// Asynchronously waits for the termination of the execution.<br/>
     /// Note that you need to call <see cref="RequestTermination(TerminationOptions)"/> to terminate the execution.
     /// </summary>
-    /// <param name="cancellationToken">An additional token that can cancel the wait operation.</param>
     /// <param name="options">An additional options for controlling termination behavior.</param>
+    /// <param name="cancellationToken">An additional token that can cancel the wait operation.</param>
     /// <returns><see langword="true"/> if termination was observed; otherwise, <see langword="false"/>.</returns>
-    public Task<bool> WaitForTermination(CancellationToken cancellationToken = default, TerminationOptions options = default)
-        => this.WaitForTermination(Timeout.InfiniteTimeSpan, cancellationToken, options);
+    public Task<bool> WaitForTermination(TerminationOptions options = default, CancellationToken cancellationToken = default)
+        => this.WaitForTermination(Timeout.InfiniteTimeSpan, options, cancellationToken);
 
     /// <summary>
     /// Asynchronously waits for the termination of the execution.<br/>
     /// Note that you need to call <see cref="RequestTermination(TerminationOptions)"/> to terminate the execution.
     /// </summary>
     /// <param name="millisecondsTimeout">The number of milliseconds to wait before termination, or -1 to wait indefinitely.</param>
-    /// <param name="cancellationToken">An additional cancellation token to cancel the wait operation.</param>
     /// <param name="options">An additional options for controlling termination behavior.</param>
+    /// <param name="cancellationToken">An additional cancellation token to cancel the wait operation.</param>
     /// <returns><see langword="true"/> if termination was observed; otherwise, <see langword="false"/>.</returns>
-    public Task<bool> WaitForTermination(int millisecondsTimeout, CancellationToken cancellationToken = default, TerminationOptions options = default)
-        => this.WaitForTermination(TimeSpan.FromMilliseconds(millisecondsTimeout), cancellationToken, options);
+    public Task<bool> WaitForTermination(int millisecondsTimeout, TerminationOptions options = default, CancellationToken cancellationToken = default)
+        => this.WaitForTermination(TimeSpan.FromMilliseconds(millisecondsTimeout), options, cancellationToken);
 
     /// <summary>
     /// Asynchronously waits for the termination of the execution.<br/>
     /// Note that you need to call <see cref="RequestTermination(TerminationOptions)"/> to terminate the execution.
     /// </summary>
     /// <param name="timeout">The <see cref="TimeSpan"/> to wait before termination.</param>
-    /// <param name="cancellationToken">An additional cancellation token to cancel the wait operation.</param>
     /// <param name="options">An additional options for controlling termination behavior.</param>
+    /// <param name="cancellationToken">An additional cancellation token to cancel the wait operation.</param>
     /// <returns><see langword="true"/> if termination was observed before timeout/cancellation; otherwise, <see langword="false"/>.</returns>
     /// <exception cref="ArgumentOutOfRangeException">
     /// Thrown when <paramref name="timeout"/> is negative and not <see cref="Timeout.InfiniteTimeSpan"/>.
     /// </exception>
-    public virtual async Task<bool> WaitForTermination(TimeSpan timeout, CancellationToken cancellationToken = default, TerminationOptions options = default)
+    public virtual async Task<bool> WaitForTermination(TimeSpan timeout, TerminationOptions options = default, CancellationToken cancellationToken = default)
     {
         if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
         {
@@ -519,7 +519,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
                 }
                 finally
                 {
-                    if (x is ExecutionCore)
+                    if (x.GetType() == typeof(ExecutionCore))
                     {// Automatically remove the ExecutionCore after calling Cancel.
                         x.Dispose();
                     }

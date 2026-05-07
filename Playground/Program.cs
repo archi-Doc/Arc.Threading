@@ -71,12 +71,6 @@ class Program
         Console.WriteLine("Hello World!");
         Console.WriteLine();
 
-        var c0 = new ExecutionCore(Root);
-        Console.WriteLine(Root.Count.ToString());
-        c0.RequestTermination();
-        Console.WriteLine(Root.Count.ToString());
-        Console.WriteLine();
-
         var c1 = new TaskCore(Root, async core =>
         {
             Console.WriteLine("1");
@@ -92,23 +86,23 @@ class Program
             Console.WriteLine("2");
         });
 
-        var g = Root.GetOrAddGroup(true, "TestGroup");
+        var g = Root.IndependentGroup.GetOrAddGroup(true, "TestGroup");
         var c2 = new TaskCore(g, async core =>
         {
-            Console.WriteLine("3");
+            Console.WriteLine("333");
             try
             {
-                await core.Delay(1500);
+                await core.Delay(5_000);
             }
             catch
             {
             }
 
-            Console.WriteLine("4");
+            Console.WriteLine("4444");
         }
         );
 
-        var g2 = Root.GetOrAddGroup(true, "TestGroup");
+        var g2 = Root.IndependentGroup.GetOrAddGroup(true, "TestGroup");
         var rr = ReferenceEquals(g, g2);
 
         var tc = new ThreadCore(Root, core =>
@@ -135,13 +129,13 @@ class Program
         await cc.Task;
         // var c1 = new ExecutionCore(Root.Base);
 
-        await c2.WaitForTermination();
+        // await c2.WaitForTermination();
         // var token = ((CancellationTokenSource)c2).Token;
 
         await Test2(Root);
 
         Root.RequestTermination();
-        await Root.WaitForTermination(2_000, default, TerminationOptions.IncludeIndependent);
+        await Root.WaitForTermination(3_000, TerminationOptions.IncludeIndependent);
     }
 
     static async Task Test2(ExecutionGroup root)
