@@ -4,7 +4,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Arc.Threading;
 using BenchmarkDotNet.Attributes;
-using Benchmark.Obsolete;
 
 namespace Benchmark;
 
@@ -49,7 +48,7 @@ internal class TestReusableWorker : ReusableJobWorker<TestReusableJob>
 {
     private int count;
 
-    public TestReusableWorker(ThreadCoreBase? parent)
+    public TestReusableWorker(ExecutionGroup parent)
         : base(parent)
     {
     }
@@ -64,19 +63,19 @@ internal class TestReusableWorker : ReusableJobWorker<TestReusableJob>
 public class WorkerBenchmark
 {
     private static int count;
-    private readonly ThreadWorker<TestWork> threadWorker;
-    private readonly TaskWorkerSlim<TestTaskWorkSlim> taskWorkerSlim;
+    private readonly Benchmark.Obsolete.ThreadWorker<TestWork> threadWorker;
+    private readonly Benchmark.Obsolete.TaskWorkerSlim<TestTaskWorkSlim> taskWorkerSlim;
     private readonly ReusableJobWorker<TestReusableJob> jobWorker;
     private readonly ReusableJobWorker<TestReusableJob2> jobWorker3;
     private readonly TestReusableWorker jobWorker2;
 
     public WorkerBenchmark()
     {
-        this.threadWorker = new ThreadWorker<TestWork>(ThreadCore.Root, EmptyMethod2);
-        this.taskWorkerSlim = new TaskWorkerSlim<TestTaskWorkSlim>(ThreadCore.Root, EmptyMethodTaskSlim);
-        this.jobWorker = new(ThreadCore.Root, (worker, job) => { Interlocked.Increment(ref WorkerBenchmark.count); });
-        this.jobWorker2 = new(ThreadCore.Root);
-        this.jobWorker3 = new(ThreadCore.Root, (worker, job) => { Interlocked.Increment(ref WorkerBenchmark.count); });
+        this.threadWorker = new Benchmark.Obsolete.ThreadWorker<TestWork>(Benchmark.Obsolete.ThreadCore.Root, EmptyMethod2);
+        this.taskWorkerSlim = new Benchmark.Obsolete.TaskWorkerSlim<TestTaskWorkSlim>(Benchmark.Obsolete.ThreadCore.Root, EmptyMethodTaskSlim);
+        this.jobWorker = new(Program.Root, (worker, job) => { Interlocked.Increment(ref WorkerBenchmark.count); });
+        this.jobWorker2 = new(Program.Root);
+        this.jobWorker3 = new(Program.Root, (worker, job) => { Interlocked.Increment(ref WorkerBenchmark.count); });
     }
 
     [Benchmark]
@@ -136,13 +135,13 @@ public class WorkerBenchmark
         this.jobWorker.Dispose();
     }*/
 
-    private static async Task<AbortOrComplete> EmptyMethodTaskSlim(TaskWorkerSlim<TestTaskWorkSlim> worker, TestTaskWorkSlim work)
+    private static async Task<AbortOrComplete> EmptyMethodTaskSlim(Benchmark.Obsolete.TaskWorkerSlim<TestTaskWorkSlim> worker, TestTaskWorkSlim work)
     {
         Interlocked.Increment(ref WorkerBenchmark.count);
         return AbortOrComplete.Complete;
     }
 
-    private static AbortOrComplete EmptyMethod2(ThreadWorker<TestWork> worker, TestWork work)
+    private static AbortOrComplete EmptyMethod2(Benchmark.Obsolete.ThreadWorker<TestWork> worker, TestWork work)
     {
         Interlocked.Increment(ref WorkerBenchmark.count);
         return AbortOrComplete.Complete;

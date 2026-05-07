@@ -1,7 +1,7 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
+using Arc;
 using Arc.Threading;
 
 namespace QuickStart;
@@ -83,18 +83,20 @@ internal class TestLock
 
 internal class Program
 {
+    public static ExecutionRoot Root { get; } = new();
+
     public static async Task Main(string[] args)
     {
-        AppDomain.CurrentDomain.ProcessExit += (s, e) =>
+        AppCloseHandler.Set(() =>
         {// Closing the console window or terminating the process.
-            ThreadCore.Root.Terminate(); // Send a termination signal to the root.
-            ThreadCore.Root.TerminationEvent.WaitOne(2000); // Wait until the termination process is complete (#1).
-        };
+            Root.RequestTermination(); // Send a termination signal to the root.
+            Root.WaitForTermination(TimeSpan.FromSeconds(2)).Wait();
+        });
 
         Console.CancelKeyPress += (s, e) =>
         {// Ctrl+C pressed.
             e.Cancel = true;
-            ThreadCore.Root.Terminate(); // Send a termination signal to the root.
+            Root.RequestTermination(); // Send a termination signal to the root.
         };
 
         Console.WriteLine(EstimateSize.Class<SemaphoreLock>());
@@ -103,10 +105,9 @@ internal class Program
         // await TestLock();
         // await TestThreadCore_Termination();
         // await TestAsyncPulseEvent();
-        await TestExecutionStack();
+        // await TestExecutionStack();
 
-        await ThreadCore.Root.WaitForTermination(-1); // Wait for the termination infinitely.
-        ThreadCore.Root.TerminationEvent.Set(); // The termination process is complete (#1).
+        await Root.WaitForTermination(-1); // Wait for the termination infinitely.
     }
 
     /*private static async Task TestSemaphoreDual()
@@ -298,7 +299,7 @@ internal class Program
 
     private static async Task TestThreadCore_Termination()
     {
-        var c1 = new TaskCore(ThreadCore.Root, async parameter =>
+        var c1 = new TaskCore(Root, async parameter =>
         {
             var core = (TaskCore)parameter!; // Get ThreadCore from the parameter.
             Console.WriteLine("TaskCore 1: Start");
@@ -306,7 +307,7 @@ internal class Program
             try
             {
                 // Task.Delay(2000).Wait(); // No CancellationToken
-                await Task.Delay(3000, ThreadCore.Root.CancellationToken);
+                await Task.Delay(3000, Root.CancellationToken);
             }
             catch
             {
@@ -315,22 +316,22 @@ internal class Program
             }
 
             Console.WriteLine("TaskCore 1: End");
-        }, false);
+        });
 
-        c1.Start();
-        var c2 = new ThreadCoreGroup(ThreadCore.Root);
+        c1.SendSignal(ExecutionSignal.Start);
+        var c2 = new ExecutionGroup(Root);
 
         try
         {
             _ = Task.Run(async () =>
             {
                 await Task.Delay(1000);
-                ThreadCore.Root.Terminate();
+                Root.RequestTermination();
             });
 
             try
             {
-                await Task.Delay(2000, ThreadCore.Root.CancellationToken);
+                await Task.Delay(2000, Root.CancellationToken);
             }
             catch
             {
@@ -339,8 +340,8 @@ internal class Program
         }
         catch
         {
-            ThreadCore.Root.Terminate();
-            ThreadCore.Root.WaitForTermination(-1).Wait();
+            Root.RequestTermination();
+            Root.WaitForTermination(-1).Wait();
         }
 
         // c1.Start();
@@ -352,7 +353,7 @@ internal class Program
 
     private class WaitPulseTask : TaskCore
     {
-        public WaitPulseTask(ThreadCoreBase parent, AsyncPulseEvent pulseEvent, int index)
+        public WaitPulseTask(ExecutionGroup parent, AsyncPulseEvent pulseEvent, int index)
             : base(parent, Process)
         {
             this.pulseEvent = pulseEvent;
@@ -378,7 +379,7 @@ internal class Program
 
         var pulseEvent = new AsyncPulseEvent();
 
-        var c2 = new TaskCore(ThreadCore.Root, async parameter =>
+        var c2 = new TaskCore(Root, async parameter =>
         {
             var core = (TaskCore)parameter!; // Get TaskCore from the parameter.
 
@@ -389,7 +390,7 @@ internal class Program
 
         for (var i = 0; i < 20; i++)
         {
-            new WaitPulseTask(ThreadCore.Root, pulseEvent, i);
+            new WaitPulseTask(Root, pulseEvent, i);
         }
     }
 }

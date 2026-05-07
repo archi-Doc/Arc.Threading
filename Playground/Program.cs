@@ -1,14 +1,16 @@
 ﻿using System;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Arc;
 using Arc.Threading;
 
 namespace Playground;
 
 public class TestWorker : ReusableJobWorker<ReusableThreadJob>
 {
-    public TestWorker()
-        : base(ThreadCore.Root, default)
+    public TestWorker(ExecutionGroup parent)
+        : base(parent)
     {
     }
 
@@ -25,38 +27,116 @@ public class TestWorker : ReusableJobWorker<ReusableThreadJob>
     }
 }
 
-public class TestCore : TaskCore
+public class CustomCore : TaskCore<CustomCore>
 {
-    private static async Task Method(object? core)
+    public CustomCore(ExecutionGroup parent)
+        : base(parent, Process)
     {
-        Console.WriteLine("1");
-        await Task.Delay(300);
-        Console.WriteLine("2");
-        await Task.Delay(300);
-        Console.WriteLine("3");
     }
 
-    public TestCore(ThreadCoreBase? parent, bool startImmediately = true)
-        : base(parent, Method, startImmediately)
+    private static async Task Process(CustomCore core)
     {
+        Console.WriteLine("5");
+
+        try
+        {
+            await core.Delay(2000);
+        }
+        catch
+        {
+        }
+
+        Console.WriteLine("6");
     }
 }
 
 class Program
 {
+    public static ExecutionRoot Root { get; } = new();
+
     static async Task Main(string[] args)
     {
+        AppCloseHandler.Set(() =>
+        {// Closing the console window or terminating the process.
+            Root.RequestTermination(); // Send a termination signal to the root.
+            Root.WaitForTermination(TimeSpan.FromSeconds(2)).Wait();
+        });
+
+        Console.CancelKeyPress += (s, e) =>
+        {// Ctrl+C pressed.
+            e.Cancel = true;
+            Root.RequestTermination(); // Send a termination signal to the root.
+        };
+
         Console.WriteLine("Hello World!");
         Console.WriteLine();
 
-        await Test2();
+        var c1 = new TaskCore(Root, async core =>
+        {
+            Console.WriteLine("1");
 
-        ThreadCore.Root.Terminate();
+            try
+            {
+                await core.Delay(1000);
+            }
+            catch
+            {
+            }
+
+            Console.WriteLine("2");
+        });
+
+        var g = new ExecutionGroup(Root);
+        var c2 = new TaskCore(g, async core =>
+        {
+            Console.WriteLine("3");
+            try
+            {
+                await core.Delay(1500);
+            }
+            catch
+            {
+            }
+
+            Console.WriteLine("4");
+        }
+        );
+
+        var tc = new ThreadCore(Root, async core =>
+        {
+            Console.WriteLine("A");
+
+            try
+            {
+                Thread.Sleep(500);
+            }
+            catch
+            {
+            }
+
+            Console.WriteLine("B");
+        });
+        tc.Name = "ThreadCore";
+
+        var cc = new CustomCore(Root);
+
+        c1.SendSignal(ExecutionSignal.Start);
+        Root.SendSignal(ExecutionSignal.Start);
+        await cc.Task;
+        // var c1 = new ExecutionCore(Root.Base);
+
+        await c2.WaitForTermination();
+        // var token = ((CancellationTokenSource)c2).Token;
+
+        await Test2(Root);
+
+        Root.RequestTermination();
+        await Root.WaitForTermination();
     }
 
-    static async Task Test2()
+    static async Task Test2(ExecutionGroup root)
     {
-        var worker = new TestWorker();
+        var worker = new TestWorker(root);
         var job1 = worker.Rent();
         worker.Add(job1);
         Console.WriteLine(job1.State);
@@ -64,6 +144,8 @@ class Program
         await worker.WaitForCompletion();
         // job1.Wait();
         Console.WriteLine(job1.State);
+
+        worker.Dispose();
     }
 
     static async Task Test1()

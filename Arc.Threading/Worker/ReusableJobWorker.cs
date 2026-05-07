@@ -34,7 +34,7 @@ namespace Arc.Threading;
 /// <see cref="ReusableJobState.Initial"/> -> <see cref="ReusableJobState.Pending"/> ->
 /// <see cref="ReusableJobState.Running"/> -> <see cref="ReusableJobState.Completed"/>.
 /// </remarks>
-public class ReusableJobWorker<TJob> : TaskCore, IDisposable
+public class ReusableJobWorker<TJob> : TaskCore<ReusableJobWorker<TJob>>, IDisposable
     where TJob : ReusableJob, new()
 {
     private const int DefaultPoolCapacity = 32;
@@ -42,10 +42,9 @@ public class ReusableJobWorker<TJob> : TaskCore, IDisposable
 
     public delegate void ProcessJobDelegate(object worker, TJob job);
 
-    private static async Task Process(object? parameter)
+    private static async Task Process(ReusableJobWorker<TJob> worker)
     {
-        var worker = (ReusableJobWorker<TJob>)parameter!;
-        while (!worker.IsTerminated)
+        while (worker.CanContinue)
         {
             var addEvent = worker.addEvent;
             if (addEvent is null)
@@ -216,11 +215,9 @@ Terminated:
     /// Optional delegate used to process each job. If <see langword="null"/>, <see cref="OnJobProcessing(TJob, CancellationToken)"/> is invoked.
     /// </param>
     /// <param name="poolCapacity">Initial capacity of the reusable job object pool.</param>
-    /// <param name="startImmediately">
-    /// <see langword="true"/> to start the worker thread during construction; otherwise, manual start is required.
-    /// </param>
-    public ReusableJobWorker(ThreadCoreBase? parent, ProcessJobDelegate? processJob = default, int poolCapacity = DefaultPoolCapacity, bool startImmediately = true)
-        : base(parent, Process, startImmediately)
+    /// <param name="options">Behavior flags controlling startup and completion semantics.</param>
+    public ReusableJobWorker(ExecutionGroup parent, ProcessJobDelegate? processJob = default, int poolCapacity = DefaultPoolCapacity, ExecutionCoreOptions options = ExecutionCoreOptions.Default)
+        : base(parent, Process, options)
     {
         this.processJob = processJob;
         this.freeJobs = new(() => new(), poolCapacity);
@@ -284,7 +281,7 @@ Terminated:
         this.pendingJobs.Enqueue(job);
         this.addEvent?.Pulse();
 
-        if (this.IsTerminated)
+        if (!this.CanContinue)
         {
             this.AbortAllJobs();
         }
@@ -336,9 +333,10 @@ Terminated:
     /// <returns><see langword="true"/>: All works are complete.<br/><see langword="false"/>: Timeout or cancelled.</returns>
     public async Task<bool> WaitForCompletion(int millisecondsTimeout, CancellationToken cancellationToken = default)
     {
-        if (this.disposed)
+        if (this.IsDisposed)
         {
-            throw new ObjectDisposedException(this.GetType().Name);
+            // throw new ObjectDisposedException(this.GetType().Name);
+            return false;
         }
         else if (millisecondsTimeout < Timeout.Infinite)
         {
@@ -357,7 +355,7 @@ Terminated:
             {
                 return true;
             }
-            else if (this.disposed)
+            else if (this.IsDisposed)
             {
                 return false;
             }
@@ -436,7 +434,7 @@ Terminated:
 
     protected override void Dispose(bool disposing)
     {
-        if (!this.disposed)
+        if (!this.IsDisposed)
         {
             if (disposing)
             {
