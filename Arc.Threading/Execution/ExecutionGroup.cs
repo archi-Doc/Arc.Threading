@@ -1,5 +1,6 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
@@ -7,17 +8,41 @@ using System.Threading;
 
 namespace Arc.Threading;
 
+/// <summary>
+/// Represents an <see cref="ExecutionCore"/> node that owns and coordinates a mutable collection
+/// of child executions.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Child membership is stored in a list and exposed through a cached array snapshot for efficient iteration.
+/// The cache is invalidated whenever children are added or removed.
+/// </para>
+/// <para>
+/// Synchronization is performed via <c>Root.SyncObject</c> when list access requires consistency.
+/// </para>
+/// </remarks>
 public class ExecutionGroup : ExecutionCore
 {
     #region FieldAndProperty
 
-    private List<ExecutionCore> childrenList = new(); // Root.SyncObject
+    private readonly List<ExecutionCore> childrenList = new(); // Root.SyncObject
     private ExecutionCore[]? childrenArray; // Root.SyncObject
 
+    /// <summary>
+    /// Gets the current number of registered child executions.
+    /// </summary>
     public int Count => this.childrenList.Count;
 
     #endregion
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ExecutionGroup"/> class under the specified parent group.
+    /// </summary>
+    /// <param name="parent">The parent group that owns this group.</param>
+    /// <param name="isIndependent">
+    /// A value indicating whether this group is independent from parent cancellation/signal behavior.
+    /// </param>
+    /// <param name="name">An optional display name. If <see langword="null"/>, an empty name is used.</param>
     public ExecutionGroup(ExecutionGroup parent, bool isIndependent = false, string? name = default)
         : base(parent, isIndependent)
     {
@@ -29,28 +54,32 @@ public class ExecutionGroup : ExecutionCore
     {
     }
 
+    /// <summary>
+    /// Adds a child execution to this group by assigning its <c>Parent</c> to the current instance.
+    /// </summary>
+    /// <param name="child">The child execution to add.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="child"/> is <see langword="null"/>.</exception>
     public void AddChild(ExecutionCore child)
     {
-        if (this.Root != child.Root)
+        if (child is null)
         {
-            ExecutionHelper.ThrowDifferentParentException();
+            throw new ArgumentNullException(nameof(child));
         }
 
-        using (this.Root.SyncObject.EnterScope())
-        {
-            if (child.Parent == this)
-            {
-                return;
-            }
-
-            child.Parent?.RemoveChildInternal(child);
-            this.AddChildInternal(child);
-        }
+        child.Parent = this;
     }
 
+    /// <summary>
+    /// Gets a stable array snapshot of the current children.
+    /// </summary>
+    /// <returns>An array containing the current child executions.</returns>
+    /// <remarks>
+    /// Returns a cached snapshot when available; otherwise, builds and caches a new snapshot under synchronization.
+    /// </remarks>
     public ExecutionCore[] GetChildren()
     {
-        if (this.childrenArray is { } array)
+        var array = Volatile.Read(ref this.childrenArray);
+        if (array is not null)
         {
             return array;
         }
@@ -61,7 +90,12 @@ public class ExecutionGroup : ExecutionCore
         }
     }
 
-    public ExecutionCore? Find(int id)
+    /// <summary>
+    /// Finds a direct child execution by its identifier.
+    /// </summary>
+    /// <param name="id">The child execution identifier.</param>
+    /// <returns>The matching child execution, or <see langword="null"/> if not found.</returns>
+    public ExecutionCore? FindChild(int id)
     {
         using (this.Root.SyncObject.EnterScope())
         {
@@ -69,9 +103,18 @@ public class ExecutionGroup : ExecutionCore
         }
     }
 
-    public bool FindCancellationToken(int id, out CancellationToken cancellationToken)
+    /// <summary>
+    /// Attempts to locate a direct child execution and retrieve its cancellation token.
+    /// </summary>
+    /// <param name="id">The child execution identifier.</param>
+    /// <param name="cancellationToken">
+    /// When this method returns <see langword="true"/>, contains the child's cancellation token;
+    /// otherwise, the default token.
+    /// </param>
+    /// <returns><see langword="true"/> if a child with the specified id exists; otherwise, <see langword="false"/>.</returns>
+    public bool TryGetChildCancellationToken(int id, out CancellationToken cancellationToken)
     {
-        if (this.Find(id) is { } core)
+        if (this.FindChild(id) is { } core)
         {
             cancellationToken = core.CancellationToken;
             return true;
@@ -83,6 +126,10 @@ public class ExecutionGroup : ExecutionCore
         }
     }
 
+    /// <summary>
+    /// Propagates an execution signal to all current children.
+    /// </summary>
+    /// <param name="signal">The signal to forward.</param>
     public override void OnSignalReceived(ExecutionSignal signal)
     {
         var children = this.GetChildren();
@@ -101,7 +148,7 @@ public class ExecutionGroup : ExecutionCore
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void ClearChildrenArrayInternal()
     {
-        this.childrenArray = default;
+        Volatile.Write(ref this.childrenArray, null);
     }
 
     internal void ClearInternal()
@@ -113,19 +160,21 @@ public class ExecutionGroup : ExecutionCore
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ExecutionCore[] GetChildrenArrayInternal()
     {
-        if (this.childrenArray is null)
+        var array = this.childrenArray;
+        if (array is null)
         {
-            this.childrenArray = this.childrenList.ToArray();
+            array = this.childrenList.ToArray();
+            Volatile.Write(ref this.childrenArray, array);
         }
 
-        return this.childrenArray;
+        return array;
     }
 
     internal void AddChildInternal(ExecutionCore child)
     {
-        Debug.Assert(child.Parent is null);
+        Debug.Assert(child.Root == this.Root);
+        Debug.Assert(child.parent is null);
 
-        this.childrenList ??= new();
         this.childrenList.Add(child);
         this.ClearChildrenArrayInternal();
         child.parent = this;
@@ -133,11 +182,6 @@ public class ExecutionGroup : ExecutionCore
 
     internal bool RemoveChildInternal(ExecutionCore child)
     {
-        if (this.childrenList is null)
-        {
-            return false;
-        }
-
         if (!this.childrenList.Remove(child))
         {
             return false;

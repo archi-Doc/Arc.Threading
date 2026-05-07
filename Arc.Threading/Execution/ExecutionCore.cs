@@ -104,7 +104,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
                         ExecutionHelper.ThrowDifferentParentException();
                     }
 
-                    this.Parent?.RemoveChildInternal(this);
+                    this.parent?.RemoveChildInternal(this);
                     value.AddChildInternal(this);
                 }
             }
@@ -148,7 +148,8 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     public CancellationToken CancellationToken => ExecutionHelper.Pack(this);
 
     /// <summary>
-    /// Gets the <see cref="System.Threading.CancellationToken"/> associated with this execution.
+    /// Gets the <see cref="System.Threading.CancellationToken"/> associated with this execution.<br/>
+    /// This property hides <see cref="CancellationTokenSource.Token"/>.
     /// </summary>
     public new CancellationToken Token => ExecutionHelper.Pack(this);
 
@@ -187,6 +188,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
         this.Root = parent.Root;
         this.executionSignalHandler = executionSignalHandler;
 
+        bool terminateImmediately;
         using (this.Root.SyncObject.EnterScope())
         {
             /*while (true)
@@ -201,9 +203,10 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
             this.Id = (int)Random.Shared.NextInt64();
             stack?.AddInternal(this);
             parent.AddChildInternal(this);
+            terminateImmediately = parent.IsTerminated;
         }
 
-        if (parent.IsTerminated)
+        if (terminateImmediately)
         {
             this.RequestTermination();
         }
@@ -222,7 +225,8 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// </summary>
     /// <param name="millisecondsToWait">The number of milliseconds to wait.</param>
     /// <param name="cancellationToken">An additional cancellation token that can be used to cancel the delay.</param>
-    /// <returns><see langword="true"/> if the time successfully elapsed, <see langword="false"/> if the thread/task is terminated.</returns>
+    /// <returns><see langword="true"/> if the delay elapsed; otherwise, <see langword="false"/><br/>
+    /// if this execution was terminated or the additional cancellation token was canceled.</returns>
     public Task<bool> Delay(int millisecondsToWait, CancellationToken cancellationToken = default)
         => this.Delay(TimeSpan.FromMilliseconds(millisecondsToWait), cancellationToken);
 
@@ -231,7 +235,8 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// </summary>
     /// <param name="delay">The TimeSpan to wait.</param>
     /// <param name="cancellationToken">An additional cancellation token that can be used to cancel the delay.</param>
-    /// <returns><see langword="true"/> if the time successfully elapsed, <see langword="false"/> if the thread/task is terminated.</returns>
+    /// <returns><see langword="true"/> if the delay elapsed; otherwise, <see langword="false"/><br/>
+    /// if this execution was terminated or the additional cancellation token was canceled.</returns>
     /// <exception cref="ArgumentOutOfRangeException">
     /// Thrown when <paramref name="delay"/> is negative and not <see cref="Timeout.InfiniteTimeSpan"/>.
     /// </exception>

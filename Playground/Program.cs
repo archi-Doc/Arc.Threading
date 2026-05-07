@@ -125,6 +125,9 @@ class Program
         await cc.Task;
         // var c1 = new ExecutionCore(Root.Base);
 
+        await c2.WaitForTermination();
+        // var token = ((CancellationTokenSource)c2).Token;
+
         await Test2(Root);
 
         Root.RequestTermination();
