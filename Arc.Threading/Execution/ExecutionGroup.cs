@@ -70,6 +70,37 @@ public class ExecutionGroup : ExecutionCore
     }
 
     /// <summary>
+    /// Gets an existing child <see cref="ExecutionGroup"/> with the specified <paramref name="name"/>,<br/>
+    /// or creates and returns a new one when no match exists.
+    /// </summary>
+    /// <param name="isIndependent">
+    /// A value indicating whether a newly created group should be independent from parent signal/cancellation behavior.<br/>
+    /// This value is ignored when a matching group already exists.
+    /// </param>
+    /// <param name="name">The group name to search for.</param>
+    /// <returns>
+    /// An existing child group whose name matches <paramref name="name"/> using
+    /// <see cref="StringComparison.InvariantCulture"/>, or a newly created child group.
+    /// </returns>
+    public ExecutionGroup GetOrAddGroup(bool isIndependent, string name)
+    {
+        using (this.Root.SyncObject.EnterScope())
+        {
+            foreach (var x in this.childrenList)
+            {
+                if (x is ExecutionGroup group &&
+                    string.Equals(x.Name, name, StringComparison.Ordinal))
+                {
+                    return group;
+                }
+            }
+
+            var newGroup = new ExecutionGroup(this, isIndependent, name);
+            return newGroup;
+        }
+    }
+
+    /// <summary>
     /// Gets a stable array snapshot of the current children.
     /// </summary>
     /// <returns>An array containing the current child executions.</returns>
