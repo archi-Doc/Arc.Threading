@@ -333,6 +333,11 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
 
         static void CountObjects(ExecutionCore core, ref int notTerminated)
         {
+            if (core.IsIndependent)
+            {//
+                return;
+            }
+
             if (core is ExecutionGroup group)
             {// ExecutionGroup is treated as a container. This method waits for non-group executions only.
                 if (group.Count > 0)

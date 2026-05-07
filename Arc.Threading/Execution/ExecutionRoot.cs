@@ -69,7 +69,7 @@ public class ExecutionRoot : ExecutionGroup
     /// otherwise <see langword="false"/>.
     /// </returns>
     public override Task<bool> WaitForTermination(TimeSpan timeout, CancellationToken cancellationToken = default)
-    {
+    {//
         if (this.BaseGroup.CanContinue)
         {
             this.BaseGroup.RequestTermination(RequestTerminationOptions.IncludeIndependent);
