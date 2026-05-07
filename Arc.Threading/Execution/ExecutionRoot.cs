@@ -14,7 +14,7 @@ namespace Arc.Threading;
 /// <remarks>
 /// <para>
 /// <see cref="BaseGroup"/> manages executions that provide base services for the application.<br/>
-/// Executions are managed independently, and when <see cref="WaitForTermination(TimeSpan, CancellationToken, TerminationOptions)"/> is called, <see cref="ExecutionCore.RequestTermination(Arc.Threading.TerminationOptions)"/> is called on the BaseGroup.
+/// Executions are managed independently, and when <see cref="WaitForTermination(TimeSpan, TerminationOptions, CancellationToken)"/> is called, <see cref="ExecutionCore.RequestTermination(Arc.Threading.TerminationOptions)"/> is called on the BaseGroup.
 /// </para>
 /// <para>
 /// <see cref="IndependentGroup"/> is intended for executions that can be managed independently,
@@ -32,7 +32,7 @@ public class ExecutionRoot : ExecutionGroup
 
     /// <summary>
     /// Gets the execution group that provides base services for the application.<br/>
-    /// Executions are managed independently, and when <see cref="WaitForTermination(TimeSpan, CancellationToken, TerminationOptions)"/> is called, <see cref="ExecutionCore.RequestTermination(Arc.Threading.TerminationOptions)"/> is called on the BaseGroup.
+    /// Executions are managed independently, and when <see cref="WaitForTermination(TimeSpan, TerminationOptions, CancellationToken)"/> is called, <see cref="ExecutionCore.RequestTermination(Arc.Threading.TerminationOptions)"/> is called on the BaseGroup.
     /// </summary>
     public ExecutionGroup BaseGroup { get; }
 
@@ -58,14 +58,14 @@ public class ExecutionRoot : ExecutionGroup
         this.IndependentGroup = new(this, true, "Independent");
     }
 
-    public override Task<bool> WaitForTermination(TimeSpan timeout, CancellationToken cancellationToken = default, TerminationOptions options = default)
+    public override Task<bool> WaitForTermination(TimeSpan timeout, TerminationOptions options = default, CancellationToken cancellationToken = default)
     {
         if (this.BaseGroup.CanContinue)
         {
             this.BaseGroup.RequestTermination(TerminationOptions.IncludeIndependent);
         }
 
-        return base.WaitForTermination(timeout, cancellationToken, options);
+        return base.WaitForTermination(timeout, options, cancellationToken);
     }
 
     /*public ExecutionCore? Find(long id)

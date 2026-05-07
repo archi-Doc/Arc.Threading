@@ -71,12 +71,6 @@ class Program
         Console.WriteLine("Hello World!");
         Console.WriteLine();
 
-        var c0 = new ExecutionCore(Root);
-        Console.WriteLine(Root.Count.ToString());
-        c0.RequestTermination();
-        Console.WriteLine(Root.Count.ToString());
-        Console.WriteLine();
-
         var c1 = new TaskCore(Root, async core =>
         {
             Console.WriteLine("1");
@@ -141,7 +135,7 @@ class Program
         await Test2(Root);
 
         Root.RequestTermination();
-        await Root.WaitForTermination(3_000, default, TerminationOptions.IncludeIndependent);
+        await Root.WaitForTermination(3_000, TerminationOptions.IncludeIndependent);
     }
 
     static async Task Test2(ExecutionGroup root)
