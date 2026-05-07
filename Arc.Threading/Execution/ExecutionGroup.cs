@@ -70,6 +70,46 @@ public class ExecutionGroup : ExecutionCore
     }
 
     /// <summary>
+    /// Gets an existing child <see cref="ExecutionGroup"/> with the specified <paramref name="name"/>,<br/>
+    /// or creates and returns a new one when no match exists.
+    /// </summary>
+    /// <param name="isIndependent">
+    /// A value indicating whether a newly created group should be independent from parent signal/cancellation behavior.<br/>
+    /// This value is ignored when a matching group already exists.
+    /// </param>
+    /// <param name="name">The group name to search for.</param>
+    /// <returns>
+    /// An existing child group whose name matches <paramref name="name"/> using
+    /// <see cref="StringComparison.Ordinal"/>, or a newly created child group.
+    /// </returns>
+    public ExecutionGroup GetOrAddGroup(bool isIndependent, string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+
+        using (this.Root.SyncObject.EnterScope())
+        {
+            foreach (var x in this.childrenList)
+            {
+                if (x is ExecutionGroup group &&
+                    string.Equals(x.Name, name, StringComparison.Ordinal))
+                {
+                    if (group.IsIndependent != isIndependent)
+                    {
+                        throw new InvalidOperationException("An ExecutionGroup with the same name already exists with different independence settings.");
+                    }
+
+                    return group;
+                }
+            }
+
+            // ExecutionGroup's constructor re-enters Root.SyncObject through AddChildInternal.
+            // System.Threading.Lock is reentrant, so this is safe.
+            var newGroup = new ExecutionGroup(this, isIndependent, name);
+            return newGroup;
+        }
+    }
+
+    /// <summary>
     /// Gets a stable array snapshot of the current children.
     /// </summary>
     /// <returns>An array containing the current child executions.</returns>

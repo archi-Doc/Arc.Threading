@@ -86,7 +86,7 @@ class Program
             Console.WriteLine("2");
         });
 
-        var g = new ExecutionGroup(Root);
+        var g = Root.GetOrAddGroup(true, "TestGroup");
         var c2 = new TaskCore(g, async core =>
         {
             Console.WriteLine("3");
@@ -101,6 +101,9 @@ class Program
             Console.WriteLine("4");
         }
         );
+
+        var g2 = Root.GetOrAddGroup(true, "TestGroup");
+        var rr = ReferenceEquals(g, g2);
 
         var tc = new ThreadCore(Root, async core =>
         {
