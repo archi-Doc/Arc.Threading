@@ -128,9 +128,9 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     public bool IsIndependent { get; set; }
 
     /// <summary>
-    /// Gets a value indicating whether this execution is currently active.
+    /// Gets a value indicating whether this execution is active and can continue running.
     /// </summary>
-    public virtual bool IsActive => !this.IsCancellationRequested;
+    public virtual bool CanContinue => !this.IsCancellationRequested;
 
     /// <summary>
     /// Gets a value indicating whether this execution has been terminated.
@@ -145,10 +145,12 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// <summary>
     /// Gets the <see cref="System.Threading.CancellationToken"/> associated with this execution.
     /// </summary>
-    /// <remarks>
-    /// This property must not be accessed after this instance has been disposed.
-    /// </remarks>
-    public CancellationToken CancellationToken => this.Token;
+    public CancellationToken CancellationToken => ExecutionHelper.Pack(this);
+
+    /// <summary>
+    /// Gets the <see cref="System.Threading.CancellationToken"/> associated with this execution.
+    /// </summary>
+    public new CancellationToken Token => ExecutionHelper.Pack(this);
 
     #endregion
 
@@ -199,6 +201,11 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
             this.Id = (int)Random.Shared.NextInt64();
             stack?.AddInternal(this);
             parent.AddChildInternal(this);
+        }
+
+        if (parent.IsTerminated)
+        {
+            this.RequestTermination();
         }
     }
 

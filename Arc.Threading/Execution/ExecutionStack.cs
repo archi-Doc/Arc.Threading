@@ -1,8 +1,6 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
-using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 
 namespace Arc.Threading;
 
@@ -84,17 +82,6 @@ public class ExecutionStack
 
         return true;
     }
-
-    /*public ExecutionCore? TryPush(ExecutionCore parent, long id, ExecutionSignalHandler? processSignalHandler = default)
-    {
-        if (this.Root != parent.Root)
-        {
-            ExecutionHelper.ThrowDifferentRootException();
-        }
-
-        var core = ExecutionCore.TryCreate(parent, id, this, processSignalHandler);
-        return core;
-    }*/
 
     /// <summary>
     /// Finds the first execution with the specified identifier.

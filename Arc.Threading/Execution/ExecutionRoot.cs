@@ -25,13 +25,13 @@ public class ExecutionRoot : ExecutionGroup
     public ExecutionRoot()
         : base()
     {
-        this.IndependentGroup = new(this, true, "Independent");
         this.BaseGroup = new(this, true, "Base");
+        this.IndependentGroup = new(this, true, "Independent");
     }
 
     public override Task<bool> WaitForTermination(TimeSpan timeout, CancellationToken cancellationToken = default)
     {
-        if (this.BaseGroup.IsActive)
+        if (this.BaseGroup.CanContinue)
         {
             this.BaseGroup.RequestTermination(RequestTerminationOptions.IncludeIndependent);
         }

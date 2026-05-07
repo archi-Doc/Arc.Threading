@@ -9,6 +9,7 @@ namespace Arc.Threading;
 
 public static class ExecutionHelper
 {
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static TExecution? Extract<TExecution>(this CancellationToken cancellationToken)
         where TExecution : ExecutionCore
     {// In my opinion, CancellationToken should have been named something like TaskContext, with added features for managing parent-child dependencies and for canceling or terminating processing.
@@ -23,8 +24,17 @@ public static class ExecutionHelper
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ExecutionCore? ExtractCore(this CancellationToken cancellationToken)
-        => Extract<ExecutionCore>(cancellationToken);
+    {
+        return Extract<ExecutionCore>(cancellationToken);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static CancellationToken Pack(this ExecutionCore executionCore)
+    {
+        return Unsafe.As<ExecutionCore, CancellationToken>(ref executionCore);
+    }
 
     [DoesNotReturn]
     internal static void ThrowDifferentRootException()

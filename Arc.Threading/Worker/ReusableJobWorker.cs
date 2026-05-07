@@ -44,7 +44,7 @@ public class ReusableJobWorker<TJob> : TaskCore<ReusableJobWorker<TJob>>, IDispo
 
     private static async Task Process(ReusableJobWorker<TJob> worker)
     {
-        while (!worker.IsTerminated)
+        while (worker.CanContinue)
         {
             var addEvent = worker.addEvent;
             if (addEvent is null)
@@ -281,7 +281,7 @@ Terminated:
         this.pendingJobs.Enqueue(job);
         this.addEvent?.Pulse();
 
-        if (this.IsTerminated)
+        if (!this.CanContinue)
         {
             this.AbortAllJobs();
         }
@@ -335,7 +335,8 @@ Terminated:
     {
         if (this.IsDisposed)
         {
-            throw new ObjectDisposedException(this.GetType().Name);
+            // throw new ObjectDisposedException(this.GetType().Name);
+            return false;
         }
         else if (millisecondsTimeout < Timeout.Infinite)
         {
