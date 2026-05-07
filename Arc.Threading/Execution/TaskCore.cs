@@ -97,9 +97,6 @@ public class TaskCore : ExecutionCore
     /// <param name="method">The asynchronous delegate executed by the underlying long-running task.</param>
     /// <param name="options">Behavior flags controlling startup and completion semantics.</param>
     /// <exception cref="ArgumentNullException"><paramref name="method"/> is <see langword="null"/>.</exception>
-    /// <remarks>
-    /// If <see cref="ExecutionCoreOptions.StartImmediately"/> is specified, a start signal is sent during construction.
-    /// </remarks>
     public TaskCore(ExecutionGroup parent, Func<TaskCore, Task> method, ExecutionCoreOptions options = ExecutionCoreOptions.Default)
         : base(parent)
     {
@@ -177,7 +174,7 @@ public class TaskCore : ExecutionCore
             throw new InvalidOperationException("The task has already been initialized.");
         }
 
-        if ((this.Options & ExecutionCoreOptions.StartImmediately) != 0)
+        if ((this.Options & ExecutionCoreOptions.DelayedStart) == 0)
         {
             this.SendSignal(ExecutionSignal.Start);
         }
@@ -203,7 +200,7 @@ public class TaskCore : ExecutionCore
                 }
                 finally
                 {
-                    if ((this.Options & ExecutionCoreOptions.DisposeOnCompletion) != 0)
+                    if ((this.Options & ExecutionCoreOptions.KeepAliveOnCompletion) == 0)
                     {
                         // Do not wait for this.Task from Dispose().
                         // DisposeOnCompletion calls Dispose from the task itself.

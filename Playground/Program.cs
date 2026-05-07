@@ -118,7 +118,7 @@ class Program
             }
 
             Console.WriteLine("B");
-        }, ExecutionCoreOptions.StartImmediately);
+        });
         tc.Name = "ThreadCore";
         // tc.IsIndependent = true;
 
