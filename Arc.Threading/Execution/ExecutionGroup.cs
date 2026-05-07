@@ -80,10 +80,12 @@ public class ExecutionGroup : ExecutionCore
     /// <param name="name">The group name to search for.</param>
     /// <returns>
     /// An existing child group whose name matches <paramref name="name"/> using
-    /// <see cref="StringComparison.InvariantCulture"/>, or a newly created child group.
+    /// <see cref="StringComparison.Ordinal"/>, or a newly created child group.
     /// </returns>
     public ExecutionGroup GetOrAddGroup(bool isIndependent, string name)
     {
+        ArgumentNullException.ThrowIfNull(name);
+
         using (this.Root.SyncObject.EnterScope())
         {
             foreach (var x in this.childrenList)
@@ -91,10 +93,17 @@ public class ExecutionGroup : ExecutionCore
                 if (x is ExecutionGroup group &&
                     string.Equals(x.Name, name, StringComparison.Ordinal))
                 {
+                    if (group.IsIndependent != isIndependent)
+                    {
+                        throw new InvalidOperationException("An ExecutionGroup with the same name already exists with different independence settings.");
+                    }
+
                     return group;
                 }
             }
 
+            // ExecutionGroup's constructor re-enters Root.SyncObject through AddChildInternal.
+            // System.Threading.Lock is reentrant, so this is safe.
             var newGroup = new ExecutionGroup(this, isIndependent, name);
             return newGroup;
         }
