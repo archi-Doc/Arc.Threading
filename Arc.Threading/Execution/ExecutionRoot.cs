@@ -68,6 +68,17 @@ public class ExecutionRoot : ExecutionGroup
         return base.WaitForTermination(timeout, options, cancellationToken);
     }
 
+    /// <summary>
+    /// Gets or creates an independent execution group with the specified unit name under the <see cref="IndependentGroup"/>.
+    /// </summary>
+    /// <param name="unitName">The name of the unit group to retrieve or create.</param>
+    /// <returns>
+    /// An existing independent child group whose name matches <paramref name="name"/> using
+    /// <see cref="StringComparison.Ordinal"/>, or a newly created independent child group.
+    /// </returns>
+    public ExecutionGroup UnitGroup(string unitName)
+        => this.IndependentGroup.GetOrAddGroup(true, unitName);
+
     /*public ExecutionCore? Find(long id)
     {
         using (this.SyncObject.EnterScope())
