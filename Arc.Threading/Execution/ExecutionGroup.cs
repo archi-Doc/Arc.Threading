@@ -49,6 +49,11 @@ public class ExecutionGroup : ExecutionCore
         this.Name = name ?? string.Empty;
     }
 
+    internal ExecutionGroup(ExecutionGroup parent, ExecutionStack stack, bool isIndependent, ExecutionSignalHandler? executionSignalHandler = default)
+        : base(parent, stack, isIndependent, executionSignalHandler)
+    {
+    }
+
     private protected ExecutionGroup()
         : base()
     {

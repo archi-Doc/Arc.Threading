@@ -163,7 +163,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// Optional signal callback invoked by <see cref="SendSignal(ExecutionSignal)"/>.
     /// </param>
     public ExecutionCore(ExecutionGroup parent, ExecutionSignalHandler? executionSignalHandler = default)
-        : this(parent, null, executionSignalHandler)
+        : this(parent, null, false, executionSignalHandler)
     {
     }
 
@@ -178,14 +178,14 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// Optional signal callback invoked by <see cref="SendSignal(ExecutionSignal)"/>.
     /// </param>
     public ExecutionCore(ExecutionGroup parent, bool isIndependent, ExecutionSignalHandler? executionSignalHandler = default)
-        : this(parent, null, executionSignalHandler)
+        : this(parent, null, isIndependent, executionSignalHandler)
     {
-        this.IsIndependent = isIndependent;
     }
 
-    internal ExecutionCore(ExecutionGroup parent, ExecutionStack? stack, ExecutionSignalHandler? executionSignalHandler)
+    internal ExecutionCore(ExecutionGroup parent, ExecutionStack? stack, bool isIndependent, ExecutionSignalHandler? executionSignalHandler)
     {
         this.Root = parent.Root;
+        this.IsIndependent = isIndependent;
         this.executionSignalHandler = executionSignalHandler;
         bool terminateImmediately;
         using (this.Root.SyncObject.EnterScope())
