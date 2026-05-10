@@ -6,7 +6,9 @@ namespace Arc.Threading;
 
 public class TaskCompletionCore : ExecutionCore
 {
-    public TaskCompletionSource CompletionSource { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource completionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public Task CompletionTask => this.completionSource.Task;
 
     // public override bool IsTerminated => !this.CompletionSource.Task.IsCompleted;
 
@@ -16,5 +18,5 @@ public class TaskCompletionCore : ExecutionCore
     }
 
     public void TrySetCompleted()
-        => this.CompletionSource.TrySetResult();
+        => this.completionSource.TrySetResult();
 }
