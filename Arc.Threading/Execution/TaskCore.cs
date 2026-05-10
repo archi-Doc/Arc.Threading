@@ -39,7 +39,7 @@ public class TaskCore<TSelf> : TaskCore
             throw new InvalidOperationException($"{this.GetType().Name} must use itself as the {nameof(TSelf)} type argument.");
         }
 
-        this.Initialize(this.CreateLongRunningTask(() => method(self)));
+        this.Initialize(this.CreateLongRunningTask(this, () => method(self)));
     }
 }
 
@@ -103,7 +103,7 @@ public class TaskCore : ExecutionCore
         ArgumentNullException.ThrowIfNull(method);
 
         this.Options = options;
-        this.Initialize(this.CreateLongRunningTask(() => method(this)));
+        this.Initialize(this.CreateLongRunningTask(this, () => method(this)));
     }
 
     /// <summary>
@@ -184,12 +184,18 @@ public class TaskCore : ExecutionCore
     /// Creates a long-running task that executes the specified asynchronous delegate synchronously
     /// on the dedicated long-running task body.
     /// </summary>
+    /// <param name="core">TaskCore.</param>
     /// <param name="method">The asynchronous delegate to execute.</param>
     /// <returns>A non-started long-running task.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="method"/> is <see langword="null"/>.</exception>
-    protected Task CreateLongRunningTask(Func<Task> method)
+    protected Task CreateLongRunningTask(TaskCore core, Func<Task> method)
     {
         ArgumentNullException.ThrowIfNull(method);
+
+        if (core.IsTerminated)
+        {
+            return Task.CompletedTask;
+        }
 
         return new Task(
             () =>

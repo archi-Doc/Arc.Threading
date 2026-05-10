@@ -4,6 +4,7 @@ using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Arc.Threading;
 
@@ -12,6 +13,55 @@ namespace Arc.Threading;
 /// </summary>
 public static class ExecutionHelper
 {
+    extension(Task)
+    {
+        /// <summary>
+        /// Asynchronously waits for the specified duration.
+        /// </summary>
+        /// <param name="delay">The duration to wait.</param>
+        /// <param name="cancellationToken">The cancellation token used to cancel the delay.</param>
+        /// <returns>
+        /// A task that returns <see langword="true"/> if the delay elapsed successfully;
+        /// otherwise, <see langword="false"/> if the delay was canceled.
+        /// </returns>
+        public static async Task<bool> TryDelay(TimeSpan delay, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Asynchronously waits for the specified number of milliseconds.
+        /// </summary>
+        /// <param name="millisecondsDelay">
+        /// The number of milliseconds to wait, or <see cref="Timeout.Infinite"/> to wait indefinitely.
+        /// </param>
+        /// <param name="cancellationToken">The cancellation token used to cancel the delay.</param>
+        /// <returns>
+        /// A task that returns <see langword="true"/> if the delay elapsed successfully;
+        /// otherwise, <see langword="false"/> if the delay was canceled.
+        /// </returns>
+        public static async Task<bool> TryDelay(int millisecondsDelay, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                await Task.Delay(millisecondsDelay, cancellationToken).ConfigureAwait(false);
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                return false;
+            }
+        }
+    }
+
     /// <summary>
     /// Attempts to extract an execution instance from a <see cref="CancellationToken"/>.
     /// </summary>
@@ -49,6 +99,56 @@ public static class ExecutionHelper
     {
         return Extract<ExecutionCore>(cancellationToken);
     }
+
+    /*public static Task<bool> Delay(this CancellationToken cancellationToken, TimeSpan delay)
+    {
+        if (cancellationToken.ExtractCore() is { } core)
+        {
+            return core.Delay(delay);
+        }
+        else
+        {
+            return DelayTask(delay, cancellationToken);
+        }
+
+        static async Task<bool> DelayTask(TimeSpan ts, CancellationToken ct)
+        {
+            try
+            {
+                await Task.Delay(ts, ct).ConfigureAwait(false);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }
+
+    public static Task<bool> Delay(this CancellationToken cancellationToken, int millisecondsToWait)
+    {
+        if (cancellationToken.ExtractCore() is { } core)
+        {
+            return core.Delay(millisecondsToWait);
+        }
+        else
+        {
+            return DelayTask(millisecondsToWait, cancellationToken);
+        }
+
+        static async Task<bool> DelayTask(int ms, CancellationToken ct)
+        {
+            try
+            {
+                await Task.Delay(ms, ct).ConfigureAwait(false);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }*/
 
     /// <summary>
     /// Packs an <see cref="ExecutionCore"/> instance into a <see cref="CancellationToken"/>.
