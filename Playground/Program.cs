@@ -71,6 +71,12 @@ class Program
         Console.WriteLine("Hello World!");
         Console.WriteLine();
 
+        var cts = new CancellationTokenSource();
+        cts.CancelAfter(100);
+        Console.WriteLine("TryDelay");
+        var delayResult = await Task.TryDelay(1000, cts.Token);
+        Console.WriteLine(delayResult.ToString());
+
         var c1 = new TaskCore(Root, async core =>
         {
             Console.WriteLine("1");
@@ -92,7 +98,7 @@ class Program
             Console.WriteLine("333");
             try
             {
-                await core.Delay(5_000);
+                await core.Delay(500);
             }
             catch
             {
