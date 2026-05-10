@@ -91,14 +91,14 @@ public class ExecutionStack
     /// <exception cref="System.InvalidOperationException">
     /// Thrown when <paramref name="parent"/> belongs to a different <see cref="ExecutionRoot"/>.
     /// </exception>
-    public ExecutionCore PushNew(ExecutionGroup parent, ExecutionSignalHandler? processSignalHandler = default)
+    public TaskCompletionGroup PushNew(ExecutionGroup parent, ExecutionSignalHandler? processSignalHandler = default)
     {
         if (this.Root != parent.Root)
         {
             ExecutionHelper.ThrowDifferentRootException();
         }
 
-        var core = new ExecutionCore(parent, this, processSignalHandler);
+        var core = new TaskCompletionGroup(parent, this, false, processSignalHandler);
         return core;
     }
 

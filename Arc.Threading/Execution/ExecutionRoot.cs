@@ -73,7 +73,7 @@ public class ExecutionRoot : ExecutionGroup
     /// </summary>
     /// <param name="unitName">The name of the unit group to retrieve or create.</param>
     /// <returns>
-    /// An existing independent child group whose name matches <paramref name="name"/> using
+    /// An existing independent child group whose name matches <paramref name="unitName"/> using
     /// <see cref="StringComparison.Ordinal"/>, or a newly created independent child group.
     /// </returns>
     public ExecutionGroup UnitGroup(string unitName)
