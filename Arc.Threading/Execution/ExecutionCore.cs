@@ -112,9 +112,9 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     }
 
     /// <summary>
-    /// Gets the identifier of this execution.
+    /// Gets or sets the identifier of this execution.
     /// </summary>
-    public int Id { get; private set; }
+    public int Id { get; set; }
 
     /// <summary>
     /// Gets a value indicating whether this is the execution root.
