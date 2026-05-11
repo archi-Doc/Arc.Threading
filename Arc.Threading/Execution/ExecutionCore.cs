@@ -114,17 +114,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// <summary>
     /// Gets or sets the identifier of this execution.
     /// </summary>
-    public int Id
-    {
-        get => field;
-        set
-        {
-            using (this.Root.SyncObject.EnterScope())
-            {
-                field = value;
-            }
-        }
-    }
+    public int Id { get; set; }
 
     /// <summary>
     /// Gets a value indicating whether this is the execution root.
