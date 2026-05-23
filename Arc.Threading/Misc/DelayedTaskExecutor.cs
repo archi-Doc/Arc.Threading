@@ -13,7 +13,7 @@ using System.Threading.Tasks;
 /// This executor guarantees at most one pending delayed run while idle/waiting, <br/>and at most
 /// one additional delayed rerun request while currently executing.
 /// </remarks>
-public sealed class DelayedAsyncExecutor
+public sealed class DelayedTaskExecutor
 {
     private const int Idle = 0;
     private const int Waiting = 1;
@@ -26,7 +26,7 @@ public sealed class DelayedAsyncExecutor
     private int state;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="DelayedAsyncExecutor"/> class.
+    /// Initializes a new instance of the <see cref="DelayedTaskExecutor"/> class.
     /// </summary>
     /// <param name="action">
     /// The asynchronous action to execute after the configured delay.
@@ -37,7 +37,7 @@ public sealed class DelayedAsyncExecutor
     /// <param name="cancellationToken">
     /// A token used to cancel pending delays and action execution.
     /// </param>
-    public DelayedAsyncExecutor(Func<CancellationToken, Task> action, TimeSpan delay, CancellationToken cancellationToken = default)
+    public DelayedTaskExecutor(Func<CancellationToken, Task> action, TimeSpan delay, CancellationToken cancellationToken = default)
     {
         if (delay < TimeSpan.Zero)
         {
@@ -50,8 +50,8 @@ public sealed class DelayedAsyncExecutor
     }
 
     /// <summary>
-    /// Requests delayed execution.
-    /// Requests during the waiting period are coalesced.
+    /// Requests delayed execution.<br/>
+    /// Requests during the waiting period are coalesced.<br/>
     /// Requests during execution schedule one additional delayed execution.
     /// </summary>
     /// <returns>
@@ -67,7 +67,6 @@ public sealed class DelayedAsyncExecutor
         while (true)
         {
             var current = Volatile.Read(ref this.state);
-
             switch (current)
             {
                 case Idle:
