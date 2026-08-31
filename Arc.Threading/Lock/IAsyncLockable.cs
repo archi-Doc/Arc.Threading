@@ -4,10 +4,13 @@ using System.Threading.Tasks;
 
 namespace Arc.Threading;
 
+/// <summary>
+/// Represents an object that provides an exclusive lock (synchronous and asynchronous).
+/// </summary>
 public interface IAsyncLockable : ILockable
 {
     /// <summary>
-    /// Create a <see cref="LockStruct"/> from an <see cref="ILockable"/> object for using statement.
+    /// Asynchronously acquires an exclusive lock and creates a <see cref="LockStruct"/> for a using statement.
     /// </summary>
     /// <returns><see cref="LockStruct"/>.</returns>
     async Task<LockStruct> EnterScopeAsync()

@@ -184,9 +184,9 @@ public class TaskCore : ExecutionCore
     /// Creates a long-running task that executes the specified asynchronous delegate synchronously
     /// on the dedicated long-running task body.
     /// </summary>
-    /// <param name="core">TaskCore.</param>
+    /// <param name="core">The execution core that owns the task.</param>
     /// <param name="method">The asynchronous delegate to execute.</param>
-    /// <returns>A non-started long-running task.</returns>
+    /// <returns>A non-started long-running task, or a completed task if <paramref name="core"/> is already terminated.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="method"/> is <see langword="null"/>.</exception>
     protected Task CreateLongRunningTask(TaskCore core, Func<Task> method)
     {
@@ -206,11 +206,11 @@ public class TaskCore : ExecutionCore
                 }
                 finally
                 {
-                    if ((this.Options & ExecutionCoreOptions.KeepAliveOnCompletion) == 0)
+                    if ((core.Options & ExecutionCoreOptions.KeepAliveOnCompletion) == 0)
                     {
                         // Do not wait for this.Task from Dispose().
-                        // DisposeOnCompletion calls Dispose from the task itself.
-                        this.Dispose();
+                        // Dispose is called from the task itself.
+                        core.Dispose();
                     }
                 }
             },

@@ -59,12 +59,6 @@ public class MicroSleep : IDisposable
             this.tv_nsec = nanoseconds;
         }
 
-        public Timespec(TimeSpan timeSpan)
-        {
-            this.tv_sec = (long)timeSpan.Seconds;
-            this.tv_nsec = (long)((timeSpan.TotalSeconds - this.tv_sec) * 1_000_000_000d);
-        }
-
 #pragma warning disable SA1310 // Field names should not contain underscore
         private long tv_sec; // Seconds.
         private long tv_nsec; // Nanoseconds.
@@ -116,6 +110,10 @@ public class MicroSleep : IDisposable
 
     #endregion
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MicroSleep"/> class.<br/>
+    /// The most accurate sleep method available on the current platform is selected (<see cref="CurrentMode"/>).
+    /// </summary>
     public MicroSleep()
     {
         try
@@ -154,8 +152,8 @@ public class MicroSleep : IDisposable
         {
             try
             {
-                var seconds = microSeconds / 1_000_000;
-                var request = new Timespec(seconds, (microSeconds * 1_000) - (seconds * 1_000_000_000));
+                long seconds = microSeconds / 1_000_000;
+                var request = new Timespec(seconds, ((long)microSeconds * 1_000) - (seconds * 1_000_000_000));
                 var remaining = default(Timespec);
                 nanosleep(ref request, ref remaining);
             }
@@ -165,7 +163,7 @@ public class MicroSleep : IDisposable
         }
         else if (this.waitableTimerEx is { } waitableTimer)
         {
-            waitableTimer.Wait(microSeconds * -10);
+            waitableTimer.Wait((long)microSeconds * -10); // Negative value: relative time in 100-nanosecond units.
         }
         else
         {

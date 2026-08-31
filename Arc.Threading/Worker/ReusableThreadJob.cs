@@ -9,13 +9,17 @@ namespace Arc.Threading;
 /// Represents a reusable worker job that supports synchronous waiting for completion.
 /// </summary>
 /// <remarks>
-/// This job type allocates a <see cref="ManualResetEventSlim"/> when it is initialized in non-fire-and-forget mode.<br/>
-/// Call <see cref="Wait(CancellationToken)"/> or <see cref="Wait(TimeSpan, CancellationToken)"/> to block until completion.
+/// This job type allocates a <see cref="ManualResetEventSlim"/> when the job is rented from the worker.<br/>
+/// Call <see cref="Wait(CancellationToken)"/> or <see cref="Wait(TimeSpan, CancellationToken)"/> to block until completion.<br/>
+/// If asynchronous waiting is acceptable, <see cref="ReusableTaskJob"/> is recommended.
 /// </remarks>
 public record class ReusableThreadJob : ReusableJob
 {
     private ManualResetEventSlim? eventSlim;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ReusableThreadJob"/> class.
+    /// </summary>
     public ReusableThreadJob()
     {
     }
@@ -26,6 +30,8 @@ public record class ReusableThreadJob : ReusableJob
     /// <param name="cancellationToken">
     /// A token that can be used to cancel the wait operation.
     /// </param>
+    /// <exception cref="InvalidOperationException">The job has no synchronization primitive (it has been returned to the pool).</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
     public void Wait(CancellationToken cancellationToken = default)
     {
         if (this.eventSlim is null)
@@ -44,6 +50,8 @@ public record class ReusableThreadJob : ReusableJob
     /// <returns>
     /// <see langword="true"/> if the job was signaled as completed before the timeout elapsed; otherwise, <see langword="false"/>.
     /// </returns>
+    /// <exception cref="InvalidOperationException">The job has no synchronization primitive (it has been returned to the pool).</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
     public bool Wait(TimeSpan timeout, CancellationToken cancellationToken = default)
     {
         if (this.eventSlim is null)

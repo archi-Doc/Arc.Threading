@@ -422,6 +422,11 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
         return $"Core {this.Name} {(ushort)this.Id:x4}"; // Display only the lower 16 bits to keep DebuggerDisplay compact.
     }
 
+    /// <summary>
+    /// Releases the resources used by this execution.<br/>
+    /// Termination is requested, and this execution is removed from the execution tree.
+    /// </summary>
+    /// <param name="disposing"><see langword="true"/> to release both managed and unmanaged resources; <see langword="false"/> to release only unmanaged resources.</param>
     protected override void Dispose(bool disposing)
     {
         if (Interlocked.Exchange(ref this.disposed, 1) != 0)
@@ -461,7 +466,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
             foreach (var x in children)
             {
                 if (!x.IsIndependent ||
-                    options.HasFlag(TerminationOptions.IncludeIndependent))
+                    (options & TerminationOptions.IncludeIndependent) != 0)
                 {
                     ProcessCancellationInternal(ref list, x, remove, options);
                 }

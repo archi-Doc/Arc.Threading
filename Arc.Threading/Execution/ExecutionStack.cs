@@ -98,8 +98,7 @@ public class ExecutionStack
             ExecutionHelper.ThrowDifferentRootException();
         }
 
-        var core = new TaskCompletionGroup(parent, this, false, processSignalHandler);
-        return core;
+        return new TaskCompletionGroup(parent, this, false, processSignalHandler);
     }
 
     /// <summary>

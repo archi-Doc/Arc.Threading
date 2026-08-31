@@ -36,10 +36,9 @@ internal class Program
     private static async Task TestThreadCore()
     {
         // Create ThreadCore object.
-        // ThreadCore.Root is the root object of all ThreadCoreBase classes.
-        var c1 = new ThreadCore(Root, parameter =>
+        // Root (ExecutionRoot) is the root object of all the executions.
+        var c1 = new ThreadCore(Root, core =>
         {// Core 1 (ThreadCore): Shows a message every 1 second, and terminates after 5 second.
-            var core = (ThreadCore)parameter!; // Get ThreadCore from the parameter.
             Console.WriteLine("ThreadCore 1: Start");
 
             for (var n = 0; n < 5; n++)
@@ -60,7 +59,7 @@ internal class Program
             Console.WriteLine("ThreadCore 1: End");
         });
 
-        var group = new ExecutionGroup(Root); // ThreadCoreGroup is a collection of ThreadCore objects and it's not associated with Thread/Task.
+        var group = new ExecutionGroup(Root); // ExecutionGroup is a collection of executions and it's not associated with Thread/Task.
         var c2 = new TaskCore(group, async core =>
         {// Core 2 (TaskCore): Shows a message, wait for 3 seconds, and terminates.
             Console.WriteLine("TaskCore 2: Start");

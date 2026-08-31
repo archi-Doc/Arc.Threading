@@ -9,12 +9,25 @@ namespace Arc.Threading;
 /// </summary>
 public class MonitorLock : ILockable
 {
+    private readonly object syncObject = new();
+
+    /// <summary>
+    /// Acquires an exclusive lock and creates a <see cref="LockStruct"/> for a using statement.
+    /// </summary>
+    /// <returns><see cref="LockStruct"/>.</returns>
     public LockStruct EnterScope()
         => new LockStruct(this);
 
+    /// <summary>
+    /// Gets a value indicating whether the current thread holds the exclusive lock.
+    /// </summary>
     public bool IsLocked
         => Monitor.IsEntered(this.syncObject);
 
+    /// <summary>
+    /// Acquires an exclusive lock.
+    /// </summary>
+    /// <returns><see langword="true"/>; the lock is acquired.</returns>
     public bool Enter()
     {
         var lockTaken = false;
@@ -22,10 +35,12 @@ public class MonitorLock : ILockable
         return lockTaken;
     }
 
+    /// <summary>
+    /// Releases the exclusive lock.
+    /// </summary>
+    /// <exception cref="SynchronizationLockException">The current thread does not own the lock.</exception>
     public void Exit()
     {
         Monitor.Exit(this.syncObject);
     }
-
-    private object syncObject = new();
 }

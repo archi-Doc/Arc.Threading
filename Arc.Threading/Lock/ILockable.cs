@@ -4,6 +4,9 @@ using System.Threading;
 
 namespace Arc.Threading;
 
+/// <summary>
+/// Represents an object that provides an exclusive lock (synchronous).
+/// </summary>
 public interface ILockable
 {
     /// <summary>

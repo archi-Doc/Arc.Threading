@@ -13,6 +13,9 @@ public record class ReusableTaskJob : ReusableJob
 {
     private TaskCompletionSource? tcs;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ReusableTaskJob"/> class.
+    /// </summary>
     public ReusableTaskJob()
     {
     }
@@ -23,6 +26,7 @@ public record class ReusableTaskJob : ReusableJob
     /// <value>
     /// The task that will complete when the job is done.
     /// </value>
+    /// <exception cref="InvalidOperationException">The job has no synchronization primitive (it has been returned to the pool).</exception>
     public Task Task
     {
         get
@@ -43,6 +47,7 @@ public record class ReusableTaskJob : ReusableJob
     /// <returns>
     /// A task that completes when the job is set, or is canceled if <paramref name="cancellationToken"/> is canceled.
     /// </returns>
+    /// <exception cref="InvalidOperationException">The job has no synchronization primitive (it has been returned to the pool).</exception>
     public Task WaitAsync(CancellationToken cancellationToken = default)
     {
         if (this.tcs is null)
@@ -59,8 +64,10 @@ public record class ReusableTaskJob : ReusableJob
     /// <param name="timeout">The maximum time to wait before timing out. </param>
     /// <param name="cancellationToken">A token used to cancel the wait operation.</param>
     /// <returns>
-    /// A task that completes when the job is set, or is canceled if <paramref name="cancellationToken"/> is canceled.
+    /// A task that completes when the job is set, is canceled if <paramref name="cancellationToken"/> is canceled,<br/>
+    /// or faults with a <see cref="TimeoutException"/> if <paramref name="timeout"/> elapses.
     /// </returns>
+    /// <exception cref="InvalidOperationException">The job has no synchronization primitive (it has been returned to the pool).</exception>
     public Task WaitAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
     {
         if (this.tcs is null)

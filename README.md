@@ -3,6 +3,18 @@
 
 **Arc.Threading** is a support library for Task/Thread.
 
+- [Quick Start](#quick-start)
+- [Execution tree](#execution-tree)
+  - [ExecutionRoot](#executionroot)
+  - [ThreadCore and TaskCore](#threadcore-and-taskcore)
+  - [Termination](#termination)
+  - [Signals and delayed start](#signals-and-delayed-start)
+  - [ExecutionStack](#executionstack)
+- [ReusableJobWorker](#reusablejobworker)
+- [AsyncPulseEvent](#asyncpulseevent)
+- [Locks](#locks)
+- [Other utilities](#other-utilities)
+
 
 
 ## Quick Start
@@ -13,19 +25,49 @@ First, install Arc.Threading using Package Manager Console.
 Install-Package Arc.Threading
 ```
 
+Arc.Threading targets .NET 10 and above.
 
 
-## ThreadCore
 
-`ThreadCore` is a wrapper class for `Thread` `Task` `Task<TResult>`.
+## Execution tree
 
-The main purpose of `ThreadCore` is
+Arc.Threading manages threads and tasks as a tree of `ExecutionCore` objects.
+
+| Class | Description |
+| ---- | ---- |
+| `ExecutionCore` | A cancellable execution unit. It derives from `CancellationTokenSource`, so it can be passed anywhere a `CancellationToken` is expected. |
+| `ExecutionGroup` | An `ExecutionCore` which owns child executions. It is not associated with a Thread/Task. |
+| `ExecutionRoot` | The root of an execution tree. |
+| `ThreadCore` | An `ExecutionCore` backed by a dedicated `Thread`. |
+| `TaskCore` | An `ExecutionCore` backed by a long-running `Task`. |
+| `TaskCore<TSelf>` | A `TaskCore` which passes the derived instance to the execution method. |
+| `TaskCompletionCore` / `TaskCompletionGroup` | An execution which also exposes a `CompletionTask`. |
+
+The main purpose of the execution tree is:
 
 1. Manage Thread/Task in a tree structure.
-2. Terminate or pause Thread/Task from outside Thread/Task.
-3. Unify the format of the method by passing `ThreadCore` as a parameter.
+2. Terminate Thread/Task from outside the Thread/Task.
+3. Unify the format of the method by passing the execution object as a parameter.
 
-`ThreadCore` is intended for long-running processes such as `Thread`, but it can also be used for `Task`.
+### ExecutionRoot
+
+Create one `ExecutionRoot` instance for the application, and use it as the parent of all executions.
+
+```csharp
+public static ExecutionRoot Root { get; } = new();
+```
+
+`ExecutionRoot` provides two predefined groups.
+
+| Property | Description |
+| ---- | ---- |
+| `BaseGroup` | Executions which provide base services for the application. `WaitForTermination()` requests the termination of this group first. |
+| `IndependentGroup` | Executions which are managed independently. `Root.UnitGroup(name)` creates a named group under it. |
+
+Executions marked as `IsIndependent` are excluded from the default termination/wait target.
+Specify `TerminationOptions.IncludeIndependent` to include them.
+
+### ThreadCore and TaskCore
 
 ```csharp
 using System;
@@ -33,315 +75,279 @@ using System.Threading;
 using System.Threading.Tasks;
 using Arc.Threading;
 
-namespace QuickStart;
-
 internal class Program
 {
+    public static ExecutionRoot Root { get; } = new();
+
     public static async Task Main(string[] args)
     {
-        AppDomain.CurrentDomain.ProcessExit += (s, e) =>
-        {// Closing the console window or terminating the process.
-            ThreadCore.Root.Terminate(); // Send a termination signal to the root.
-            ThreadCore.Root.TerminationEvent.WaitOne(2000); // Wait until the termination process is complete (#1).
-        };
-
         Console.CancelKeyPress += (s, e) =>
         {// Ctrl+C pressed.
             e.Cancel = true;
-            ThreadCore.Root.Terminate(); // Send a termination signal to the root.
+            Root.RequestTermination(); // Send a termination request to the root.
         };
 
-        Console.WriteLine("ThreadCore Sample.");
-
-        // Create ThreadCore object.
-        // ThreadCore.Root is the root object of all ThreadCoreBase classes.
-        var c1 = new ThreadCore(ThreadCore.Root, parameter =>
-        {// Core 1 (ThreadCore): Shows a message every 1 second, and terminates after 5 second.
-            var core = (ThreadCore)parameter!; // Get ThreadCore from the parameter.
-            Console.WriteLine("ThreadCore 1: Start");
-
-            for (var n = 0; n < 5; n++)
+        // ThreadCore: runs on a dedicated thread. The execution starts immediately.
+        var c1 = new ThreadCore(Root, core =>
+        {
+            Console.WriteLine("ThreadCore: Start");
+            for (var n = 0; n < 50; n++)
             {
-                Console.WriteLine($"ThreadCore 1: {n}");
-
-                for (var m = 0; m < 10; m++)
-                {
-                    Thread.Sleep(100);
-                    if (core.IsTerminated)
-                    {
-                        Console.WriteLine("ThreadCore 1: Canceled");
-                        return;
-                    }
+                Thread.Sleep(100);
+                if (!core.CanContinue)
+                {// Termination requested.
+                    Console.WriteLine("ThreadCore: Canceled");
+                    return;
                 }
             }
 
-            Console.WriteLine("ThreadCore 1: End");
+            Console.WriteLine("ThreadCore: End");
         });
 
-        var group = new ThreadCoreGroup(ThreadCore.Root); // ThreadCoreGroup is a collection of ThreadCore objects and it's not associated with Thread/Task.
-        var c2 = new TaskCore(group, async parameter =>
-        {// Core 2 (TaskCore): Shows a message, wait for 3 seconds, and terminates.
-            var core = (TaskCore)parameter!; // Get TaskCore from the parameter.
-            Console.WriteLine("TaskCore 2: Start");
-            Console.WriteLine("TaskCore 2: Delay 3 seconds");
+        // ExecutionGroup is a collection of executions, and it's not associated with Thread/Task.
+        var group = new ExecutionGroup(Root);
+        var c2 = new TaskCore(group, async core =>
+        {// TaskCore: runs on a long-running task.
+            Console.WriteLine("TaskCore: Start");
 
-            try
+            // core.Delay() returns false if the execution is terminated during the delay.
+            if (await core.Delay(3_000))
             {
-                await Task.Delay(3000, core.CancellationToken);
+                Console.WriteLine("TaskCore: End");
             }
-            catch
+            else
             {
-                Console.WriteLine("TaskCore 2: Canceled");
+                Console.WriteLine("TaskCore: Canceled");
             }
-
-            Console.WriteLine("TaskCore 2: End");
-            core.Dispose(); // You can dispose the object if you want (automatically disposed anyway).
         });
 
-        try
-        {
-            await Task.Delay(1500, ThreadCore.Root.CancellationToken);
-        }
-        catch
-        {
-        }
+        await Task.Delay(1_500);
+        c2.RequestTermination(); // Terminate the TaskCore (and its children).
 
-        c2.Terminate(); // Send a termination signal to the TaskCore2.
-        // group.Dispose(); // Same as above
-
-        await ThreadCore.Root.WaitForTerminationAsync(-1); // Wait for the termination infinitely.
-        ThreadCore.Root.TerminationEvent.Set(); // The termination process is complete (#1).
+        // Request the termination of Root.BaseGroup, and wait until all the executions are terminated.
+        await Root.WaitForTermination();
     }
 }
 ```
 
-
+Since `ExecutionCore` derives from `CancellationTokenSource`, `core.CancellationToken` can be passed to any cancellable API, and `ExtractCore()` restores the execution from a `CancellationToken`.
 
 ```csharp
-/// <summary>
-/// Customized thread core class.
-/// </summary>
-internal class CustomCore : ThreadCore
-{
-    public static void Process(object? parameter)
-    {
-        var core = (CustomCore)parameter!;
-    }
+await Task.Delay(1_000, core.CancellationToken); // Throws OperationCanceledException when terminated.
+var core2 = cancellationToken.ExtractCore(); // Gets the ExecutionCore (null if the token is not associated with an execution).
+```
 
-    public CustomCore(ThreadCoreBase parent)
-            : base(parent, Process, false)
+To add a custom property or method, derive from `TaskCore<TSelf>` (or `ThreadCore`).
+
+```csharp
+internal class CustomCore : TaskCore<CustomCore>
+{
+    public CustomCore(ExecutionGroup parent)
+        : base(parent, Process)
     {
     }
 
     public int CustomPropertyIfYouNeed { get; set; }
+
+    private static async Task Process(CustomCore core)
+    {// The derived instance is passed as a parameter.
+        while (await core.Delay(1_000))
+        {
+        }
+    }
 }
 ```
 
+### Termination
 
+| Member | Description |
+| ---- | ---- |
+| `RequestTermination(options)` | Requests the termination of this execution and its children (cancels the `CancellationToken`). |
+| `CanContinue` | `false` if the termination is requested. Check this property in the execution loop. |
+| `IsTerminated` | `true` if the thread/task has exited, or was canceled before it started. |
+| `WaitForTermination(timeout, options, ct)` | Waits until all the target executions are terminated. |
+| `Delay(milliseconds, ct)` | `Task.Delay()` which returns `false` instead of throwing when the execution is terminated. |
+| `Dispose()` | Requests the termination, and removes this execution from the tree. |
+
+By default, an execution disposes itself when the execution method exits.
+Specify `ExecutionCoreOptions.KeepAliveOnCompletion` to keep the object alive.
+
+### Signals and delayed start
+
+`ExecutionCoreOptions.DelayedStart` delays the start of a thread/task until an `ExecutionSignal.Start` signal is received.
+A signal sent to an `ExecutionGroup` is forwarded to all its children.
 
 ```csharp
-private class ExampleTask : TaskCore
-{
-    public ExampleTask(object parent)
-        : base(null, Process)
-    {
-        this.parent = parent;
-    }
-
-    private static async Task Process(object? parameter)
-    {
-        var core = (ExampleTask)parameter!;
-
-        while (await core.Delay(1000).ConfigureAwait(false))
-        {
-        }
-    }
-
-    private readonly object parent;
-}
+var core = new TaskCore(Root, Process, ExecutionCoreOptions.DelayedStart);
+Root.SendSignal(ExecutionSignal.Start); // Starts all the delayed executions in the tree.
 ```
 
+Override `OnSignalReceived()`, or pass an `ExecutionSignalHandler` to the constructor, in order to handle application-defined signals.
 
+### ExecutionStack
 
-
-
-## ThreadWorker
-
-`ThreadWorker` is a `ThreadCore` class which receives and processes `ThreadWork`.
+`ExecutionStack` is a collection of executions which is independent from the parent-child tree (e.g. a stack of screens or nested operations).
 
 ```csharp
-private static void TestThreadWorker()
-{
-    // Create ThreadWorker by specifying a type of work and delegate.
-    var worker = new ThreadWorker<TestWork>(ThreadCore.Root, (worker, work) =>
-    {
-        if (!worker.Sleep(100))
-        {
-            return false; // Aborted
-        }
-
-        Console.WriteLine($"Complete: {work.Id}, {work.Name}");
-        return true; // Complete
-    });
-
-    var w = new TestWork(1, "A"); // New work
-    worker.Add(w); // Add a work to the worker.
-    Console.WriteLine(w); // Added work is on standby.
-
-    worker.Add(new(2, "B"));
-
-    w.Wait(200);
-    Console.WriteLine(w); // Work is complete.
-
-    worker.Terminate();
-}
-
-internal class TestWork : ThreadWork
-{
-    public int Id { get; }
-
-    public string Name { get; } = string.Empty;
-
-    public TestWork(int id, string name)
-    {
-        this.Id = id;
-        this.Name = name;
-    }
-
-    public override string ToString() => $"Id: {this.Id}, Name: {this.Name}, State: {this.State}";
-}
+var stack = new ExecutionStack(Root);
+var core = stack.PushNew(Root.BaseGroup); // Creates a TaskCompletionGroup associated with the stack.
+var last = stack.LastCore; // The last execution added to the stack.
+core.TrySetCompleted(); // Completes core.CompletionTask.
 ```
 
 
 
-## TaskWorker
+## ReusableJobWorker
 
-`TaskWorker` is a `TaskCore` class which receives and processes `TWork`.
+`ReusableJobWorker<TJob>` is a `TaskCore` which receives and processes `TJob` objects.
+Job objects are pooled, so a large number of jobs can be processed with few allocations.
+
+| Job class | Wait method |
+| ---- | ---- |
+| `ReusableTaskJob` | `WaitAsync()` (`TaskCompletionSource`-based, recommended) |
+| `ReusableThreadJob` | `Wait()` (`ManualResetEventSlim`-based) |
+| `ReusableJob` | None (the completion cannot be awaited) |
 
 ```csharp
-private static async Task TestTaskWorker()
+private static async Task TestWorker(ExecutionGroup parent)
 {
-    // Create a TaskWorker by specifying the type of work and delegate.
-    var worker = new TaskWorker<TestTaskWork>(ThreadCore.Root, async (worker, work) =>
+    // Create a worker by specifying the type of job and the delegate.
+    var worker = new ReusableJobWorker<TestJob>(parent, (worker, job) =>
     {
-        if (!await worker.Delay(1000))
-        {
-            return;
-        }
-
-        work.Result = "complete";
-        Console.WriteLine($"Complete: {work.Id}, {work.Name}");
-        return;
+        Console.WriteLine($"Process: {job.Id}");
     });
 
-    worker.NumberOfConcurrentTasks = 2;
-    worker.SetCanStartConcurrentlyDelegate((workInterface, workingList) =>
-    {
-        Console.WriteLine("Start work concurrently: false");
-        return false;
-    });
+    worker.MaxConcurrentTasks = 4; // Process jobs concurrently (1 by default).
 
-    var w = new TestTaskWork(1, "A"); // New work
-    Console.WriteLine(w); // Added work is 'Created'.
-    var wi1 = worker.AddLast(w); // Add a work to the worker.
-    Console.WriteLine(wi1); // Added work is 'Standby'.
+    var job = worker.Rent(); // Rent a job object from the pool.
+    job.Id = 1; // Set the parameters of the job.
+    worker.Add(job); // Enqueue the job.
+    await job.WaitAsync(); // Wait until the job is complete.
+    worker.Return(job); // Return the job object to the pool.
 
-    await Task.Delay(10);
-    worker.AddLast(new TestTaskWork(1, "A"));
+    // ReusableJobFlags.ReturnToPoolOnCompletion returns the job object automatically (fire-and-forget).
+    worker.Add(worker.Rent(ReusableJobFlags.ReturnToPoolOnCompletion));
 
-    var w2 = new TestTaskWork(2, "B");
-    var wi = worker.AddLast(w2);
-    worker.AddLast(w2);
-    var w3 = new TestTaskWork(2, "B");
-    worker.AddLast(w3);
-    wi = worker.AddFirst(new(3, "C"));
-    wi = worker.AddLast(new(4, "D"));
-
-    var b = await wi1.WaitForCompletionAsync();
-    Console.WriteLine(wi1);
-    await worker.WaitForCompletionAsync();
-    Console.WriteLine(w); // Complete
-
-    worker.Terminate();
+    await worker.WaitForCompletion(); // Wait until all the jobs are processed.
+    worker.Dispose(); // Terminate the worker (the pending jobs are aborted).
 }
 
-internal class TestTaskWork : IEquatable<TestTaskWork>
+public record class TestJob : ReusableTaskJob
 {
-    public int Id { get; }
+    public int Id { get; set; }
+}
+```
 
-    public string Name { get; } = string.Empty;
+Instead of a delegate, `OnJobProcessing()` can be overridden. This is recommended, since it supports asynchronous processing.
 
-    public string Result { get; set; } = string.Empty;
-
-    public TestTaskWork(int id, string name)
+```csharp
+public class TestWorker : ReusableJobWorker<TestJob>
+{
+    public TestWorker(ExecutionGroup parent)
+        : base(parent)
     {
-        this.Id = id;
-        this.Name = name;
     }
 
-    public override string ToString() => $"Id: {this.Id}, Name: {this.Name}, Result: {this.Result}";
-
-    public override int GetHashCode() => HashCode.Combine(this.Id, this.Name);
-
-    public bool Equals(TestTaskWork? other)
+    protected override async Task OnJobProcessing(TestJob job, CancellationToken cancellationToken)
     {
-        if (other == null)
-        {
-            return false;
-        }
-
-        return this.Id == other.Id && this.Name == other.Name;
+        await Task.Delay(100, cancellationToken);
+        Console.WriteLine($"Process: {job.Id}");
     }
 }
 ```
+
+The state of a job changes as follows: `Initial` -> `Pending` (`Add()`) -> `Running` -> `Completed`/`Aborted` -> `Pooled` (`Return()`).
 
 
 
 ## AsyncPulseEvent
 
-`AsyncPulseEvent` is a thread synchronization event that other threads wait until a pulse (signal) is received.
+`AsyncPulseEvent` is a thread synchronization event that a thread waits on until a pulse (signal) is received.
+Only **one** waiter is supported at a time, and a pulse which arrives before the wait is retained by default (`retainPulseIfNoWaiter`).
 
 ```csharp
-private static async Task TestAsyncPulseEvent()
+private static async Task TestAsyncPulseEvent(ExecutionGroup parent)
 {
-    Console.WriteLine("AsyncPulseEvent.");
+    var pulseEvent = new AsyncPulseEvent();
 
-    var pulseEvent = new AsyncPulseEvent(); // Create AsyncPulseEvent.
-    var c = new TaskCore(ThreadCore.Root, async parameter =>
-    { // Create TaskCore that will send a pulse after 1 second.
-        var core = (TaskCore)parameter!; // Get TaskCore from the parameter.
-
-        await Task.Delay(1000);
-        Console.WriteLine("Pulse");
+    var c = new TaskCore(parent, async core =>
+    {// Send a pulse after 1 second.
+        await core.Delay(1_000);
         pulseEvent.Pulse();
     });
 
-    for (var i = 0; i < 4; i++)
-    {// Create TaskCore that will wait until a pulse is received.
-        new WaitPulseCore(ThreadCore.Root, pulseEvent, i);
-    }
-}
-
-private class WaitPulseCore : TaskCore
-{
-    public WaitPulseCore(ThreadCoreBase parent, AsyncPulseEvent pulseEvent, int index)
-        : base(parent, Process)
-    {
-        this.pulseEvent = pulseEvent;
-        this.index = index;
-    }
-
-    private static async Task Process(object? parameter)
-    {
-        var core = (WaitPulseCore)parameter!;
-
-        Console.WriteLine($"Wait start {core.index}");
-        await core.pulseEvent.WaitAsync();
-        Console.WriteLine($"Wait end {core.index}");
-    }
-
-    private AsyncPulseEvent pulseEvent;
-    private int index;
+    // Returns true if a pulse is received, or false if the timeout elapses or the token is canceled.
+    var result = await pulseEvent.WaitAsync(TimeSpan.FromSeconds(5), parent.CancellationToken);
+    Console.WriteLine($"Pulse received: {result}");
 }
 ```
 
+
+
+## Locks
+
+`SemaphoreLock` is a simplified version of `SemaphoreSlim` (the size of an instance is 40 bytes).
+It is used for object mutual exclusion, and can also be used in code that includes await syntax.
+
+```csharp
+private readonly SemaphoreLock semaphoreLock = new(); // Should be a private member since it uses lock (this).
+
+using (this.semaphoreLock.EnterScope())
+{// Synchronous
+    this.count++;
+}
+
+using (await this.semaphoreLock.EnterScopeAsync())
+{// Asynchronous
+    this.count++;
+}
+
+if (this.semaphoreLock.TryEnter())
+{// Without waiting
+    try
+    {
+        this.count++;
+    }
+    finally
+    {
+        this.semaphoreLock.Exit();
+    }
+}
+```
+
+| Class/Interface | Description |
+| ---- | ---- |
+| `SemaphoreLock` | An exclusive lock which supports both synchronous and asynchronous code. |
+| `MonitorLock` | An `ILockable` wrapper for `Monitor`. |
+| `ILockable` / `IAsyncLockable` | Interfaces of a lock object (`EnterScope()`, `Enter()`, `Exit()`). |
+| `LockStruct` | The lock scope returned by `EnterScope()`. It releases the lock when disposed. |
+| `ILockObject` | An object which exposes a `System.Threading.Lock` object. |
+
+
+
+## Other utilities
+
+| Class | Description |
+| ---- | ---- |
+| `DelayedTaskExecutor` | Executes an asynchronous action after a delay. Requests during the delay are coalesced into one execution. |
+| `SingleTask` | Executes a task only if no task is running (`TryRun()` returns `null` if a task is in progress). |
+| `UniqueWork` | Executes a work only once simultaneously. Concurrent callers join the work in progress. |
+| `MicroSleep` | Microsecond-level sleep (`nanosleep`/`CreateWaitableTimerEx`/`timeBeginPeriod`). |
+| `ExecutionId` | An ambient id which is local to a given asynchronous control flow (`AsyncLocal`). |
+| `CancellationTokenPool` | A shared pool of `CancellationTokenSource` instances. |
+| `EstimateSize` | Estimates the memory size of a struct/class. |
+| `Task.TryDelay()` | `Task.Delay()` which returns `false` instead of throwing when canceled. |
+
+```csharp
+// Executes the action 500 ms after the last request.
+var executor = new DelayedTaskExecutor(
+    async cancellationToken => await SaveAsync(cancellationToken),
+    TimeSpan.FromMilliseconds(500),
+    core.CancellationToken);
+
+executor.Request();
+executor.Request(); // Coalesced into the request above.
+
+// Returns false if the delay is canceled.
+var delayed = await Task.TryDelay(1_000, cancellationToken);
+```

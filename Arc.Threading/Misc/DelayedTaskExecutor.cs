@@ -37,6 +37,8 @@ public sealed class DelayedTaskExecutor
     /// <param name="cancellationToken">
     /// A token used to cancel pending delays and action execution.
     /// </param>
+    /// <exception cref="ArgumentNullException"><paramref name="action"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="delay"/> is negative.</exception>
     public DelayedTaskExecutor(Func<CancellationToken, Task> action, TimeSpan delay, CancellationToken cancellationToken = default)
     {
         if (delay < TimeSpan.Zero)
@@ -55,7 +57,7 @@ public sealed class DelayedTaskExecutor
     /// Requests during execution schedule one additional delayed execution.
     /// </summary>
     /// <returns>
-    /// true if this request changed the executor state; otherwise, false.
+    /// <see langword="true"/> if this request changed the executor state; otherwise, <see langword="false"/>.
     /// </returns>
     public bool Request()
     {
@@ -103,6 +105,8 @@ public sealed class DelayedTaskExecutor
 
     private async Task RunAsync()
     {
+        // Do not reset the state after the Running -> Idle transition.
+        // The ownership of this loop is released at that point, and another loop may already be running.
         try
         {
             while (true)
@@ -112,6 +116,7 @@ public sealed class DelayedTaskExecutor
                 // Waiting -> Running
                 if (Interlocked.CompareExchange(ref this.state, Running, Waiting) != Waiting)
                 {
+                    Volatile.Write(ref this.state, Idle);
                     return;
                 }
 
@@ -128,10 +133,12 @@ public sealed class DelayedTaskExecutor
         }
         catch (OperationCanceledException) when (this.cancellationToken.IsCancellationRequested)
         {
+            Volatile.Write(ref this.state, Idle);
         }
-        finally
+        catch
         {
             Volatile.Write(ref this.state, Idle);
+            throw;
         }
     }
 }

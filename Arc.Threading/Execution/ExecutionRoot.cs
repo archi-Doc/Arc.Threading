@@ -58,6 +58,13 @@ public class ExecutionRoot : ExecutionGroup
         this.IndependentGroup = new(this, true, "Independent");
     }
 
+    /// <summary>
+    /// Requests the termination of <see cref="BaseGroup"/>, and asynchronously waits for the termination of the execution tree.
+    /// </summary>
+    /// <param name="timeout">The <see cref="TimeSpan"/> to wait before termination.</param>
+    /// <param name="options">An additional options for controlling termination behavior.</param>
+    /// <param name="cancellationToken">An additional cancellation token to cancel the wait operation.</param>
+    /// <returns><see langword="true"/> if termination was observed before timeout/cancellation; otherwise, <see langword="false"/>.</returns>
     public override Task<bool> WaitForTermination(TimeSpan timeout, TerminationOptions options = default, CancellationToken cancellationToken = default)
     {
         if (this.BaseGroup.CanContinue)
