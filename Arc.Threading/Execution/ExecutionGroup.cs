@@ -79,14 +79,17 @@ public class ExecutionGroup : ExecutionCore
     /// or creates and returns a new one when no match exists.
     /// </summary>
     /// <param name="isIndependent">
-    /// A value indicating whether a newly created group should be independent from parent signal/cancellation behavior.<br/>
-    /// This value is ignored when a matching group already exists.
+    /// A value indicating whether a newly created group should be independent from parent signal/cancellation behavior.
     /// </param>
     /// <param name="name">The group name to search for.</param>
     /// <returns>
     /// An existing child group whose name matches <paramref name="name"/> using
     /// <see cref="StringComparison.Ordinal"/>, or a newly created child group.
     /// </returns>
+    /// <exception cref="ArgumentNullException"><paramref name="name"/> is <see langword="null"/>.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// A group with the same name exists, but its independence setting differs from <paramref name="isIndependent"/>.
+    /// </exception>
     public ExecutionGroup GetOrAddGroup(bool isIndependent, string name)
     {
         ArgumentNullException.ThrowIfNull(name);
@@ -184,6 +187,10 @@ public class ExecutionGroup : ExecutionCore
         }
     }
 
+    /// <summary>
+    /// Returns a compact debug string for this group.
+    /// </summary>
+    /// <returns>A display string containing the name, the number of children, and the truncated identifier.</returns>
     public override string ToString()
     {
         var name = string.IsNullOrEmpty(this.Name) ? "Group" : this.Name;

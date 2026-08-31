@@ -14,12 +14,10 @@ namespace Arc.Threading;
 /// </summary>
 public record class ReusableJob
 {
-    [DoesNotReturn]
-    [StackTraceHidden]
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    public static void ThrowFireAndForgetException()
-        => throw new InvalidOperationException("Since this job uses the fire-and-forget pattern, you cannot wait for it to complete");
-
+    /// <summary>
+    /// Throws an <see cref="InvalidOperationException"/> indicating that the job has no synchronization primitive.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Always thrown.</exception>
     [DoesNotReturn]
     [StackTraceHidden]
     [MethodImpl(MethodImplOptions.NoInlining)]
@@ -41,6 +39,9 @@ public record class ReusableJob
         internal set => this.state = (byte)value;
     }
 
+    /// <summary>
+    /// Gets the flags that control the behavior of this job.
+    /// </summary>
     public ReusableJobFlags Flags { get; internal set; }
 
     /// <summary>

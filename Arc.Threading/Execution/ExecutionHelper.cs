@@ -76,15 +76,9 @@ public static class ExecutionHelper
     public static TExecution? Extract<TExecution>(this CancellationToken cancellationToken)
         where TExecution : ExecutionCore
     {// In my opinion, CancellationToken should have been named something like TaskContext, with added features for managing parent-child dependencies and for canceling or terminating processing.
-        try
-        {
-            var cts = Unsafe.As<CancellationToken, CancellationTokenSource>(ref cancellationToken);
-            return cts as TExecution;
-        }
-        catch
-        {
-            return null;
-        }
+        // CancellationToken is a struct that holds a single CancellationTokenSource reference (null for CancellationToken.None).
+        var cts = Unsafe.As<CancellationToken, CancellationTokenSource?>(ref cancellationToken);
+        return cts as TExecution;
     }
 
     /// <summary>

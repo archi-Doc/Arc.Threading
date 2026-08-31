@@ -10,7 +10,7 @@ namespace Arc.Threading;
 /// <see cref="SemaphoreLock"/> is a simplified version of <see cref="SemaphoreSlim"/>.<br/>
 /// Used for object mutual exclusion and can also be used in code that includes await syntax.<br/>
 /// An instance of <see cref="SemaphoreLock"/> should be a private member since it uses `lock (this)` statement to reduce memory usage.<br/>
-/// The size of this struct is 40 bytes (39 bytes internally).
+/// The size of an instance is 40 bytes (39 bytes of data plus padding).
 /// </summary>
 public class SemaphoreLock : ILockable, IAsyncLockable
 {// object:16, 1+2+4+8+8 -> 39
@@ -24,13 +24,30 @@ public class SemaphoreLock : ILockable, IAsyncLockable
     private TaskNode? head;
     private TaskNode? tail;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SemaphoreLock"/> class.
+    /// </summary>
     public SemaphoreLock()
     {
     }
 
+    /// <summary>
+    /// Acquires an exclusive lock and creates a <see cref="LockStruct"/> for a using statement.
+    /// </summary>
+    /// <returns><see cref="LockStruct"/>.</returns>
     public LockStruct EnterScope()
         => new LockStruct(this);
 
+    /// <summary>
+    /// Asynchronously acquires an exclusive lock and creates a <see cref="LockStruct"/> for a using statement.
+    /// </summary>
+    /// <returns><see cref="LockStruct"/>.</returns>
+    public async Task<LockStruct> EnterScopeAsync()
+        => new(this, await this.EnterAsync().ConfigureAwait(false));
+
+    /// <summary>
+    /// Gets a value indicating whether the exclusive lock has been acquired.
+    /// </summary>
     public bool IsLocked => Volatile.Read(ref this.entered);
 
     /// <summary>
@@ -232,6 +249,7 @@ public class SemaphoreLock : ILockable, IAsyncLockable
     /// <summary>
     /// Releases the exclusive lock held by the current thread or task.
     /// </summary>
+    /// <exception cref="SynchronizationLockException">The lock is not held.</exception>
     public void Exit()
     {
         lock (this.SyncObject)

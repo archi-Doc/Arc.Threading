@@ -74,6 +74,11 @@ public class ThreadCore : ExecutionCore
         }
     }
 
+    /// <summary>
+    /// Processes execution signals for this thread core.<br/>
+    /// <see cref="ExecutionSignal.Start"/> starts the thread (only once).
+    /// </summary>
+    /// <param name="signal">The received execution signal.</param>
     public override void OnSignalReceived(ExecutionSignal signal)
     {
         if (signal != ExecutionSignal.Start)

@@ -14,15 +14,15 @@ namespace Arc.Threading;
 #pragma warning disable SA1405 // Debug.Assert should provide message text
 
 /// <summary>
-/// Provides a reusable, pooled job worker that processes <typeparamref name="TJob"/> instances on a background thread.<br/>
-/// To process the actual job, either override ProcessJob (recommended) or provide processJob in the constructor.<br/>
+/// Provides a reusable, pooled job worker that processes <typeparamref name="TJob"/> instances on a background task.<br/>
+/// To process the actual job, either override <see cref="OnJobProcessing(TJob, CancellationToken)"/> (recommended) or provide a <see cref="ProcessJobDelegate"/> in the constructor.<br/>
 /// <br/>
 /// Example: <br/>
-/// var job = worker.Rent();<br/>
-/// job.Initialize(10);<br/>
-/// worker.Add(job);<br/>
-/// job.WaitAsync();<br/>
-/// worker.Return(job);
+/// var job = worker.Rent(); // Rent a job object from the pool.<br/>
+/// job.Initialize(10); // Set the job parameters (user-defined).<br/>
+/// worker.Add(job); // Enqueue the job.<br/>
+/// await job.WaitAsync(); // Wait until the job is complete.<br/>
+/// worker.Return(job); // Return the job object to the pool.
 /// </summary>
 /// <typeparam name="TJob">
 /// The reusable job type handled by this worker. The type must inherit from <see cref="ReusableJob"/>
@@ -40,6 +40,11 @@ public class ReusableJobWorker<TJob> : TaskCore<ReusableJobWorker<TJob>>, IDispo
     private const int DefaultPoolCapacity = 32;
     private const int DelayMilliseconds = 100;
 
+    /// <summary>
+    /// Represents the method that processes a job.
+    /// </summary>
+    /// <param name="worker">The <see cref="ReusableJobWorker{TJob}"/> instance which owns the job.</param>
+    /// <param name="job">The job to process.</param>
     public delegate void ProcessJobDelegate(object worker, TJob job);
 
     private static async Task Process(ReusableJobWorker<TJob> worker)
@@ -73,92 +78,10 @@ public class ReusableJobWorker<TJob> : TaskCore<ReusableJobWorker<TJob>>, IDispo
 
                 if (worker.MaxConcurrentTasks > 1)
                 {
-                    var currentTasks = Volatile.Read(ref worker.numberOfTasks);
-                    if (currentTasks < worker.MaxConcurrentTasks &&
-                        currentTasks < numberOfPendingJobs * 2)
-                    {
-                        if (Interlocked.CompareExchange(ref worker.numberOfTasks, currentTasks + 1, currentTasks) == currentTasks)
-                        {
-                            _ = Task.Run(async () =>
-                            {
-                                try
-                                {
-                                    while (worker.pendingJobs.TryDequeue(out var job))
-                                    {
-                                        Interlocked.Decrement(ref worker.numberOfPendingJobs);
-
-                                        // ProcessJobCode
-                                        try
-                                        {
-                                            job.State = ReusableJobState.Running;
-                                            if (worker.processJob is null)
-                                            {
-                                                await worker.OnJobProcessing(job, worker.CancellationToken).ConfigureAwait(false);
-                                            }
-                                            else
-                                            {
-                                                worker.processJob(worker, job);
-                                            }
-
-                                            job.State = ReusableJobState.Completed;
-                                        }
-                                        catch
-                                        {
-                                            job.State = ReusableJobState.Aborted;
-                                        }
-                                        finally
-                                        {
-                                            worker.OnJobFinished(job);
-                                            job._SetSynchronizationPrimitive();
-                                            if (job.ReturnToPoolOnCompletion)
-                                            {
-                                                worker.Return(job);
-                                            }
-                                        }
-
-                                        if (worker.IsTerminated)
-                                        {// To prevent the job from freezing, complete the acquired job first, then check whether it has been terminated.
-                                            return;
-                                        }
-                                    }
-                                }
-                                finally
-                                {
-                                    Interlocked.Decrement(ref worker.numberOfTasks);
-                                }
-                            });
-                        }
-                    }
+                    worker.TryAddConcurrentTask(numberOfPendingJobs);
                 }
 
-                // ProcessJobCode
-                try
-                {
-                    job.State = ReusableJobState.Running;
-                    if (worker.processJob is null)
-                    {
-                        await worker.OnJobProcessing(job, worker.CancellationToken).ConfigureAwait(false);
-                    }
-                    else
-                    {
-                        worker.processJob(worker, job);
-                    }
-
-                    job.State = ReusableJobState.Completed;
-                }
-                catch
-                {
-                    job.State = ReusableJobState.Aborted;
-                }
-                finally
-                {
-                    worker.OnJobFinished(job);
-                    job._SetSynchronizationPrimitive();
-                    if (job.ReturnToPoolOnCompletion)
-                    {
-                        worker.Return(job);
-                    }
-                }
+                await ProcessJob(worker, job).ConfigureAwait(false);
 
                 if (worker.IsTerminated)
                 {// To prevent the job from freezing, complete the acquired job first, then check whether it has been terminated.
@@ -176,6 +99,37 @@ Terminated:
         worker.OnTerminated();
     }
 
+    private static async Task ProcessJob(ReusableJobWorker<TJob> worker, TJob job)
+    {
+        try
+        {
+            job.State = ReusableJobState.Running;
+            if (worker.processJob is null)
+            {
+                await worker.OnJobProcessing(job, worker.CancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                worker.processJob(worker, job);
+            }
+
+            job.State = ReusableJobState.Completed;
+        }
+        catch
+        {
+            job.State = ReusableJobState.Aborted;
+        }
+        finally
+        {
+            worker.OnJobFinished(job);
+            job._SetSynchronizationPrimitive();
+            if (job.ReturnToPoolOnCompletion)
+            {
+                worker.Return(job);
+            }
+        }
+    }
+
     #region FieldAndProperty
 
     /// <summary>
@@ -189,6 +143,9 @@ Terminated:
     /// </remarks>
     public int MaxConcurrentTasks { get; set; } = 1;
 
+    /// <summary>
+    /// Gets a value indicating whether no job is pending and no job is being processed.
+    /// </summary>
     public bool IsCompleted
         => Volatile.Read(ref this.numberOfPendingJobs) == 0 &&
            Volatile.Read(ref this.numberOfTasks) == 0;
@@ -196,7 +153,7 @@ Terminated:
     /// <summary>
     /// Gets the current number of jobs waiting to be processed.
     /// </summary>
-    public int NumberOfPendingJobs => this.numberOfPendingJobs;
+    public int NumberOfPendingJobs => Volatile.Read(ref this.numberOfPendingJobs);
 
     private readonly ProcessJobDelegate? processJob;
     private readonly ObjectPool<TJob> freeJobs;
@@ -244,7 +201,8 @@ Terminated:
     /// </summary>
     /// <param name="job">The job to return.</param>
     /// <remarks>
-    /// Only jobs in the <see cref="ReusableJobState.Completed"/> state are accepted.
+    /// Only jobs in the <see cref="ReusableJobState.Completed"/> or <see cref="ReusableJobState.Aborted"/> state are accepted.<br/>
+    /// Other jobs are silently ignored.
     /// </remarks>
     public void Return(TJob job)
     {
@@ -267,16 +225,19 @@ Terminated:
     /// </summary>
     /// <param name="job">The job to enqueue.</param>
     /// <remarks>
-    /// Jobs not in the <see cref="ReusableJobState.Initial"/> state are ignored.
+    /// The job transitions from <see cref="ReusableJobState.Initial"/> to <see cref="ReusableJobState.Pending"/>.
     /// </remarks>
+    /// <exception cref="InvalidOperationException">
+    /// <paramref name="job"/> is not in the <see cref="ReusableJobState.Initial"/> state.
+    /// </exception>
     public void Add(TJob job)
     {
-        if (job.State != ReusableJobState.Initial)
+        // Initial -> Pending
+        if (Interlocked.CompareExchange(ref job.state, (byte)ReusableJobState.Pending, (byte)ReusableJobState.Initial) != (byte)ReusableJobState.Initial)
         {
             throw new InvalidOperationException("A job can be enqueued only when it is in ReusableJobState.Initial");
         }
 
-        job.State = ReusableJobState.Pending;
         Interlocked.Increment(ref this.numberOfPendingJobs);
         this.pendingJobs.Enqueue(job);
         this.addEvent?.Pulse();
@@ -367,8 +328,7 @@ Terminated:
             var delayMilliseconds = DelayMilliseconds;
             if (millisecondsTimeout != Timeout.Infinite)
             {
-                var elapsedMilliseconds = ((Stopwatch.GetTimestamp() - startTimestamp) * 1000) / Stopwatch.Frequency;
-                long remainingMilliseconds = millisecondsTimeout - elapsedMilliseconds;
+                var remainingMilliseconds = millisecondsTimeout - (long)Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds;
 
                 if (remainingMilliseconds <= 0)
                 {
@@ -432,6 +392,10 @@ Terminated:
     {
     }
 
+    /// <summary>
+    /// Releases the resources used by this worker, and aborts the pending jobs.
+    /// </summary>
+    /// <param name="disposing"><see langword="true"/> to release both managed and unmanaged resources; <see langword="false"/> to release only unmanaged resources.</param>
     protected override void Dispose(bool disposing)
     {
         if (!this.IsDisposed)
@@ -442,7 +406,48 @@ Terminated:
             }
 
             base.Dispose(disposing);
+
+            if (disposing)
+            {// Release the jobs which will never be processed (e.g. the worker has not been started).
+                this.AbortAllJobs();
+            }
         }
+    }
+
+    private void TryAddConcurrentTask(int numberOfPendingJobs)
+    {// Add a task to process the pending jobs concurrently, if the queue is long enough.
+        var currentTasks = Volatile.Read(ref this.numberOfTasks);
+        if (currentTasks >= this.MaxConcurrentTasks ||
+            currentTasks >= numberOfPendingJobs * 2)
+        {
+            return;
+        }
+
+        if (Interlocked.CompareExchange(ref this.numberOfTasks, currentTasks + 1, currentTasks) != currentTasks)
+        {
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                while (this.pendingJobs.TryDequeue(out var job))
+                {
+                    Interlocked.Decrement(ref this.numberOfPendingJobs);
+                    await ProcessJob(this, job).ConfigureAwait(false);
+
+                    if (this.IsTerminated)
+                    {// To prevent the job from freezing, complete the acquired job first, then check whether it has been terminated.
+                        return;
+                    }
+                }
+            }
+            finally
+            {
+                Interlocked.Decrement(ref this.numberOfTasks);
+            }
+        });
     }
 
     private void AbortAllJobs()

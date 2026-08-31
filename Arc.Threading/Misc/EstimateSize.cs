@@ -2,6 +2,7 @@
 
 using System;
 using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace Arc.Threading;
 
@@ -10,6 +11,8 @@ namespace Arc.Threading;
 /// </summary>
 public static class EstimateSize
 {
+    private static object? sink; // Prevents the JIT from eliminating the allocations (escape analysis).
+
     /// <summary>
     /// Estimates the size in bytes of a struct type.
     /// </summary>
@@ -34,7 +37,7 @@ public static class EstimateSize
 
         for (int i = 0; i < N; i++)
         {
-            var obj = new TClass();
+            Volatile.Write(ref sink, new TClass());
         }
 
         long after = GC.GetAllocatedBytesForCurrentThread();
@@ -54,7 +57,7 @@ public static class EstimateSize
 
         for (int i = 0; i < N; i++)
         {
-            var obj = constructor();
+            Volatile.Write(ref sink, constructor());
         }
 
         long after = GC.GetAllocatedBytesForCurrentThread();

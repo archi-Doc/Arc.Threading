@@ -13,31 +13,44 @@ namespace Arc.Threading;
 /// </summary>
 public class UniqueWork
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="UniqueWork"/> class.
+    /// </summary>
+    /// <param name="action">The work to execute.</param>
     public UniqueWork(Action action)
     {
         this.workAction = action;
         this.PrepareNextTask();
     }
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="UniqueWork"/> class.
+    /// </summary>
+    /// <param name="task">The asynchronous work to execute.</param>
     public UniqueWork(Func<Task> task)
     {
         this.workTask = task;
         this.PrepareNextTask();
     }
 
+    /// <summary>
+    /// Starts the work, or joins the work which is already in progress.
+    /// </summary>
+    /// <returns>The task of the work being executed.</returns>
     public Task Run()
     {
-        var original = Interlocked.CompareExchange(ref this.currentTask, this.nextTask, null);
-        if (original == null)
-        {
-            this.PrepareNextTask();
-
-            // this.nextTask is prepared.
-            // this.currentTask is not null.
-            this.currentTask.Start();
+        var next = Volatile.Read(ref this.nextTask);
+        var original = Interlocked.CompareExchange(ref this.currentTask, next, null);
+        if (original is not null)
+        {// The work is already in progress.
+            return original;
         }
 
-        return this.currentTask;
+        // Prepare the next task and start the current one.
+        // Note that the current task may complete (and clear this.currentTask) immediately, so return the local variable.
+        this.PrepareNextTask();
+        next.Start();
+        return next;
     }
 
     [MemberNotNull(nameof(nextTask))]
@@ -64,8 +77,8 @@ public class UniqueWork
         });
     }
 
-    private Action? workAction;
-    private Func<Task>? workTask;
+    private readonly Action? workAction;
+    private readonly Func<Task>? workTask;
     private Task? currentTask;
     private Task nextTask;
 }

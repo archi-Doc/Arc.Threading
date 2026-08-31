@@ -4,8 +4,19 @@ using System;
 
 namespace Arc.Threading;
 
+/// <summary>
+/// Represents an exclusive lock scope of an <see cref="ILockable"/> object.<br/>
+/// The lock is released when this instance is disposed (using statement).
+/// </summary>
 public struct LockStruct : IDisposable
 {
+    private readonly ILockable lockableObject;
+    private bool locked;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="LockStruct"/> struct, and acquires the exclusive lock.
+    /// </summary>
+    /// <param name="lockableObject">The object to lock.</param>
     public LockStruct(ILockable lockableObject)
     {
         this.lockableObject = lockableObject;
@@ -18,6 +29,19 @@ public struct LockStruct : IDisposable
         this.locked = locked;
     }
 
+    /// <summary>
+    /// Gets the object associated with this lock scope.
+    /// </summary>
+    public ILockable LockableObject => this.lockableObject;
+
+    /// <summary>
+    /// Gets a value indicating whether this scope currently holds the exclusive lock.
+    /// </summary>
+    public bool IsLocked => this.locked;
+
+    /// <summary>
+    /// Releases the exclusive lock if it is held.
+    /// </summary>
     public void Dispose()
     {
         if (this.locked)
@@ -26,11 +50,4 @@ public struct LockStruct : IDisposable
             this.locked = false;
         }
     }
-
-    public ILockable LockableObject => this.lockableObject;
-
-    public bool IsLocked => this.locked;
-
-    private readonly ILockable lockableObject;
-    private bool locked;
 }

@@ -6,6 +6,9 @@ using Arc.Collections;
 
 namespace Arc.Threading;
 
+/// <summary>
+/// Provides a shared pool of <see cref="CancellationTokenSource"/> instances.
+/// </summary>
 public static class CancellationTokenPool
 {
     /// <summary>
