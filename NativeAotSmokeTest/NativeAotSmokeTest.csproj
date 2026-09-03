@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <PublishAot>true</PublishAot>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+    <IlcTreatWarningsAsErrors>true</IlcTreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Arc.Threading\Arc.Threading.csproj" />
+    <!-- Analyze the whole library, including APIs not called by the smoke tests. -->
+    <TrimmerRootAssembly Include="Arc.Threading" />
+  </ItemGroup>
+
+</Project>
