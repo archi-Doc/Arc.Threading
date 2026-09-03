@@ -21,3 +21,34 @@ jobs:
       run: dotnet build --configuration Release --no-restore
     - name: Test
       run: dotnet test --no-restore --verbosity normal
+
+  native-aot:
+    name: NativeAOT (${{ matrix.rid }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - os: windows-latest
+          rid: win-x64
+          executable: NativeAotSmokeTest.exe
+        - os: ubuntu-latest
+          rid: linux-x64
+          executable: NativeAotSmokeTest
+
+    steps:
+    - uses: actions/checkout@v5
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v5
+      with:
+        dotnet-version: 10.0.x
+    - name: Install Linux native toolchain
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang zlib1g-dev
+    - name: Publish NativeAOT smoke tests
+      run: dotnet publish NativeAotSmokeTest/NativeAotSmokeTest.csproj -c Release -r ${{ matrix.rid }} -o artifacts/nativeaot
+    - name: Run NativeAOT smoke tests
+      run: ./artifacts/nativeaot/${{ matrix.executable }}

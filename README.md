@@ -4,6 +4,7 @@
 **Arc.Threading** is a support library for Task/Thread.
 
 - [Quick Start](#quick-start)
+- [NativeAOT](#nativeaot)
 - [Execution tree](#execution-tree)
   - [ExecutionRoot](#executionroot)
   - [ThreadCore and TaskCore](#threadcore-and-taskcore)
@@ -26,6 +27,32 @@ Install-Package Arc.Threading
 ```
 
 Arc.Threading targets .NET 10 and above.
+
+
+
+## NativeAOT
+
+Arc.Threading is marked with `IsAotCompatible=true`. NativeAOT publishing and execution have been verified locally on Windows x64 with .NET SDK 10.0.400 and Arc.Collections 1.44.0, with no build, trimming, or AOT warnings.
+
+`NativeAotSmokeTest` publishes a native executable and checks execution trees, generic task cores and job workers, job reuse, cancellation token conversion, pulse events, locks, ambient execution IDs, allocation helpers, and `MicroSleep` native interop. It fails if dynamic code is supported, ensuring that the published native executable is used for validation.
+
+The test project uses `TrimmerRootAssembly` to analyze the entire library and the dependency code it uses, including APIs not called by the smoke tests, following the [library trimming guidance](https://learn.microsoft.com/en-us/dotnet/core/deploying/trimming/prepare-libraries-for-trimming). Compiler, trimming, and AOT warnings are treated as errors. The Build and Test workflow includes native publishing and execution jobs for Windows x64 and Linux x64; Linux execution has not been verified locally.
+
+To repeat the Windows check from the repository root:
+
+```powershell
+dotnet publish NativeAotSmokeTest/NativeAotSmokeTest.csproj -c Release -r win-x64 -o artifacts/nativeaot/win-x64
+./artifacts/nativeaot/win-x64/NativeAotSmokeTest.exe
+```
+
+On Linux:
+
+```bash
+dotnet publish NativeAotSmokeTest/NativeAotSmokeTest.csproj -c Release -r linux-x64 -o artifacts/nativeaot/linux-x64
+./artifacts/nativeaot/linux-x64/NativeAotSmokeTest
+```
+
+Install the [NativeAOT prerequisites](https://learn.microsoft.com/en-us/dotnet/core/deploying/native-aot/#prerequisites) for the host platform before publishing.
 
 
 
