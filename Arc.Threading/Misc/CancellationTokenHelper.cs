@@ -35,11 +35,13 @@ public static class CancellationTokenPool
     /// <remarks>
     /// This method first attempts to reset the <see cref="CancellationTokenSource"/> to its initial state.
     /// If the reset succeeds, the instance is returned to the pool for reuse.
-    /// If the reset fails (e.g., the token source has been disposed or is in an invalid state), the instance is disposed instead.
+    /// Canceled sources cannot be reset and are disposed. Passing a disposed source throws.
+    /// The caller must own the source exclusively, finish all registrations, and stop using its old tokens before returning it.
     /// This ensures that only valid, reusable instances are returned to the pool.
     /// </remarks>
     public static void TryResetAndReturn(CancellationTokenSource cancellationTokenSource)
     {
+        ArgumentNullException.ThrowIfNull(cancellationTokenSource);
         if (cancellationTokenSource.TryReset())
         {
             Pool.Return(cancellationTokenSource);

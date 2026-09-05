@@ -1,6 +1,7 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
+using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Threading;
 using Microsoft.Win32.SafeHandles;
@@ -70,7 +71,7 @@ public class MicroSleep : IDisposable
     /// </summary>
     private class WaitableTimerEx : WaitHandle
     {
-        [DllImport("kernel32.dll")]
+        [DllImport("kernel32.dll", SetLastError = true)]
         private static extern SafeWaitHandle CreateWaitableTimerEx(IntPtr lpTimerAttributes, string? lpTimerName, uint dwFlags, uint dwDesiredAccess);
 
         [DllImport("kernel32.dll", SetLastError = true)]
@@ -80,22 +81,26 @@ public class MicroSleep : IDisposable
         public WaitableTimerEx()
         {
             this.SafeWaitHandle = CreateWaitableTimerEx(IntPtr.Zero, default, 2, 0x1F0003); // CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS
+            if (this.SafeWaitHandle.IsInvalid)
+            {
+                var error = Marshal.GetLastPInvokeError();
+                this.Dispose();
+                throw new Win32Exception(error);
+            }
         }
 
         /// <summary>
         /// Waits for the specified due time.
         /// </summary>
-        /// <param name="dueTime">The due time in microseconds.</param>
+        /// <param name="dueTime">A negative relative due time in 100-nanosecond units.</param>
         public void Wait(long dueTime)
         {
-            try
+            if (!SetWaitableTimer(this.SafeWaitHandle, ref dueTime, 0, IntPtr.Zero, IntPtr.Zero, false))
             {
-                SetWaitableTimer(this.SafeWaitHandle, ref dueTime, 0, IntPtr.Zero, IntPtr.Zero, false);
-                this.WaitOne();
+                throw new Win32Exception(Marshal.GetLastPInvokeError());
             }
-            catch
-            {
-            }
+
+            this.WaitOne();
         }
     }
 
@@ -116,16 +121,13 @@ public class MicroSleep : IDisposable
     /// </summary>
     public MicroSleep()
     {
-        try
+        if (!OperatingSystem.IsWindows())
         {
             var request = default(Timespec);
             var remaining = default(Timespec);
             nanosleep(ref request, ref remaining);
             this.CurrentMode = Mode.Nanosleep;
             return;
-        }
-        catch
-        {
         }
 
         try
@@ -146,8 +148,17 @@ public class MicroSleep : IDisposable
     /// Sleeps for the specified number of microseconds.
     /// </summary>
     /// <param name="microSeconds">The number of microseconds to sleep.</param>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="microSeconds"/> is negative.</exception>
+    /// <exception cref="ObjectDisposedException">This instance has been disposed.</exception>
     public void Sleep(int microSeconds)
     {
+        ArgumentOutOfRangeException.ThrowIfNegative(microSeconds);
+        ObjectDisposedException.ThrowIf(this.CurrentMode == Mode.Disposed, this);
+        if (microSeconds == 0)
+        {
+            return;
+        }
+
         if (this.CurrentMode == Mode.Nanosleep)
         {
             try

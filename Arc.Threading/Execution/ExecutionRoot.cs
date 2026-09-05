@@ -1,6 +1,7 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -65,14 +66,34 @@ public class ExecutionRoot : ExecutionGroup
     /// <param name="options">An additional options for controlling termination behavior.</param>
     /// <param name="cancellationToken">An additional cancellation token to cancel the wait operation.</param>
     /// <returns><see langword="true"/> if termination was observed before timeout/cancellation; otherwise, <see langword="false"/>.</returns>
-    public override Task<bool> WaitForTermination(TimeSpan timeout, TerminationOptions options = default, CancellationToken cancellationToken = default)
+    public override async Task<bool> WaitForTermination(TimeSpan timeout, TerminationOptions options = default, CancellationToken cancellationToken = default)
     {
+        if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
+        {
+            throw new ArgumentOutOfRangeException(nameof(timeout));
+        }
+
+        var start = Stopwatch.GetTimestamp();
         if (this.BaseGroup.CanContinue)
         {
             this.BaseGroup.RequestTermination(TerminationOptions.IncludeIndependent);
         }
 
-        return base.WaitForTermination(timeout, options, cancellationToken);
+        if (!await this.BaseGroup.WaitForTermination(timeout, TerminationOptions.IncludeIndependent, cancellationToken).ConfigureAwait(false))
+        {
+            return false;
+        }
+
+        if (timeout != Timeout.InfiniteTimeSpan)
+        {
+            timeout -= Stopwatch.GetElapsedTime(start);
+            if (timeout < TimeSpan.Zero)
+            {
+                timeout = TimeSpan.Zero;
+            }
+        }
+
+        return await base.WaitForTermination(timeout, options, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>

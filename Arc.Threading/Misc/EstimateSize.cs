@@ -28,7 +28,7 @@ public static class EstimateSize
     /// Estimates the size in bytes of a class instance by allocating multiple instances and averaging the allocated memory.
     /// </summary>
     /// <typeparam name="TClass">The class type to estimate the size of. Must have a parameterless constructor.</typeparam>
-    /// <returns>The estimated size in bytes of a class instance.</returns>
+    /// <returns>The average allocation per constructor call, including objects allocated by the constructor.</returns>
     public static int Class<TClass>()
         where TClass : class, new()
     {
@@ -41,6 +41,7 @@ public static class EstimateSize
         }
 
         long after = GC.GetAllocatedBytesForCurrentThread();
+        Volatile.Write(ref sink, null);
 
         return (int)((after - before) / N);
     }
@@ -52,6 +53,7 @@ public static class EstimateSize
     /// <returns>The estimated size in bytes of the constructed object.</returns>
     public static int Constructor(Func<object> constructor)
     {
+        ArgumentNullException.ThrowIfNull(constructor);
         const int N = 1000;
         long before = GC.GetAllocatedBytesForCurrentThread();
 
@@ -61,6 +63,7 @@ public static class EstimateSize
         }
 
         long after = GC.GetAllocatedBytesForCurrentThread();
+        Volatile.Write(ref sink, null);
 
         return (int)((after - before) / N);
     }

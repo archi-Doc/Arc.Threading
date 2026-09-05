@@ -10,7 +10,7 @@ namespace Arc.Threading;
 /// <see cref="SemaphoreLock"/> is a simplified version of <see cref="SemaphoreSlim"/>.<br/>
 /// Used for object mutual exclusion and can also be used in code that includes await syntax.<br/>
 /// An instance of <see cref="SemaphoreLock"/> should be a private member since it uses `lock (this)` statement to reduce memory usage.<br/>
-/// The size of an instance is 40 bytes (39 bytes of data plus padding).
+    /// The lock is non-reentrant and does not track ownership by thread or task.
 /// </summary>
 public class SemaphoreLock : ILockable, IAsyncLockable
 {// object:16, 1+2+4+8+8 -> 39
@@ -51,7 +51,7 @@ public class SemaphoreLock : ILockable, IAsyncLockable
     public bool IsLocked => Volatile.Read(ref this.entered);
 
     /// <summary>
-    /// Attempts to acquires an exclusive lock without blocking.<br/>
+    /// Attempts to acquire an exclusive lock without blocking.<br/>
     /// If an exclusive lock is already held by another thread, return <see langword="false"/> without waiting.
     /// </summary>
     /// <returns>
@@ -209,8 +209,19 @@ public class SemaphoreLock : ILockable, IAsyncLockable
     /// <returns>
     /// A task that returns <see langword="true"/> if the lock was acquired; otherwise, <see langword="false"/> if the timeout elapsed or the operation was canceled.
     /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException">The timeout is negative other than -1 ms, or exceeds 4,294,967,294 milliseconds.</exception>
     public Task<bool> EnterAsync(TimeSpan timeout, CancellationToken cancellationToken)
     {
+        if ((timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan) || timeout.TotalMilliseconds > uint.MaxValue - 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(timeout));
+        }
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return Task.FromResult(false);
+        }
+
         lock (this.SyncObject)
         {
             if (!Volatile.Read(ref this.entered))
@@ -283,11 +294,6 @@ public class SemaphoreLock : ILockable, IAsyncLockable
     {
         await ((Task)asyncWaiter.Task.WaitAsync(timeout, cancellationToken)).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 
-        if (cancellationToken.IsCancellationRequested)
-        {
-            await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
-        }
-
         if (asyncWaiter.Task.IsCompleted)
         {
             return true;
@@ -297,7 +303,6 @@ public class SemaphoreLock : ILockable, IAsyncLockable
         {
             if (this.RemoveAsyncWaiter(asyncWaiter))
             {
-                cancellationToken.ThrowIfCancellationRequested();
                 return false;
             }
         }

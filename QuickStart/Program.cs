@@ -93,10 +93,11 @@ internal class Program
     private class WaitPulseCore : TaskCore
     {
         public WaitPulseCore(ExecutionGroup parent, AsyncPulseEvent pulseEvent, int index)
-            : base(parent, Process)
+            : base(parent, Process, ExecutionCoreOptions.DelayedStart)
         {
             this.pulseEvent = pulseEvent;
             this.index = index;
+            this.SendSignal(ExecutionSignal.Start);
         }
 
         private static async Task Process(TaskCore taskCore)
@@ -104,7 +105,7 @@ internal class Program
             var core = (WaitPulseCore)taskCore;
 
             Console.WriteLine($"Wait start {core.index}");
-            await core.pulseEvent.WaitAsync();
+            await core.pulseEvent.WaitAsync(core.CancellationToken);
             Console.WriteLine($"Wait end {core.index}");
         }
 

@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 namespace Arc.Threading;
 
 /// <summary>
-/// Provides low-level conversion helpers between <see cref="CancellationToken"/> and <see cref="ExecutionCore"/>.
+/// Provides cancellation-aware delays and conversions between <see cref="CancellationToken"/> and <see cref="ExecutionCore"/>.
 /// </summary>
 public static class ExecutionHelper
 {

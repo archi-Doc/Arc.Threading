@@ -1,4 +1,4 @@
-﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
+// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
 using System.Diagnostics;
@@ -27,6 +27,19 @@ namespace Arc.Threading;
 [DebuggerDisplay("{ToString()}")]
 public class ExecutionCore : CancellationTokenSource, IDisposable
 {
+    /// <summary>
+    /// Validates an execution delegate before attaching the execution to its parent.
+    /// </summary>
+    /// <param name="parent">The owning group.</param>
+    /// <param name="method">The execution delegate.</param>
+    /// <returns>The validated parent group.</returns>
+    protected static ExecutionGroup ValidateParent(ExecutionGroup parent, Delegate method)
+    {
+        ArgumentNullException.ThrowIfNull(parent);
+        ArgumentNullException.ThrowIfNull(method);
+        return parent;
+    }
+
     private const int WaitInterval = 10;
 
     #region FieldAndProperty
@@ -65,14 +78,15 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// The operation rejects invalid relationships such as self-parenting, cycles, and cross-root moves.
     /// </remarks>
     /// <exception cref="InvalidOperationException">
-    /// Thrown when assigning this instance as its own parent, or when assigning one of its descendants
-    /// as the new parent.
+    /// Thrown for self-parenting, cycles, or cross-root moves.
     /// </exception>
+    /// <exception cref="ObjectDisposedException">A disposed execution is assigned a new parent.</exception>
     public ExecutionGroup? Parent
     {
         get => this.parent;
         set
         {
+            var terminateImmediately = false;
             using (this.Root.SyncObject.EnterScope())
             {
                 if (this.IsRoot || this.parent == value)
@@ -80,6 +94,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
                     return;
                 }
 
+                ObjectDisposedException.ThrowIf(this.IsDisposed, this);
                 if (value is not null)
                 {
                     if (ReferenceEquals(this, value))
@@ -106,7 +121,13 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
 
                     this.parent?.RemoveChildInternal(this);
                     value.AddChildInternal(this);
+                    terminateImmediately = value.IsTerminated;
                 }
+            }
+
+            if (terminateImmediately)
+            {
+                this.RequestTermination();
             }
         }
     }
@@ -184,6 +205,12 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
 
     internal ExecutionCore(ExecutionGroup parent, ExecutionStack? stack, bool isIndependent, ExecutionSignalHandler? executionSignalHandler)
     {
+        ArgumentNullException.ThrowIfNull(parent);
+        if (stack is not null && stack.Root != parent.Root)
+        {
+            ExecutionHelper.ThrowDifferentRootException();
+        }
+
         this.Root = parent.Root;
         this.IsIndependent = isIndependent;
         this.executionSignalHandler = executionSignalHandler;
@@ -254,10 +281,16 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
 
         try
         {
-            var task = !cancellationToken.CanBeCanceled || cancellationToken == internalToken
-                ? Task.Delay(delay, internalToken)
-                : Task.Delay(delay, internalToken).WaitAsync(cancellationToken);
-            await task.ConfigureAwait(false);
+            if (!cancellationToken.CanBeCanceled || cancellationToken == internalToken)
+            {
+                await Task.Delay(delay, internalToken).ConfigureAwait(false);
+            }
+            else
+            {
+                using var linkedSource = CancellationTokenSource.CreateLinkedTokenSource(internalToken, cancellationToken);
+                await Task.Delay(delay, linkedSource.Token).ConfigureAwait(false);
+            }
+
             return true;
         }
         catch (OperationCanceledException)
@@ -318,17 +351,26 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
                 }
             }
 
-            try
+            var interval = TimeSpan.FromMilliseconds(WaitInterval);
+            if (timeout != Timeout.InfiniteTimeSpan)
             {
-                await Task.Delay(WaitInterval, cancellationToken).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                return false;
+                var remaining = timeout - Stopwatch.GetElapsedTime(startTimestamp);
+                if (remaining <= TimeSpan.Zero)
+                {
+                    return false;
+                }
+
+                if (remaining < interval)
+                {
+                    interval = remaining;
+                }
             }
 
-            if (timeout != Timeout.InfiniteTimeSpan &&
-                Stopwatch.GetElapsedTime(startTimestamp) >= timeout)
+            try
+            {
+                await Task.Delay(interval, cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
             {
                 return false;
             }
@@ -401,7 +443,8 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// Termination behavior flags controlling how child executions are processed.
     /// </param>
     /// <remarks>
-    /// Calling this method is idempotent and safe to invoke multiple times.
+    /// Calling this method is idempotent. Child executions are canceled recursively unless independent.
+    /// Cancellation callback exceptions are ignored so that termination can continue.
     /// </remarks>
     public void RequestTermination(TerminationOptions options = default)
     {
@@ -425,6 +468,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// <summary>
     /// Releases the resources used by this execution.<br/>
     /// Termination is requested, and this execution is removed from the execution tree.
+    /// Running threads and tasks are not joined. Independent children are detached without cancellation.
     /// </summary>
     /// <param name="disposing"><see langword="true"/> to release both managed and unmanaged resources; <see langword="false"/> to release only unmanaged resources.</param>
     protected override void Dispose(bool disposing)
@@ -469,6 +513,10 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
                     (options & TerminationOptions.IncludeIndependent) != 0)
                 {
                     ProcessCancellationInternal(ref list, x, remove, options);
+                }
+                else if (remove)
+                {
+                    x.parent = null;
                 }
             }
         }

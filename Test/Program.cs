@@ -30,7 +30,7 @@ internal class TestLock
             }
         }).ToArray();
 
-        Task.WaitAll(tasks);
+        await Task.WhenAll(tasks);
         Console.WriteLine($"{name}: {sw.ElapsedMilliseconds} ms, {this.x}");
         this.x = 0;
     }
@@ -48,7 +48,7 @@ internal class TestLock
             }
         }).ToArray();
 
-        Task.WaitAll(tasks);
+        await Task.WhenAll(tasks);
         Console.WriteLine($"{name}: {sw.ElapsedMilliseconds} ms, {this.x}");
         this.x = 0;
     }
@@ -75,7 +75,7 @@ internal class TestLock
             }
         });
 
-        Task.WaitAll(tasks.Concat(tasks2).ToArray());
+        await Task.WhenAll(tasks.Concat(tasks2));
         Console.WriteLine($"{name}: {sw.ElapsedMilliseconds} ms, {this.x}");
         this.x = 0;
     }
@@ -354,10 +354,11 @@ internal class Program
     private class WaitPulseTask : TaskCore
     {
         public WaitPulseTask(ExecutionGroup parent, AsyncPulseEvent pulseEvent, int index)
-            : base(parent, Process)
+            : base(parent, Process, ExecutionCoreOptions.DelayedStart)
         {
             this.pulseEvent = pulseEvent;
             this.index = index;
+            this.SendSignal(ExecutionSignal.Start);
         }
 
         private static async Task Process(object? parameter)
@@ -365,7 +366,7 @@ internal class Program
             var core = (WaitPulseTask)parameter!;
 
             Console.WriteLine($"Wait start {core.index}");
-            await core.pulseEvent.WaitAsync();
+            await core.pulseEvent.WaitAsync(core.CancellationToken);
             Console.WriteLine($"Wait end {core.index}");
         }
 
@@ -388,9 +389,6 @@ internal class Program
             pulseEvent.Pulse();
         });
 
-        for (var i = 0; i < 20; i++)
-        {
-            new WaitPulseTask(Root, pulseEvent, i);
-        }
+        _ = new WaitPulseTask(Root, pulseEvent, 0);
     }
 }

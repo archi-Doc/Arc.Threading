@@ -35,6 +35,7 @@ public class SingleTask
     /// The returned task faults if the work throws an exception.</returns>
     public Task? TryRun(Action task)
     {
+        ArgumentNullException.ThrowIfNull(task);
         if (Interlocked.CompareExchange(ref this.running, 1, 0) != 0)
         {
             return default;
@@ -56,6 +57,7 @@ public class SingleTask
     /// The returned task faults if the work throws an exception.</returns>
     public Task? TryRun(Func<Task> task)
     {
+        ArgumentNullException.ThrowIfNull(task);
         if (Interlocked.CompareExchange(ref this.running, 1, 0) != 0)
         {
             return default;

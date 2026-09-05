@@ -8,6 +8,7 @@ namespace Arc.Threading;
 /// Represents an exclusive lock scope of an <see cref="ILockable"/> object.<br/>
 /// The lock is released when this instance is disposed (using statement).
 /// </summary>
+/// <remarks>Do not copy an acquired scope; each copy has its own ownership flag.</remarks>
 public struct LockStruct : IDisposable
 {
     private readonly ILockable lockableObject;

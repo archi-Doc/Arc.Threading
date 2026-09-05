@@ -11,6 +11,67 @@ using Xunit;
 public sealed class AsyncPulseEventTests
 {
     [Fact]
+    public async Task RegistrationCanRaceWithBothPulseAndCancellation()
+    {
+        for (var n = 0; n < 500; n++)
+        {
+            var ev = new AsyncPulseEvent();
+            using var source = new CancellationTokenSource();
+            var wait = Task.Run(() => ev.WaitAsync(10, source.Token), TestContext.Current.CancellationToken);
+            var pulse = Task.Run(ev.Pulse, TestContext.Current.CancellationToken);
+            var cancel = Task.Run(source.Cancel, TestContext.Current.CancellationToken);
+            await Task.WhenAll(wait, pulse, cancel).WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+            Assert.True(wait.IsCompletedSuccessfully);
+        }
+    }
+
+    [Theory]
+    [InlineData(-2)]
+    [InlineData(-0.5)]
+    [InlineData(2147483648)]
+    public void InvalidTimeoutDoesNotConsumeRetainedPulse(double milliseconds)
+    {
+        var ev = new AsyncPulseEvent();
+        ev.Pulse();
+        Assert.Throws<ArgumentOutOfRangeException>(() => { _ = ev.WaitAsync(TimeSpan.FromMilliseconds(milliseconds), TestContext.Current.CancellationToken); });
+        Assert.True(ev.WaitAsync(TestContext.Current.CancellationToken).IsCompletedSuccessfully);
+    }
+
+    [Fact]
+    public async Task ZeroTimeoutAndCanceledTokenDoNotInstallAWaiter()
+    {
+        var ev = new AsyncPulseEvent();
+        Assert.False(await ev.WaitAsync(0, TestContext.Current.CancellationToken));
+        ev.Pulse();
+        Assert.False(await ev.WaitAsync(new CancellationToken(true)));
+        Assert.True(await ev.WaitAsync(0, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task PulseCancellationRacesLeaveTheNextWaitUsable()
+    {
+        var ev = new AsyncPulseEvent();
+        for (var n = 0; n < 100; n++)
+        {
+            using var source = new CancellationTokenSource();
+            var first = ev.WaitAsync(1000, source.Token);
+            await Task.WhenAll(
+                Task.Run(ev.Pulse, TestContext.Current.CancellationToken),
+                Task.Run(source.Cancel, TestContext.Current.CancellationToken));
+            var pulsed = await first.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+            if (!pulsed)
+            {
+                Assert.True(await ev.WaitAsync(0, TestContext.Current.CancellationToken));
+            }
+
+            var next = ev.WaitAsync(TestContext.Current.CancellationToken);
+            Assert.False(next.IsCompleted);
+            ev.Pulse();
+            Assert.True(await next);
+        }
+    }
+
+    [Fact]
     public void Constructor_DefaultRetainPulseIfNoWaiter_SetsToTrue()
     {
         var ev = new AsyncPulseEvent();

@@ -1,4 +1,4 @@
-﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
+// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
 using System.Threading;
@@ -66,7 +66,15 @@ public sealed class AsyncPulseEvent
             {// Waiting -> Pulse -> No Waiter
                 if (Interlocked.CompareExchange(ref this.waiter, null, current) == current)
                 {
-                    current.TrySetResult(true);
+                    if (current is Waiter registeredWaiter)
+                    {
+                        registeredWaiter.Finish(true);
+                    }
+                    else
+                    {
+                        current.TrySetResult(true);
+                    }
+
                     return;
                 }
             }
@@ -116,9 +124,10 @@ public sealed class AsyncPulseEvent
     /// <exception cref="InvalidOperationException">
     /// Thrown when another wait operation is already in progress. Only one concurrent waiter is supported.
     /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">The timeout is negative other than -1 ms, or exceeds <see cref="int.MaxValue"/> milliseconds.</exception>
     public Task<bool> WaitAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
     {
-        if (timeout < Timeout.InfiniteTimeSpan)
+        if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
         {
             throw new ArgumentOutOfRangeException(nameof(timeout));
         }
@@ -156,132 +165,102 @@ public sealed class AsyncPulseEvent
                 return Task.FromResult(false);
             }
 
-            var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-            if (Interlocked.CompareExchange(ref this.waiter, tcs, null) != null)
+            var needsCleanup = timeout != Timeout.InfiniteTimeSpan || cancellationToken.CanBeCanceled;
+            TaskCompletionSource<bool> completion = needsCleanup
+                ? new Waiter(this)
+                : new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            if (Interlocked.CompareExchange(ref this.waiter, completion, null) != null)
             {
                 continue;
             }
 
-            if (timeout == Timeout.InfiniteTimeSpan)
-            {// No timeout
-                if (!cancellationToken.CanBeCanceled)
-                {
-                    return tcs.Task;
-                }
-
-                var registration = cancellationToken.UnsafeRegister(
-                    static state =>
-                    {
-                        var cancellationState = (CancellationState)state!;
-                        if (Interlocked.CompareExchange(ref cancellationState.Owner.waiter, null, cancellationState.Waiter) == cancellationState.Waiter)
-                        {
-                            // cancellationState.Waiter.TrySetCanceled(cancellationState.CancellationToken);
-                            cancellationState.Waiter.TrySetResult(false);
-                        }
-                    },
-                    new CancellationState(this, tcs));
-
-                _ = tcs.Task.ContinueWith(
-                    static (_, state) => ((CancellationTokenRegistration)state!).Dispose(),
-                    registration,
-                    CancellationToken.None,
-                    TaskContinuationOptions.ExecuteSynchronously,
-                    TaskScheduler.Default);
-
-                return tcs.Task;
+            if (!needsCleanup)
+            {
+                return completion.Task;
             }
-            else
-            {// CancellationToken + Timeout
-                CancellationTokenRegistration cancellationRegistration = default;
-                if (cancellationToken.CanBeCanceled)
-                {
-                    cancellationRegistration = cancellationToken.UnsafeRegister(
-                        static state =>
-                        {
-                            var cancellationState = (CancellationState)state!;
-                            if (Interlocked.CompareExchange(ref cancellationState.Owner.waiter, null, cancellationState.Waiter) == cancellationState.Waiter)
-                            {
-                                // cancellationState.Waiter.TrySetCanceled(cancellationState.CancellationToken);
-                                cancellationState.Waiter.TrySetResult(false);
-                            }
-                        },
-                        new CancellationState(this, tcs));
-                }
 
-                var timeoutCts = CancellationTokenPool.Rent(); // new CancellationTokenSource(timeout);
-                timeoutCts.CancelAfter(timeout);
-                var timeoutRegistration = timeoutCts.Token.UnsafeRegister(
-                    static state =>
-                    {
-                        var timeoutState = (TimeoutState)state!;
-                        if (Interlocked.CompareExchange(ref timeoutState.Owner.waiter, null, timeoutState.Waiter) == timeoutState.Waiter)
-                        {
-                            // timeoutState.Waiter.TrySetException(new TimeoutException());
-                            timeoutState.Waiter.TrySetResult(false);
-                        }
-                    },
-                    new TimeoutState(this, tcs));
-
-                _ = tcs.Task.ContinueWith(
-                    static (_, state) =>
-                    {
-                        var cleanupState = (CleanupState)state!;
-                        cleanupState.CancellationRegistration.Dispose();
-                        cleanupState.TimeoutRegistration.Dispose();
-                        CancellationTokenPool.TryResetAndReturn(cleanupState.TimeoutCts);
-                    },
-                    new CleanupState(cancellationRegistration, timeoutRegistration, timeoutCts),
-                    CancellationToken.None,
-                    TaskContinuationOptions.ExecuteSynchronously,
-                    TaskScheduler.Default);
-
-                return tcs.Task;
+            var tcs = (Waiter)completion;
+            if (cancellationToken.CanBeCanceled)
+            {
+                tcs.CancellationRegistration = cancellationToken.UnsafeRegister(Waiter.Cancel, tcs);
             }
+
+            if (timeout != Timeout.InfiniteTimeSpan)
+            {
+                tcs.TimeoutCts = CancellationTokenPool.Rent(); // new CancellationTokenSource(timeout);
+                tcs.TimeoutCts.CancelAfter(timeout);
+                tcs.TimeoutRegistration = tcs.TimeoutCts.Token.UnsafeRegister(Waiter.Cancel, tcs);
+            }
+
+            // Publish registrations before allowing the winning signal to clean them up.
+            tcs.Initialize();
+            return tcs.Task;
         }
     }
 
-    private sealed class CancellationState
+    private sealed class Waiter : TaskCompletionSource<bool>
     {
-        public AsyncPulseEvent Owner { get; }
+        private readonly AsyncPulseEvent owner;
+        private int state; // 0: Initializing, 1: Ready, 2: Pulsed, 3: Canceled.
 
-        public TaskCompletionSource<bool> Waiter { get; }
+        public CancellationTokenRegistration CancellationRegistration { get; set; }
 
+        public CancellationTokenRegistration TimeoutRegistration { get; set; }
+
+        public CancellationTokenSource? TimeoutCts { get; set; }
+
+        public Waiter(AsyncPulseEvent owner)
+            : base(TaskCreationOptions.RunContinuationsAsynchronously)
+        {
+            this.owner = owner;
+        }
+
+        public static void Cancel(object? state)
+        {
+            var waiter = (Waiter)state!;
+            if (Interlocked.CompareExchange(ref waiter.owner.waiter, null, waiter) == waiter)
+            {
+                waiter.Finish(false);
+            }
+        }
+
+        public void Initialize()
+        {
+            var result = Interlocked.CompareExchange(ref this.state, 1, 0);
+            if (result != 0)
+            {
+                this.CleanupAndComplete(result == 2);
+            }
+        }
+
+        public void Finish(bool pulsed)
+        {
+            // Exactly one signal owns this waiter after unlinking it from the event.
+            // If registration is still in progress, Initialize performs cleanup instead.
+            if (Interlocked.Exchange(ref this.state, pulsed ? 2 : 3) == 1)
+            {
+                this.CleanupAndComplete(pulsed);
+            }
+        }
+
+        private void CleanupAndComplete(bool pulsed)
+        {
+            this.CancellationRegistration.Dispose();
+            this.TimeoutRegistration.Dispose();
+            if (this.TimeoutCts is { } source)
+            {
+                CancellationTokenPool.TryResetAndReturn(source);
+            }
+
+            this.TrySetResult(pulsed);
+        }
+
+        // Preserved alternatives from the original cancellation and timeout state classes:
+        // cancellationState.Waiter.TrySetCanceled(cancellationState.CancellationToken);
+        // cancellationState.Waiter.TrySetCanceled(cancellationState.CancellationToken);
+        // timeoutState.Waiter.TrySetException(new TimeoutException());
         // public CancellationToken CancellationToken { get; }
-
-        public CancellationState(AsyncPulseEvent owner, TaskCompletionSource<bool> waiter/*, CancellationToken cancellationToken*/)
-        {
-            this.Owner = owner;
-            this.Waiter = waiter;
-            // this.CancellationToken = cancellationToken;
-        }
-    }
-
-    private sealed class TimeoutState
-    {
-        public AsyncPulseEvent Owner { get; }
-
-        public TaskCompletionSource<bool> Waiter { get; }
-
-        public TimeoutState(AsyncPulseEvent owner, TaskCompletionSource<bool> waiter)
-        {
-            this.Owner = owner;
-            this.Waiter = waiter;
-        }
-    }
-
-    private sealed class CleanupState
-    {
-        public CancellationTokenRegistration CancellationRegistration { get; }
-
-        public CancellationTokenRegistration TimeoutRegistration { get; }
-
-        public CancellationTokenSource TimeoutCts { get; }
-
-        public CleanupState(CancellationTokenRegistration cancellationRegistration, CancellationTokenRegistration timeoutRegistration, CancellationTokenSource timeoutCts)
-        {
-            this.CancellationRegistration = cancellationRegistration;
-            this.TimeoutRegistration = timeoutRegistration;
-            this.TimeoutCts = timeoutCts;
-        }
+        // this.CancellationToken = cancellationToken;
+        /*, CancellationToken cancellationToken*/
     }
 }

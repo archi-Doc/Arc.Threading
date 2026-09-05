@@ -22,8 +22,8 @@ public class ThreadCore : ExecutionCore
     /// or whether this execution was canceled before the thread was started.
     /// </summary>
     public override bool IsTerminated
-        => !this.Thread.IsAlive &&
-        (Volatile.Read(ref this.started) != 0 || this.IsCancellationRequested);
+        => (Volatile.Read(ref this.started) == 0 && this.IsCancellationRequested) ||
+        (this.Thread is { } thread && (thread.ThreadState & ThreadState.Stopped) != 0);
 
     /// <summary>
     /// Gets the dedicated thread instance used to run this core.
@@ -43,10 +43,8 @@ public class ThreadCore : ExecutionCore
     /// <param name="options">Behavior flags controlling startup and completion semantics.</param>
     /// <exception cref="ArgumentNullException"><paramref name="method"/> is <see langword="null"/>.</exception>
     public ThreadCore(ExecutionGroup parent, Action<ThreadCore> method, ExecutionCoreOptions options = default)
-        : base(parent)
+        : base(ValidateParent(parent, method))
     {
-        ArgumentNullException.ThrowIfNull(method);
-
         this.method = method;
         this.Options = options;
 
@@ -91,6 +89,12 @@ public class ThreadCore : ExecutionCore
             return;
         }
 
+        var thread = this.Thread;
+        if (thread is null)
+        {
+            return;
+        }
+
         if (Interlocked.CompareExchange(ref this.started, 1, 0) != 0)
         {
             return;
@@ -98,7 +102,7 @@ public class ThreadCore : ExecutionCore
 
         try
         {
-            this.Thread.Start(this);
+            thread.Start(this);
         }
         catch
         {
