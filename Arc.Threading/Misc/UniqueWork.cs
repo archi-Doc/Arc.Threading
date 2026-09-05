@@ -1,15 +1,14 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
-using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace Arc.Threading;
 
 /// <summary>
-/// <see cref="UniqueWork"/> represents a unique work (number of concurrent processes is 1).<br/>
-/// For a work that is invoked multiple times by multiple threads, but the work is executed only once simultaneously.
+/// Runs one operation at a time; overlapping callers share its task.
+/// Asynchronous work is awaited without blocking a thread. Failures propagate to all callers.
 /// </summary>
 public class UniqueWork
 {
@@ -19,8 +18,9 @@ public class UniqueWork
     /// <param name="action">The work to execute.</param>
     public UniqueWork(Action action)
     {
+        ArgumentNullException.ThrowIfNull(action);
         this.workAction = action;
-        this.PrepareNextTask();
+        this.runWork = this.RunAsync;
     }
 
     /// <summary>
@@ -29,8 +29,9 @@ public class UniqueWork
     /// <param name="task">The asynchronous work to execute.</param>
     public UniqueWork(Func<Task> task)
     {
+        ArgumentNullException.ThrowIfNull(task);
         this.workTask = task;
-        this.PrepareNextTask();
+        this.runWork = this.RunAsync;
     }
 
     /// <summary>
@@ -39,46 +40,44 @@ public class UniqueWork
     /// <returns>The task of the work being executed.</returns>
     public Task Run()
     {
-        var next = Volatile.Read(ref this.nextTask);
-        var original = Interlocked.CompareExchange(ref this.currentTask, next, null);
-        if (original is not null)
-        {// The work is already in progress.
-            return original;
-        }
+        using (this.syncObject.EnterScope())
+        {
+            if (this.currentTask is not null)
+            {// The work is already in progress.
+                return this.currentTask;
+            }
 
-        // Prepare the next task and start the current one.
-        // Note that the current task may complete (and clear this.currentTask) immediately, so return the local variable.
-        this.PrepareNextTask();
-        next.Start();
-        return next;
+            // Publish while holding the lock so a fast completion cannot clear an unpublished task.
+            return this.currentTask = Task.Run(this.runWork);
+        }
     }
 
-    [MemberNotNull(nameof(nextTask))]
-    private void PrepareNextTask()
+    private async Task RunAsync()
     {
-        this.nextTask = new Task(() =>
+        try
         {
-            try
+            if (this.workAction is not null)
             {
-                if (this.workAction is not null)
-                {
-                    this.workAction();
-                }
-
-                if (this.workTask is not null)
-                {
-                    this.workTask().Wait();
-                }
+                this.workAction();
             }
-            finally
+
+            if (this.workTask is not null)
+            {
+                await this.workTask().ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            using (this.syncObject.EnterScope())
             {
                 this.currentTask = null;
             }
-        });
+        }
     }
 
     private readonly Action? workAction;
     private readonly Func<Task>? workTask;
+    private readonly Lock syncObject = new();
+    private readonly Func<Task> runWork;
     private Task? currentTask;
-    private Task nextTask;
 }

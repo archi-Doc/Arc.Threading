@@ -4,6 +4,7 @@ using System;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace Arc.Threading;
 
@@ -35,8 +36,8 @@ public record class ReusableJob
     /// </summary>
     public ReusableJobState State
     {
-        get => (ReusableJobState)this.state;
-        internal set => this.state = (byte)value;
+        get => (ReusableJobState)Volatile.Read(ref this.state);
+        internal set => Volatile.Write(ref this.state, (byte)value);
     }
 
     /// <summary>

@@ -24,7 +24,7 @@ public record class ReusableTaskJob : ReusableJob
     /// Gets the <see cref="System.Threading.Tasks.Task"/> associated with this reusable job.
     /// </summary>
     /// <value>
-    /// The task that will complete when the job is done.
+    /// The task that completes when the job is completed or aborted. Inspect <see cref="ReusableJob.State"/> for the outcome.
     /// </value>
     /// <exception cref="InvalidOperationException">The job has no synchronization primitive (it has been returned to the pool).</exception>
     public Task Task

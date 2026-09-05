@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 /// <remarks>
 /// This executor guarantees at most one pending delayed run while idle/waiting, <br/>and at most
 /// one additional delayed rerun request while currently executing.
+/// Handle action exceptions inside the action to observe failures; <see cref="Request"/> does not expose the background task.
 /// </remarks>
 public sealed class DelayedTaskExecutor
 {
@@ -32,16 +33,16 @@ public sealed class DelayedTaskExecutor
     /// The asynchronous action to execute after the configured delay.
     /// </param>
     /// <param name="delay">
-    /// The debounce delay applied before each execution.
+    /// The delay from the first request. Further requests do not restart it.
     /// </param>
     /// <param name="cancellationToken">
     /// A token used to cancel pending delays and action execution.
     /// </param>
     /// <exception cref="ArgumentNullException"><paramref name="action"/> is <see langword="null"/>.</exception>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="delay"/> is negative.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="delay"/> is negative or exceeds the timer limit.</exception>
     public DelayedTaskExecutor(Func<CancellationToken, Task> action, TimeSpan delay, CancellationToken cancellationToken = default)
     {
-        if (delay < TimeSpan.Zero)
+        if (delay < TimeSpan.Zero || delay.TotalMilliseconds > uint.MaxValue - 1)
         {
             throw new ArgumentOutOfRangeException(nameof(delay));
         }

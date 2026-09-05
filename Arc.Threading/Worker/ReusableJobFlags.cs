@@ -17,7 +17,7 @@ public enum ReusableJobFlags : byte
     None = 0,
 
     /// <summary>
-    /// Automatically returns the job object to the pool when the job completes.
+    /// Automatically returns a completed or aborted job to the pool. Do not await or access it after submission.
     /// </summary>
     ReturnToPoolOnCompletion = 1 << 1,
 }

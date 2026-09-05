@@ -40,7 +40,7 @@ public class ExecutionGroup : ExecutionCore
     /// </summary>
     /// <param name="parent">The parent group that owns this group.</param>
     /// <param name="isIndependent">
-    /// A value indicating whether this group is independent from parent cancellation/signal behavior.
+    /// Whether default recursive termination skips this group. Signals are still forwarded.
     /// </param>
     /// <param name="name">An optional display name. If <see langword="null"/>, an empty name is used.</param>
     public ExecutionGroup(ExecutionGroup parent, bool isIndependent = false, string? name = default)
@@ -79,7 +79,7 @@ public class ExecutionGroup : ExecutionCore
     /// or creates and returns a new one when no match exists.
     /// </summary>
     /// <param name="isIndependent">
-    /// A value indicating whether a newly created group should be independent from parent signal/cancellation behavior.
+    /// Whether default recursive termination skips a newly created group.
     /// </param>
     /// <param name="name">The group name to search for.</param>
     /// <returns>
@@ -123,6 +123,7 @@ public class ExecutionGroup : ExecutionCore
     /// <returns>An array containing the current child executions.</returns>
     /// <remarks>
     /// Returns a cached snapshot when available; otherwise, builds and caches a new snapshot under synchronization.
+    /// Callers must not modify the returned array.
     /// </remarks>
     public ExecutionCore[] GetChildren()
     {
@@ -147,7 +148,15 @@ public class ExecutionGroup : ExecutionCore
     {
         using (this.Root.SyncObject.EnterScope())
         {
-            return this.childrenList.Find(x => x.Id == id);
+            foreach (var child in this.childrenList)
+            {
+                if (child.Id == id)
+                {
+                    return child;
+                }
+            }
+
+            return null;
         }
     }
 

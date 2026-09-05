@@ -8,7 +8,8 @@ namespace Arc.Threading;
 /// Represents a collection of <see cref="ExecutionCore"/> instances managed as an execution stack.
 /// </summary>
 /// <remarks>
-/// Access to mutable state is synchronized through <see cref="ExecutionRoot.SyncObject"/>.
+/// Mutations and element lookups use <see cref="ExecutionRoot.SyncObject"/>.
+/// Counts are advisory during concurrent changes.
 /// </remarks>
 public class ExecutionStack
 {

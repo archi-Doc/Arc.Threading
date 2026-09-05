@@ -31,11 +31,10 @@ public class Program
 
         // await ExclusiveControl.Test();
 
-        DebugRun<ExecutionCoreBenchmark>();
-
         var switcher = new BenchmarkSwitcher(new[]
         {
             typeof(ExecutionCoreBenchmark),
+            typeof(HotPathBenchmark),
             typeof(DelayBenchmark),
             typeof(AsyncPulseEventBenchmark),
             typeof(WorkerBenchmark),

@@ -31,15 +31,27 @@ public class TaskCore<TSelf> : TaskCore
     /// The current instance is not assignable to <typeparamref name="TSelf"/>.
     /// </exception>
     public TaskCore(ExecutionGroup parent, Func<TSelf, Task> method, ExecutionCoreOptions options = ExecutionCoreOptions.Default)
-        : base(parent, options)
+        : this(parent, method, options, false)
     {
-        ArgumentNullException.ThrowIfNull(method);
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="TaskCore{TSelf}"/> class with optional deferred startup.
+    /// </summary>
+    /// <param name="parent">The owning group.</param>
+    /// <param name="method">The execution delegate.</param>
+    /// <param name="options">The execution options.</param>
+    /// <param name="deferStart">Whether the derived constructor must send the start signal.</param>
+    protected TaskCore(ExecutionGroup parent, Func<TSelf, Task> method, ExecutionCoreOptions options, bool deferStart)
+        : base(ValidateParent(parent, method), options)
+    {
         if (this is not TSelf self)
         {
+            this.Dispose();
             throw new InvalidOperationException($"{this.GetType().Name} must use itself as the {nameof(TSelf)} type argument.");
         }
 
-        this.Initialize(this.CreateLongRunningTask(this, () => method(self)));
+        this.Initialize(this.CreateLongRunningTask(this, () => method(self)), !deferStart);
     }
 }
 
@@ -98,10 +110,8 @@ public class TaskCore : ExecutionCore
     /// <param name="options">Behavior flags controlling startup and completion semantics.</param>
     /// <exception cref="ArgumentNullException"><paramref name="method"/> is <see langword="null"/>.</exception>
     public TaskCore(ExecutionGroup parent, Func<TaskCore, Task> method, ExecutionCoreOptions options = ExecutionCoreOptions.Default)
-        : base(parent)
+        : base(ValidateParent(parent, method))
     {
-        ArgumentNullException.ThrowIfNull(method);
-
         this.Options = options;
         this.Initialize(this.CreateLongRunningTask(this, () => method(this)));
     }
@@ -166,6 +176,15 @@ public class TaskCore : ExecutionCore
     /// <exception cref="InvalidOperationException">The task has already been initialized.</exception>
     [MemberNotNull(nameof(task))]
     protected void Initialize(Task task)
+        => this.Initialize(task, true);
+
+    /// <summary>
+    /// Assigns the underlying task and optionally applies automatic startup.
+    /// </summary>
+    /// <param name="task">The task to manage.</param>
+    /// <param name="startAutomatically">Whether to start unless delayed startup was requested.</param>
+    [MemberNotNull(nameof(task))]
+    protected void Initialize(Task task, bool startAutomatically)
     {
         ArgumentNullException.ThrowIfNull(task);
 
@@ -174,7 +193,7 @@ public class TaskCore : ExecutionCore
             throw new InvalidOperationException("The task has already been initialized.");
         }
 
-        if ((this.Options & ExecutionCoreOptions.DelayedStart) == 0)
+        if (startAutomatically && (this.Options & ExecutionCoreOptions.DelayedStart) == 0)
         {
             this.SendSignal(ExecutionSignal.Start);
         }

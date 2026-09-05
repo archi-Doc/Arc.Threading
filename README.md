@@ -15,6 +15,8 @@
 - [AsyncPulseEvent](#asyncpulseevent)
 - [Locks](#locks)
 - [Other utilities](#other-utilities)
+- [Performance and ownership](#performance-and-ownership)
+- [Build, test, and coverage](#build-test-and-coverage)
 
 
 
@@ -32,7 +34,7 @@ Arc.Threading targets .NET 10 and above.
 
 ## NativeAOT
 
-Arc.Threading is marked with `IsAotCompatible=true`. NativeAOT publishing and execution have been verified locally on Windows x64 with .NET SDK 10.0.400 and Arc.Collections 1.44.0, with no build, trimming, or AOT warnings.
+Arc.Threading is marked with `IsAotCompatible=true`. NativeAOT publishing and execution have been verified locally on Windows x64 with .NET SDK 10.0.400 and Arc.Collections 1.45.0, with no build, trimming, or AOT warnings.
 
 `NativeAotSmokeTest` publishes a native executable and checks execution trees, generic task cores and job workers, job reuse, cancellation token conversion, pulse events, locks, ambient execution IDs, allocation helpers, and `MicroSleep` native interop. It fails if dynamic code is supported, ensuring that the published native executable is used for validation.
 
@@ -62,7 +64,7 @@ Arc.Threading manages threads and tasks as a tree of `ExecutionCore` objects.
 
 | Class | Description |
 | ---- | ---- |
-| `ExecutionCore` | A cancellable execution unit. It derives from `CancellationTokenSource`, so it can be passed anywhere a `CancellationToken` is expected. |
+| `ExecutionCore` | A cancellable execution unit derived from `CancellationTokenSource`. Pass its `CancellationToken` or `Token` property to cancellable APIs. |
 | `ExecutionGroup` | An `ExecutionCore` which owns child executions. It is not associated with a Thread/Task. |
 | `ExecutionRoot` | The root of an execution tree. |
 | `ThreadCore` | An `ExecutionCore` backed by a dedicated `Thread`. |
@@ -93,6 +95,11 @@ public static ExecutionRoot Root { get; } = new();
 
 Executions marked as `IsIndependent` are excluded from the default termination/wait target.
 Specify `TerminationOptions.IncludeIndependent` to include them.
+`Root.WaitForTermination()` always requests and waits for termination of `BaseGroup`, including its independent descendants. It excludes `IndependentGroup` unless `IncludeIndependent` is specified.
+
+Use `GetOrAddGroup(isIndependent, name)` to reuse a named child group, `FindChild(id)` or `TryGetChildCancellationToken(id, out token)` for direct-child lookup, and `Parent`/`AddChild()` to move executions within a root. Cycles and cross-root moves are rejected. Moving under a terminated parent immediately requests termination.
+
+`GetChildren()` returns a cached snapshot: treat the returned array as read-only. Signals are forwarded to independent children as well.
 
 ### ThreadCore and TaskCore
 
@@ -165,6 +172,7 @@ var core2 = cancellationToken.ExtractCore(); // Gets the ExecutionCore (null if 
 ```
 
 To add a custom property or method, derive from `TaskCore<TSelf>` (or `ThreadCore`).
+Use `DelayedStart` when a derived execution method needs fields initialized by its constructor; send the start signal after construction.
 
 ```csharp
 internal class CustomCore : TaskCore<CustomCore>
@@ -191,13 +199,16 @@ internal class CustomCore : TaskCore<CustomCore>
 | ---- | ---- |
 | `RequestTermination(options)` | Requests the termination of this execution and its children (cancels the `CancellationToken`). |
 | `CanContinue` | `false` if the termination is requested. Check this property in the execution loop. |
-| `IsTerminated` | `true` if the thread/task has exited, or was canceled before it started. |
+| `IsTerminated` | For thread/task cores, `true` after exit or cancellation before startup. For plain cores and groups, reflects cancellation. |
 | `WaitForTermination(timeout, options, ct)` | Waits until all the target executions are terminated. |
 | `Delay(milliseconds, ct)` | `Task.Delay()` which returns `false` instead of throwing when the execution is terminated. |
 | `Dispose()` | Requests the termination, and removes this execution from the tree. |
 
 By default, an execution disposes itself when the execution method exits.
 Specify `ExecutionCoreOptions.KeepAliveOnCompletion` to keep the object alive.
+Termination is cooperative: running code must observe `CanContinue` or its cancellation token. `Dispose()` does not wait for running work to exit. Request termination and await `WaitForTermination()` before releasing resources used by that work. Directly calling the inherited `Cancel()` does not traverse the tree.
+
+`TaskCompletionCore.CompletionTask` and `TaskCompletionGroup.CompletionTask` complete only when `TrySetCompleted()` is called. Completion does not request termination, and termination/disposal does not complete these tasks.
 
 ### Signals and delayed start
 
@@ -221,6 +232,8 @@ var core = stack.PushNew(Root.BaseGroup); // Creates a TaskCompletionGroup assoc
 var last = stack.LastCore; // The last execution added to the stack.
 core.TrySetCompleted(); // Completes core.CompletionTask.
 ```
+
+`Push(core)` associates an existing execution with one stack. `FirstCore`, `LastCore`, `Count`, `IsEmpty`, and `Find(id)` inspect the stack. Disposal removes an execution from its stack.
 
 
 
@@ -250,6 +263,7 @@ private static async Task TestWorker(ExecutionGroup parent)
     job.Id = 1; // Set the parameters of the job.
     worker.Add(job); // Enqueue the job.
     await job.WaitAsync(); // Wait until the job is complete.
+    // Check job.State for Completed or Aborted before returning it.
     worker.Return(job); // Return the job object to the pool.
 
     // ReusableJobFlags.ReturnToPoolOnCompletion returns the job object automatically (fire-and-forget).
@@ -285,12 +299,19 @@ public class TestWorker : ReusableJobWorker<TestJob>
 
 The state of a job changes as follows: `Initial` -> `Pending` (`Add()`) -> `Running` -> `Completed`/`Aborted` -> `Pooled` (`Return()`).
 
+`MaxConcurrentTasks` must be at least 1. Set it before submitting work for a fixed limit; lowering it does not interrupt active jobs. Processing exceptions mark jobs as `Aborted`. `OnJobFinished(job)` runs before waiters are released; exceptions from this hook also mark the job as `Aborted` and do not strand waiters.
+
+`WaitForCompletion()` observes an empty queue and no active processing; `true` does not mean every job succeeded. `WaitAsync()` signals either completion or abortion: inspect `State` for the outcome. Its timed overload throws `TimeoutException`; cancellation throws `OperationCanceledException`.
+
+Termination aborts pending jobs and waits for active processors before the worker task exits. `OnTerminated()` runs after active processing exits. `Dispose()` aborts pending jobs immediately but does not block for active work.
+
 
 
 ## AsyncPulseEvent
 
 `AsyncPulseEvent` is a thread synchronization event that a thread waits on until a pulse (signal) is received.
 Only **one** waiter is supported at a time, and a pulse which arrives before the wait is retained by default (`retainPulseIfNoWaiter`).
+Multiple retained pulses coalesce into one. A second concurrent wait throws `InvalidOperationException`. A canceled token returns `false` without consuming a retained pulse. A zero timeout polls immediately; other timeouts must be nonnegative and at most `int.MaxValue` milliseconds, or `Timeout.InfiniteTimeSpan`.
 
 ```csharp
 private static async Task TestAsyncPulseEvent(ExecutionGroup parent)
@@ -313,7 +334,7 @@ private static async Task TestAsyncPulseEvent(ExecutionGroup parent)
 
 ## Locks
 
-`SemaphoreLock` is a simplified version of `SemaphoreSlim` (the size of an instance is 40 bytes).
+`SemaphoreLock` is a compact, non-reentrant exclusive lock.
 It is used for object mutual exclusion, and can also be used in code that includes await syntax.
 
 ```csharp
@@ -350,6 +371,10 @@ if (this.semaphoreLock.TryEnter())
 | `LockStruct` | The lock scope returned by `EnterScope()`. It releases the lock when disposed. |
 | `ILockObject` | An object which exposes a `System.Threading.Lock` object. |
 
+Timed `SemaphoreLock.EnterAsync()` overloads return `false` on timeout or cancellation, including an already canceled token. Invalid timeouts throw before the lock or wait queue changes. If acquisition wins a race with cancellation, the result is `true` and the caller must release the lock.
+
+`MonitorLock` is reentrant and must be released on the acquiring thread; do not hold it across `await`. Dispose each `LockStruct` through its original variable. Copying the struct duplicates its ownership flag and can cause a double release.
+
 
 
 ## Other utilities
@@ -364,9 +389,11 @@ if (this.semaphoreLock.TryEnter())
 | `CancellationTokenPool` | A shared pool of `CancellationTokenSource` instances. |
 | `EstimateSize` | Estimates the memory size of a struct/class. |
 | `Task.TryDelay()` | `Task.Delay()` which returns `false` instead of throwing when canceled. |
+| `AbortOrComplete` | A result enum for completed or aborted operations. |
+| `PanicException` | An exception type for application-defined fatal errors; it does not terminate the process itself. |
 
 ```csharp
-// Executes the action 500 ms after the last request.
+// Executes the action 500 ms after the first request.
 var executor = new DelayedTaskExecutor(
     async cancellationToken => await SaveAsync(cancellationToken),
     TimeSpan.FromMilliseconds(500),
@@ -378,3 +405,36 @@ executor.Request(); // Coalesced into the request above.
 // Returns false if the delay is canceled.
 var delayed = await Task.TryDelay(1_000, cancellationToken);
 ```
+
+`DelayedTaskExecutor` coalesces requests without restarting the delay. A request during execution schedules at most one additional delayed run. Handle action exceptions inside the action when reporting failures is required; `Request()` does not expose its background task.
+
+`SingleTask.TryRun()` returns `null` during an active run; `RunningTask` exposes the current task. `UniqueWork.Run()` returns the same task to overlapping callers and awaits asynchronous work without blocking a thread. Both allow another run after completion or failure.
+
+`MicroSleep` is not thread-safe and does not guarantee exact scheduling precision. Dispose it after use; negative durations and calls after disposal throw. `EstimateSize` deliberately allocates objects, and its class estimates include constructor allocations.
+
+## Performance and ownership
+
+- Retained pulse waits and uncontended `SemaphoreLock.EnterAsync()` reuse completed tasks. Pending waits allocate a task; timed/cancelable waits also require registration and cleanup state.
+- `FindChild()` does not allocate a search delegate. Group snapshots are reused until membership changes.
+- `ReusableTaskJob` allocates a new completion source for each rental. `ReusableThreadJob` reuses its event. Use `ReusableJob` for fire-and-forget work that needs no completion primitive.
+- Return jobs to the worker that rented them only after processing and all waiters have finished. Reset custom fields before reuse. Do not clone active jobs or access jobs after returning them. `ReturnToPoolOnCompletion` is for fire-and-forget use; do not await or return those jobs manually.
+- Return a pooled cancellation source only with exclusive ownership, after registrations finish and old tokens are no longer used. Canceled sources are disposed because they cannot be reset. Passing an already disposed source throws.
+- `TaskCore` uses a long-running task that synchronously hosts its asynchronous delegate. Creating many task cores creates many dedicated threads; reuse a worker for large job streams.
+
+## Build, test, and coverage
+
+```sh
+dotnet build Arc.Threading.slnx -c Release
+dotnet test xUnitTest/xUnitTest.csproj -c Release
+dotnet test xUnitTest/xUnitTest.csproj -c Release --coverage --coverage-output-format cobertura --coverage-output coverage.cobertura.xml --results-directory artifacts/coverage
+```
+
+The test project uses Microsoft.Testing.Platform and its code coverage extension. Tests cover execution trees, startup and shutdown, pooled jobs, cancellation races, lock contention, utilities, and allocation-sensitive lookup. Coverage reports are written under `artifacts/coverage`; platform-specific native paths require tests on the corresponding operating system.
+
+Run the allocation benchmarks with:
+
+```sh
+dotnet run --project Benchmark/Benchmark.csproj -c Release -- --filter '*HotPathBenchmark*'
+```
+
+See [the review report](docs/REVIEW.md) for measured coverage, allocation changes, and validation limits.

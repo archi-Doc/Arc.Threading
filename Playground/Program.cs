@@ -71,7 +71,7 @@ class Program
         Console.WriteLine("Hello World!");
         Console.WriteLine();
 
-        var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
         cts.CancelAfter(100);
         Console.WriteLine("TryDelay");
         var delayResult = await Task.TryDelay(1000, cts.Token);
@@ -161,7 +161,7 @@ class Program
     static async Task Test1()
     {
         var pulseEvent = new AsyncPulseEvent();
-        var tcs = new CancellationTokenSource();
+        using var tcs = new CancellationTokenSource();
 
         Console.WriteLine(DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss.fff"));
 

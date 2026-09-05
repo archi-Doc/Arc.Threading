@@ -7,6 +7,7 @@ namespace Arc.Threading;
 /// <summary>
 /// Provides an <see cref="ExecutionCore"/> implementation that completes via an internal <see cref="TaskCompletionSource"/>.
 /// </summary>
+/// <remarks>Completion and termination are independent; disposal does not complete <see cref="CompletionTask"/>.</remarks>
 public class TaskCompletionCore : ExecutionCore
 {
     private readonly TaskCompletionSource completionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);

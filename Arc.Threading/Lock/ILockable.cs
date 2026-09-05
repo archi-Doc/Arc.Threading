@@ -10,7 +10,7 @@ namespace Arc.Threading;
 public interface ILockable
 {
     /// <summary>
-    ///  Create a <see cref="LockStruct"/> from an <see cref="ILockable"/> object for using statement.
+    /// Acquires the lock and returns a scope that releases it on disposal.
     /// </summary>
     /// <returns><see cref="LockStruct"/>.</returns>
     LockStruct EnterScope() => new LockStruct(this);

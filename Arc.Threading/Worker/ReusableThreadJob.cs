@@ -1,4 +1,4 @@
-﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
+// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
 using System;
 using System.Threading;
@@ -9,7 +9,8 @@ namespace Arc.Threading;
 /// Represents a reusable worker job that supports synchronous waiting for completion.
 /// </summary>
 /// <remarks>
-/// This job type allocates a <see cref="ManualResetEventSlim"/> when the job is rented from the worker.<br/>
+    /// This job type reuses one <see cref="ManualResetEventSlim"/> across rentals.<br/>
+    /// All waiters must finish before the job is returned to the pool.<br/>
 /// Call <see cref="Wait(CancellationToken)"/> or <see cref="Wait(TimeSpan, CancellationToken)"/> to block until completion.<br/>
 /// If asynchronous waiting is acceptable, <see cref="ReusableTaskJob"/> is recommended.
 /// </remarks>
@@ -34,7 +35,7 @@ public record class ReusableThreadJob : ReusableJob
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
     public void Wait(CancellationToken cancellationToken = default)
     {
-        if (this.eventSlim is null)
+        if (this.eventSlim is null || this.State == ReusableJobState.Pooled)
         {
             ThrowNoSynchronizationPrimitive();
         }
@@ -54,7 +55,7 @@ public record class ReusableThreadJob : ReusableJob
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
     public bool Wait(TimeSpan timeout, CancellationToken cancellationToken = default)
     {
-        if (this.eventSlim is null)
+        if (this.eventSlim is null || this.State == ReusableJobState.Pooled)
         {
             ThrowNoSynchronizationPrimitive();
         }
@@ -64,16 +65,18 @@ public record class ReusableThreadJob : ReusableJob
 
     internal override void _PrepareSynchronizationPrimitive()
     {
-        this.eventSlim ??= new(false);
+        if (this.eventSlim is null)
+        {
+            this.eventSlim = new(false);
+        }
+        else
+        {
+            this.eventSlim.Reset();
+        }
     }
 
     internal override void _SetSynchronizationPrimitive()
     {
         this.eventSlim?.Set();
-    }
-
-    internal override void _ResetSynchronizationPrimitive()
-    {
-        this.eventSlim = default;
     }
 }
