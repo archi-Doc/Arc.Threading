@@ -29,13 +29,13 @@ public class SingleTask
     /// Attempts to execute the specified task.<br/>
     /// It executes if there is no currently running task, and returns <see langword="null"/> if a task is already in progress.
     /// </summary>
-    /// <param name="task">The work to execute asynchronously.</param>
+    /// <param name="action">The work to execute asynchronously.</param>
     /// <returns>Returns a valid task instance if there is no currently running Task.<br/>
     /// <see langword="null"/> if a task is already in progress.<br/>
     /// The returned task faults if the work throws an exception.</returns>
-    public Task? TryRun(Action task)
+    public Task? TryRun(Action action)
     {
-        ArgumentNullException.ThrowIfNull(task);
+        ArgumentNullException.ThrowIfNull(action);
         if (Interlocked.CompareExchange(ref this.running, 1, 0) != 0)
         {
             return default;
@@ -43,7 +43,7 @@ public class SingleTask
 
         var completionSource = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         Volatile.Write(ref this.task, completionSource.Task);
-        _ = this.RunAsync(Task.Run(task), completionSource);
+        _ = this.RunAsync(Task.Run(action), completionSource);
         return completionSource.Task;
     }
 
@@ -51,13 +51,13 @@ public class SingleTask
     /// Attempts to execute the specified task.<br/>
     /// It executes if there is no currently running task, and returns <see langword="null"/> if a task is already in progress.
     /// </summary>
-    /// <param name="task">The work to execute asynchronously.</param>
+    /// <param name="asyncAction">The asynchronous work to execute.</param>
     /// <returns>Returns a valid task instance if there is no currently running Task.<br/>
     /// <see langword="null"/> if a task is already in progress.<br/>
     /// The returned task faults if the work throws an exception.</returns>
-    public Task? TryRun(Func<Task> task)
+    public Task? TryRun(Func<Task> asyncAction)
     {
-        ArgumentNullException.ThrowIfNull(task);
+        ArgumentNullException.ThrowIfNull(asyncAction);
         if (Interlocked.CompareExchange(ref this.running, 1, 0) != 0)
         {
             return default;
@@ -65,7 +65,7 @@ public class SingleTask
 
         var completionSource = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         Volatile.Write(ref this.task, completionSource.Task);
-        _ = this.RunAsync(Task.Run(task), completionSource);
+        _ = this.RunAsync(Task.Run(asyncAction), completionSource);
         return completionSource.Task;
     }
 

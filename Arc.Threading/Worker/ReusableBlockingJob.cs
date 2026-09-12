@@ -14,14 +14,14 @@ namespace Arc.Threading;
 /// Call <see cref="Wait(CancellationToken)"/> or <see cref="Wait(TimeSpan, CancellationToken)"/> to block until completion.<br/>
 /// If asynchronous waiting is acceptable, <see cref="ReusableTaskJob"/> is recommended.
 /// </remarks>
-public record class ReusableThreadJob : ReusableJob
+public record class ReusableBlockingJob : ReusableJob
 {
     private ManualResetEventSlim? eventSlim;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="ReusableThreadJob"/> class.
+    /// Initializes a new instance of the <see cref="ReusableBlockingJob"/> class.
     /// </summary>
-    public ReusableThreadJob()
+    public ReusableBlockingJob()
     {
     }
 

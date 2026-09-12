@@ -42,27 +42,27 @@ public class UtilityTests
         var source = CancellationTokenPool.Rent();
         var called = false;
         source.Token.Register(() => called = true);
-        CancellationTokenPool.TryResetAndReturn(source);
+        CancellationTokenPool.Return(source);
         var next = CancellationTokenPool.Rent();
         next.Cancel();
         Assert.False(called);
-        CancellationTokenPool.TryResetAndReturn(next);
+        CancellationTokenPool.Return(next);
         Assert.Throws<ObjectDisposedException>(() => next.TryReset());
-        Assert.Throws<ObjectDisposedException>(() => CancellationTokenPool.TryResetAndReturn(next));
-        Assert.Throws<ArgumentNullException>(() => CancellationTokenPool.TryResetAndReturn(null!));
+        Assert.Throws<ObjectDisposedException>(() => CancellationTokenPool.Return(next));
+        Assert.Throws<ArgumentNullException>(() => CancellationTokenPool.Return(null!));
     }
 
     [Fact]
     public void MicroSleepValidatesDurationAndDisposal()
     {
         using var sleep = new MicroSleep();
-        Assert.NotEqual(MicroSleep.Mode.Disposed, sleep.CurrentMode);
+        Assert.NotEqual(MicroSleepMode.Disposed, sleep.CurrentMode);
         Assert.Throws<ArgumentOutOfRangeException>(() => sleep.Sleep(-1));
         sleep.Sleep(0);
         sleep.Sleep(100);
         sleep.Dispose();
         sleep.Dispose();
-        Assert.Equal(MicroSleep.Mode.Disposed, sleep.CurrentMode);
+        Assert.Equal(MicroSleepMode.Disposed, sleep.CurrentMode);
         Assert.Throws<ObjectDisposedException>(() => sleep.Sleep(0));
     }
 

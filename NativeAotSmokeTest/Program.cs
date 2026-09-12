@@ -39,19 +39,19 @@ internal static class Program
     {
         using var root = new ExecutionRoot();
         using var group = new ExecutionGroup(root);
-        var token = group.Pack();
+        var token = group.ToCancellationToken();
         Check(token == group.Token, "Packed token must match CancellationTokenSource.Token.");
-        Check(ReferenceEquals(token.Extract<ExecutionGroup>(), group), "Generic token extraction failed.");
-        Check(ReferenceEquals(group.CancellationToken.ExtractCore(), group), "Token extraction failed.");
-        Check(CancellationToken.None.ExtractCore() is null, "Empty token must not contain a core.");
+        Check(ReferenceEquals(token.AsExecution<ExecutionGroup>(), group), "Generic token extraction failed.");
+        Check(ReferenceEquals(group.CancellationToken.AsExecutionCore(), group), "Token extraction failed.");
+        Check(CancellationToken.None.AsExecutionCore() is null, "Empty token must not contain a core.");
         using var ordinarySource = new CancellationTokenSource();
-        Check(ordinarySource.Token.ExtractCore() is null, "Ordinary token must not contain a core.");
+        Check(ordinarySource.Token.AsExecutionCore() is null, "Ordinary token must not contain a core.");
 
         var cancellationObserved = false;
         using var registration = token.Register(() => cancellationObserved = true);
         var threadRan = false;
         using var thread = new ThreadCore(group, _ => threadRan = true,
-            ExecutionCoreOptions.DelayedStart | ExecutionCoreOptions.KeepAliveOnCompletion);
+            ExecutionCoreOptions.DelayedStart | ExecutionCoreOptions.NoDisposeOnCompletion);
         using var task = new CustomCore(group);
         group.SendSignal(ExecutionSignal.Start);
         await task.Task.WaitAsync(TestTimeout);
@@ -62,20 +62,20 @@ internal static class Program
         using (var completion = stack.PushNew(group))
         {
             Check(ReferenceEquals(stack.Find(completion.Id), completion), "ExecutionStack lookup failed.");
-            completion.TrySetCompleted();
+            completion.SetCompleted();
             await completion.CompletionTask.WaitAsync(TestTimeout);
         }
 
         Check(stack.IsEmpty, "Disposed execution must be removed from its stack.");
         using var completionCore = new TaskCompletionCore(group);
-        completionCore.TrySetCompleted();
+        completionCore.SetCompleted();
         await completionCore.CompletionTask.WaitAsync(TestTimeout);
 
-        var delay = group.Delay(Timeout.Infinite);
+        var delay = group.TryDelay(Timeout.Infinite);
         group.RequestTermination();
         Check(cancellationObserved && token.IsCancellationRequested, "Packed token did not observe cancellation.");
         Check(!await delay.WaitAsync(TestTimeout), "Termination must cancel the pending delay.");
-        Check(await group.WaitForTermination(TestTimeout), "Execution tree did not terminate.");
+        Check(await group.WaitForTerminationAsync(TestTimeout), "Execution tree did not terminate.");
         Console.WriteLine("PASS: Execution tree, generic cores, token conversion, and cancellation.");
     }
 
@@ -91,7 +91,7 @@ internal static class Program
             worker.Add(job);
             await job.WaitAsync(TestTimeout);
             Check(job.State == ReusableJobState.Completed && job.Value == 42, "Asynchronous job failed.");
-            Check(await worker.WaitForCompletion(TestTimeout), "Worker did not complete.");
+            Check(await worker.WaitForCompletionAsync(TestTimeout), "Worker did not complete.");
             worker.Return(job);
             Check(job.State == ReusableJobState.Pooled, "Job was not returned to the pool.");
             if (i == 0)
@@ -108,11 +108,11 @@ internal static class Program
         threadWorker.Add(threadJob);
         threadWorker.SendSignal(ExecutionSignal.Start);
         Check(threadJob.Wait(TestTimeout) && threadJob.Value == 42, "Synchronous job failed.");
-        Check(await threadWorker.WaitForCompletion(TestTimeout), "Thread job worker did not complete.");
+        Check(await threadWorker.WaitForCompletionAsync(TestTimeout), "Thread job worker did not complete.");
         threadWorker.Return(threadJob);
 
         root.RequestTermination(TerminationOptions.IncludeIndependent);
-        Check(await root.WaitForTermination(TestTimeout, TerminationOptions.IncludeIndependent), "Workers did not terminate.");
+        Check(await root.WaitForTerminationAsync(TestTimeout, TerminationOptions.IncludeIndependent), "Workers did not terminate.");
         Console.WriteLine("PASS: Generic worker dispatch, task/thread jobs, and object pooling.");
     }
 
@@ -156,7 +156,7 @@ internal static class Program
         Check(!await Task.TryDelay(1, source.Token), "TryDelay must observe cancellation.");
         var pooledSource = CancellationTokenPool.Rent();
         Check(!pooledSource.IsCancellationRequested, "Rented token must not be canceled.");
-        CancellationTokenPool.TryResetAndReturn(pooledSource);
+        CancellationTokenPool.Return(pooledSource);
         Console.WriteLine("PASS: Pulse events, locks, ambient IDs, and cancellation token pooling.");
     }
 
@@ -165,11 +165,11 @@ internal static class Program
         using var sleep = new MicroSleep();
         if (OperatingSystem.IsWindows())
         {
-            Check(sleep.CurrentMode == MicroSleep.Mode.WaitableTimerEx, "Windows waitable timer initialization failed.");
+            Check(sleep.CurrentMode == MicroSleepMode.WaitableTimerEx, "Windows waitable timer initialization failed.");
         }
         else
         {
-            Check(sleep.CurrentMode == MicroSleep.Mode.Nanosleep, "nanosleep initialization failed.");
+            Check(sleep.CurrentMode == MicroSleepMode.Nanosleep, "nanosleep initialization failed.");
         }
 
         sleep.Sleep(1_000);
@@ -194,7 +194,7 @@ internal static class Program
             {
                 await Task.Yield();
                 core.Ran = true;
-            }, ExecutionCoreOptions.DelayedStart | ExecutionCoreOptions.KeepAliveOnCompletion)
+            }, ExecutionCoreOptions.DelayedStart | ExecutionCoreOptions.NoDisposeOnCompletion)
         {
         }
 
@@ -206,7 +206,7 @@ internal static class Program
         public int Value { get; set; }
     }
 
-    private sealed record ThreadJob : ReusableThreadJob
+    private sealed record ThreadJob : ReusableBlockingJob
     {
         public int Value { get; set; }
     }
@@ -218,7 +218,7 @@ internal static class Program
         {
         }
 
-        protected override async Task OnJobProcessing(TaskJob job, CancellationToken cancellationToken)
+        protected override async Task ProcessJobAsync(TaskJob job, CancellationToken cancellationToken)
         {
             await Task.Yield();
             job.Value *= 2;

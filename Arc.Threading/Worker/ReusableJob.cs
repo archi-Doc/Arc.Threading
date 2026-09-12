@@ -11,7 +11,7 @@ namespace Arc.Threading;
 /// <summary>
 /// Represents the base record class for reusable jobs that can be executed by a worker.<br/>
 /// Since this class does not provide a way to wait for completion, inherit from <br/>
-/// <see cref="ReusableTaskJob" /> (TaskCompletionSource-based, recommended) or <see cref="ReusableThreadJob" /> (ManualResetEventSlim-based).
+/// <see cref="ReusableTaskJob" /> (TaskCompletionSource-based, recommended) or <see cref="ReusableBlockingJob" /> (ManualResetEventSlim-based).
 /// </summary>
 public record class ReusableJob
 {
@@ -41,14 +41,14 @@ public record class ReusableJob
     }
 
     /// <summary>
-    /// Gets the flags that control the behavior of this job.
+    /// Gets the options that control the behavior of this job.
     /// </summary>
-    public ReusableJobFlags Flags { get; internal set; }
+    public ReusableJobOptions Options { get; internal set; }
 
     /// <summary>
     /// Gets a value indicating whether the job object is automatically returned to the pool on completion.
     /// </summary>
-    public bool ReturnToPoolOnCompletion => (this.Flags & ReusableJobFlags.ReturnToPoolOnCompletion) != 0;
+    public bool ReturnsToPoolOnCompletion => (this.Options & ReusableJobOptions.ReturnToPoolOnCompletion) != 0;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ReusableJob"/> class.

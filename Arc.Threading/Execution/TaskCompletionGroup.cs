@@ -13,7 +13,7 @@ public class TaskCompletionGroup : ExecutionGroup
     private readonly TaskCompletionSource completionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     /// <summary>
-    /// Gets the task that is completed when <see cref="TrySetCompleted"/> succeeds.
+    /// Gets the task that is completed when <see cref="SetCompleted"/> is called.
     /// </summary>
     public Task CompletionTask => this.completionSource.Task;
 
@@ -27,19 +27,19 @@ public class TaskCompletionGroup : ExecutionGroup
     /// <param name="isIndependent">
     /// <see langword="true"/> to make this group independent from the parent group's lifecycle; otherwise, <see langword="false"/>.
     /// </param>
-    /// <param name="executionSignalHandler">An optional <see cref="ExecutionSignalHandler"/> that handles execution signals for this group.
+    /// <param name="signalHandler">An optional <see cref="ExecutionSignalHandler"/> that handles execution signals for this group.
     /// </param>
-    public TaskCompletionGroup(ExecutionGroup parent, ExecutionStack stack, bool isIndependent = false, ExecutionSignalHandler? executionSignalHandler = default)
-        : base(parent, stack, isIndependent, executionSignalHandler)
+    public TaskCompletionGroup(ExecutionGroup parent, ExecutionStack stack, bool isIndependent = false, ExecutionSignalHandler? signalHandler = default)
+        : base(parent, stack, isIndependent, signalHandler)
     {
     }
 
     /// <summary>
-    /// Attempts to transition <see cref="CompletionTask"/> to the completed state.
+    /// Transitions <see cref="CompletionTask"/> to the completed state.
     /// </summary>
     /// <remarks>
     /// If the task has already completed, this call has no effect.
     /// </remarks>
-    public void TrySetCompleted()
+    public void SetCompleted()
         => this.completionSource.TrySetResult();
 }

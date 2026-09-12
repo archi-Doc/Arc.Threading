@@ -30,7 +30,7 @@ public class TaskCore<TSelf> : TaskCore
     /// <exception cref="InvalidOperationException">
     /// The current instance is not assignable to <typeparamref name="TSelf"/>.
     /// </exception>
-    public TaskCore(ExecutionGroup parent, Func<TSelf, Task> method, ExecutionCoreOptions options = ExecutionCoreOptions.Default)
+    public TaskCore(ExecutionGroup parent, Func<TSelf, Task> method, ExecutionCoreOptions options = ExecutionCoreOptions.None)
         : this(parent, method, options, false)
     {
     }
@@ -41,9 +41,9 @@ public class TaskCore<TSelf> : TaskCore
     /// <param name="parent">The owning group.</param>
     /// <param name="method">The execution delegate.</param>
     /// <param name="options">The execution options.</param>
-    /// <param name="deferStart">Whether the derived constructor must send the start signal.</param>
-    protected TaskCore(ExecutionGroup parent, Func<TSelf, Task> method, ExecutionCoreOptions options, bool deferStart)
-        : base(ValidateParent(parent, method), options)
+    /// <param name="delayStart">Whether the derived constructor must send the start signal.</param>
+    protected TaskCore(ExecutionGroup parent, Func<TSelf, Task> method, ExecutionCoreOptions options, bool delayStart)
+        : base(ValidateArguments(parent, method), options)
     {
         if (this is not TSelf self)
         {
@@ -51,7 +51,7 @@ public class TaskCore<TSelf> : TaskCore
             throw new InvalidOperationException($"{this.GetType().Name} must use itself as the {nameof(TSelf)} type argument.");
         }
 
-        this.Initialize(this.CreateLongRunningTask(this, () => method(self)), !deferStart);
+        this.Initialize(this.CreateLongRunningTask(this, () => method(self)), !delayStart);
     }
 }
 
@@ -109,8 +109,8 @@ public class TaskCore : ExecutionCore
     /// <param name="method">The asynchronous delegate executed by the underlying long-running task.</param>
     /// <param name="options">Behavior flags controlling startup and completion semantics.</param>
     /// <exception cref="ArgumentNullException"><paramref name="method"/> is <see langword="null"/>.</exception>
-    public TaskCore(ExecutionGroup parent, Func<TaskCore, Task> method, ExecutionCoreOptions options = ExecutionCoreOptions.Default)
-        : base(ValidateParent(parent, method))
+    public TaskCore(ExecutionGroup parent, Func<TaskCore, Task> method, ExecutionCoreOptions options = ExecutionCoreOptions.None)
+        : base(ValidateArguments(parent, method))
     {
         this.Options = options;
         this.Initialize(this.CreateLongRunningTask(this, () => method(this)));
@@ -225,7 +225,7 @@ public class TaskCore : ExecutionCore
                 }
                 finally
                 {
-                    if ((core.Options & ExecutionCoreOptions.KeepAliveOnCompletion) == 0)
+                    if ((core.Options & ExecutionCoreOptions.NoDisposeOnCompletion) == 0)
                     {
                         // Do not wait for this.Task from Dispose().
                         // Dispose is called from the task itself.

@@ -85,25 +85,25 @@ public class ExecutionStack
     /// <br/>
     /// When the parent is deleted, this execution is automatically canceled and deleted as well.
     /// </param>
-    /// <param name="processSignalHandler">
+    /// <param name="signalHandler">
     /// An optional handler invoked when this execution processes an <see cref="ExecutionSignal"/>.
     /// </param>
     /// <returns>The newly created execution.</returns>
     /// <exception cref="System.InvalidOperationException">
     /// Thrown when <paramref name="parent"/> belongs to a different <see cref="ExecutionRoot"/>.
     /// </exception>
-    public TaskCompletionGroup PushNew(ExecutionGroup parent, ExecutionSignalHandler? processSignalHandler = default)
+    public TaskCompletionGroup PushNew(ExecutionGroup parent, ExecutionSignalHandler? signalHandler = default)
     {
         if (this.Root != parent.Root)
         {
-            ExecutionHelper.ThrowDifferentRootException();
+            ExecutionExtensions.ThrowDifferentRootException();
         }
 
-        return new TaskCompletionGroup(parent, this, false, processSignalHandler);
+        return new TaskCompletionGroup(parent, this, false, signalHandler);
     }
 
     /// <summary>
-    /// Pushes an existing execution onto this stack.
+    /// Attempts to push an existing execution onto this stack.
     /// </summary>
     /// <param name="core">The execution to push.</param>
     /// <returns>
@@ -113,13 +113,13 @@ public class ExecutionStack
     /// <exception cref="System.InvalidOperationException">
     /// Thrown when <paramref name="core"/> belongs to a different <see cref="ExecutionRoot"/>.
     /// </exception>
-    public bool Push(ExecutionCore core)
+    public bool TryPush(ExecutionCore core)
     {
         using (this.Root.SyncObject.EnterScope())
         {
             if (this.Root != core.Root)
             {
-                ExecutionHelper.ThrowDifferentRootException();
+                ExecutionExtensions.ThrowDifferentRootException();
             }
 
             if (core.Stack is not null)

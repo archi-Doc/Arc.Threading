@@ -12,10 +12,10 @@ public class ExecutionTests
     public void InvalidConstructorsDoNotLeaveChildrenAndMovesObserveCancellation()
     {
         using var root = new ExecutionRoot();
-        var count = root.Count;
+        var count = root.ChildCount;
         Assert.Throws<ArgumentNullException>(() => new TaskCore(root, null!));
         Assert.Throws<ArgumentNullException>(() => new ThreadCore(root, null!));
-        Assert.Equal(count, root.Count);
+        Assert.Equal(count, root.ChildCount);
         using var child = new TaskCompletionCore(root);
         using var stopped = new ExecutionGroup(root);
         stopped.RequestTermination();
@@ -38,13 +38,13 @@ public class ExecutionTests
         Assert.Same(child, Assert.Single(snapshot));
         Assert.Same(child, group.FindChild(child.Id));
         Assert.True(group.TryGetChildCancellationToken(child.Id, out var token));
-        Assert.Same(child, token.ExtractCore());
-        Assert.Same(child, token.Extract<TaskCompletionCore>());
-        Assert.Null(token.Extract<ThreadCore>());
+        Assert.Same(child, token.AsExecutionCore());
+        Assert.Same(child, token.AsExecution<TaskCompletionCore>());
+        Assert.Null(token.AsExecution<ThreadCore>());
         Assert.Equal(token, child.Token);
-        Assert.Equal(token, child.Pack());
-        Assert.Null(CancellationToken.None.ExtractCore());
-        Assert.Null(new CancellationToken(true).ExtractCore());
+        Assert.Equal(token, child.ToCancellationToken());
+        Assert.Null(CancellationToken.None.AsExecutionCore());
+        Assert.Null(new CancellationToken(true).AsExecutionCore());
         Assert.Throws<InvalidOperationException>(() => group.Parent = group);
         Assert.Throws<InvalidOperationException>(() => root.BaseGroup.Parent = new ExecutionGroup(root.BaseGroup));
         Assert.Throws<InvalidOperationException>(() => child.Parent = otherRoot);
@@ -69,7 +69,7 @@ public class ExecutionTests
         Assert.Same(group, root.GetOrAddGroup(false, "unit"));
         Assert.Throws<InvalidOperationException>(() => root.GetOrAddGroup(true, "unit"));
         Assert.Throws<ArgumentNullException>(() => root.GetOrAddGroup(false, null!));
-        Assert.Same(root.UnitGroup("service"), root.UnitGroup("service"));
+        Assert.Same(root.GetOrAddUnitGroup("service"), root.GetOrAddUnitGroup("service"));
         var stack = new ExecutionStack(root);
         var secondStack = new ExecutionStack(root);
         Assert.True(stack.IsEmpty);
@@ -81,13 +81,13 @@ public class ExecutionTests
         Assert.Same(core, stack.LastCore);
         Assert.Same(core, stack.Find(core.Id));
         Assert.Null(stack.Find(core.Id ^ 1));
-        Assert.True(stack.Push(core));
-        Assert.False(secondStack.Push(core));
-        Assert.Throws<InvalidOperationException>(() => stack.Push(other));
+        Assert.True(stack.TryPush(core));
+        Assert.False(secondStack.TryPush(core));
+        Assert.Throws<InvalidOperationException>(() => stack.TryPush(other));
         Assert.Throws<InvalidOperationException>(() => stack.PushNew(other));
         Assert.Throws<InvalidOperationException>(() => new TaskCompletionGroup(other, stack));
-        core.TrySetCompleted();
-        core.TrySetCompleted();
+        core.SetCompleted();
+        core.SetCompleted();
         Assert.True(core.CompletionTask.IsCompletedSuccessfully);
         core.Dispose();
         Assert.True(stack.IsEmpty);
@@ -102,15 +102,15 @@ public class ExecutionTests
         using var independent = new ExecutionGroup(group, true);
         using var normal = new TaskCompletionCore(group);
         using var separate = new TaskCompletionCore(independent);
-        normal.TrySetCompleted();
+        normal.SetCompleted();
         Assert.False(normal.IsTerminated);
         group.RequestTermination();
         Assert.False(normal.CanContinue);
         Assert.True(separate.CanContinue);
-        Assert.True(await group.WaitForTermination(0));
-        Assert.False(await group.WaitForTermination(0, TerminationOptions.IncludeIndependent));
+        Assert.True(await group.WaitForTerminationAsync(0));
+        Assert.False(await group.WaitForTerminationAsync(0, TerminationOptions.IncludeIndependent));
         group.RequestTermination(TerminationOptions.IncludeIndependent);
-        Assert.True(await group.WaitForTermination(0, TerminationOptions.IncludeIndependent));
+        Assert.True(await group.WaitForTerminationAsync(0, TerminationOptions.IncludeIndependent));
         using var late = new TaskCore(group, _ => Task.CompletedTask);
         Assert.True(late.IsTerminated);
         using var plain = new ExecutionCore(root);
@@ -146,8 +146,8 @@ public class ExecutionTests
                 started.SetResult();
                 await release.Task;
             },
-            ExecutionCoreOptions.DelayedStart | ExecutionCoreOptions.KeepAliveOnCompletion);
-        var zeroWait = core.WaitForTermination(0);
+            ExecutionCoreOptions.DelayedStart | ExecutionCoreOptions.NoDisposeOnCompletion);
+        var zeroWait = core.WaitForTerminationAsync(0);
         Assert.True(zeroWait.IsCompletedSuccessfully);
         Assert.False(await zeroWait);
         root.SendSignal(ExecutionSignal.Start);
@@ -155,10 +155,10 @@ public class ExecutionTests
         await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
         core.RequestTermination();
         Assert.False(core.IsTerminated);
-        Assert.False(await core.WaitForTermination(0));
+        Assert.False(await core.WaitForTerminationAsync(0));
         release.SetResult();
         await core.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.True(await core.WaitForTermination(1000));
+        Assert.True(await core.WaitForTerminationAsync(1000));
         Assert.Equal(1, calls);
         Assert.False(core.IsDisposed);
     }
@@ -178,7 +178,7 @@ public class ExecutionTests
         await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
         try
         {
-            Assert.False(await root.WaitForTermination(0));
+            Assert.False(await root.WaitForTerminationAsync(0));
             Assert.False(service.CanContinue);
         }
         finally
@@ -187,9 +187,9 @@ public class ExecutionTests
         }
 
         await service.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.True(await root.WaitForTermination(1000));
+        Assert.True(await root.WaitForTerminationAsync(1000));
         Assert.True(independent.CanContinue);
-        Assert.False(await root.WaitForTermination(0, TerminationOptions.IncludeIndependent));
+        Assert.False(await root.WaitForTerminationAsync(0, TerminationOptions.IncludeIndependent));
     }
 
     [Fact]
@@ -200,7 +200,7 @@ public class ExecutionTests
         using var thread = new ThreadCore(root, _ => Interlocked.Increment(ref ran), ExecutionCoreOptions.DelayedStart);
         Assert.False(thread.IsTerminated);
         Parallel.For(0, 30, _ => thread.SendSignal(ExecutionSignal.Start));
-        Assert.True(await thread.WaitForTermination(5000));
+        Assert.True(await thread.WaitForTerminationAsync(5000));
         Assert.Equal(1, ran);
         Assert.True(thread.IsDisposed);
         using var canceled = new ThreadCore(root, _ => Interlocked.Increment(ref ran), ExecutionCoreOptions.DelayedStart);
@@ -215,23 +215,23 @@ public class ExecutionTests
     {
         using var root = new ExecutionRoot();
         using var core = new TaskCompletionCore(root);
-        Assert.True(await core.Delay(0));
+        Assert.True(await core.TryDelay(0));
         Assert.True(await Task.TryDelay(0));
         Assert.True(await Task.TryDelay(TimeSpan.Zero));
         using var source = new CancellationTokenSource();
-        var delay = core.Delay(Timeout.Infinite, source.Token);
+        var delay = core.TryDelay(Timeout.Infinite, source.Token);
         source.Cancel();
         Assert.False(await delay.WaitAsync(TimeSpan.FromSeconds(5)));
-        Assert.False(await core.Delay(0, source.Token));
-        Assert.False(await core.WaitForTermination(cancellationToken: source.Token));
+        Assert.False(await core.TryDelay(0, source.Token));
+        Assert.False(await core.WaitForTerminationAsync(cancellationToken: source.Token));
         Assert.False(await Task.TryDelay(1000, source.Token));
         Assert.False(await Task.TryDelay(TimeSpan.FromSeconds(1), source.Token));
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => core.Delay(-2));
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => core.WaitForTermination(-2));
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => root.WaitForTermination(-2));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => core.TryDelay(-2));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => core.WaitForTerminationAsync(-2));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => root.WaitForTerminationAsync(-2));
         Assert.True(root.BaseGroup.CanContinue);
         core.RequestTermination();
-        Assert.False(await core.Delay(0));
+        Assert.False(await core.TryDelay(0));
     }
 
     [Fact]

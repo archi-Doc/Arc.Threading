@@ -7,7 +7,7 @@ using Arc.Threading;
 
 namespace Playground;
 
-public class TestWorker : ReusableJobWorker<ReusableThreadJob>
+public class TestWorker : ReusableJobWorker<ReusableBlockingJob>
 {
     public TestWorker(ExecutionGroup parent)
         : base(parent)
@@ -19,7 +19,7 @@ public class TestWorker : ReusableJobWorker<ReusableThreadJob>
         Console.WriteLine("OnAfterProcessJob");
     }*/
 
-    protected override async Task OnJobProcessing(ReusableThreadJob job, CancellationToken cancellationToken)
+    protected override async Task ProcessJobAsync(ReusableBlockingJob job, CancellationToken cancellationToken)
     {
         Console.WriteLine("Process");
         await Task.Delay(1000);
@@ -40,7 +40,7 @@ public class CustomCore : TaskCore<CustomCore>
 
         try
         {
-            await core.Delay(2000);
+            await core.TryDelay(2000);
         }
         catch
         {
@@ -59,7 +59,7 @@ class Program
         AppCloseHandler.Register(() =>
         {// Closing the console window or terminating the process.
             Root.RequestTermination(); // Send a termination signal to the root.
-            Root.WaitForTermination(TimeSpan.FromSeconds(2)).Wait();
+            Root.WaitForTerminationAsync(TimeSpan.FromSeconds(2)).Wait();
         });
 
         Console.CancelKeyPress += (s, e) =>
@@ -83,7 +83,7 @@ class Program
 
             try
             {
-                await core.Delay(1000);
+                await core.TryDelay(1000);
             }
             catch
             {
@@ -98,7 +98,7 @@ class Program
             Console.WriteLine("333");
             try
             {
-                await core.Delay(500);
+                await core.TryDelay(500);
             }
             catch
             {
@@ -141,7 +141,7 @@ class Program
         await Test2(Root);
 
         Root.RequestTermination();
-        await Root.WaitForTermination(3_000, TerminationOptions.IncludeIndependent);
+        await Root.WaitForTerminationAsync(3_000, TerminationOptions.IncludeIndependent);
     }
 
     static async Task Test2(ExecutionGroup root)
@@ -151,7 +151,7 @@ class Program
         worker.Add(job1);
         Console.WriteLine(job1.State);
         await Task.Delay(1);
-        await worker.WaitForCompletion();
+        await worker.WaitForCompletionAsync();
         // job1.Wait();
         Console.WriteLine(job1.State);
 

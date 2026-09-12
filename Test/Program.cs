@@ -90,7 +90,7 @@ internal class Program
         AppCloseHandler.Register(() =>
         {// Closing the console window or terminating the process.
             Root.RequestTermination(); // Send a termination signal to the root.
-            Root.WaitForTermination(TimeSpan.FromSeconds(2)).Wait();
+            Root.WaitForTerminationAsync(TimeSpan.FromSeconds(2)).Wait();
         });
 
         Console.CancelKeyPress += (s, e) =>
@@ -107,7 +107,7 @@ internal class Program
         // await TestAsyncPulseEvent();
         // await TestExecutionStack();
 
-        await Root.WaitForTermination(-1); // Wait for the termination infinitely.
+        await Root.WaitForTerminationAsync(-1); // Wait for the termination infinitely.
     }
 
     /*private static async Task TestSemaphoreDual()
@@ -341,7 +341,7 @@ internal class Program
         catch
         {
             Root.RequestTermination();
-            Root.WaitForTermination(-1).Wait();
+            Root.WaitForTerminationAsync(-1).Wait();
         }
 
         // c1.Start();

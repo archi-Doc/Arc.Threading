@@ -43,7 +43,7 @@ public class ThreadCore : ExecutionCore
     /// <param name="options">Behavior flags controlling startup and completion semantics.</param>
     /// <exception cref="ArgumentNullException"><paramref name="method"/> is <see langword="null"/>.</exception>
     public ThreadCore(ExecutionGroup parent, Action<ThreadCore> method, ExecutionCoreOptions options = default)
-        : base(ValidateParent(parent, method))
+        : base(ValidateArguments(parent, method))
     {
         this.method = method;
         this.Options = options;
@@ -57,7 +57,7 @@ public class ThreadCore : ExecutionCore
             }
             finally
             {
-                if ((core.Options & ExecutionCoreOptions.KeepAliveOnCompletion) == 0)
+                if ((core.Options & ExecutionCoreOptions.NoDisposeOnCompletion) == 0)
                 {
                     // Do not join this thread from Dispose().
                     // DisposeOnCompletion calls Dispose from the thread itself.

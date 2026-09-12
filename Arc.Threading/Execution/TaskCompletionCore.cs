@@ -13,7 +13,7 @@ public class TaskCompletionCore : ExecutionCore
     private readonly TaskCompletionSource completionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     /// <summary>
-    /// Gets the task that is completed when <see cref="TrySetCompleted"/> succeeds.
+    /// Gets the task that is completed when <see cref="SetCompleted"/> is called.
     /// </summary>
     public Task CompletionTask => this.completionSource.Task;
 
@@ -29,11 +29,11 @@ public class TaskCompletionCore : ExecutionCore
     }
 
     /// <summary>
-    /// Attempts to transition <see cref="CompletionTask"/> to the completed state.
+    /// Transitions <see cref="CompletionTask"/> to the completed state.
     /// </summary>
     /// <remarks>
     /// If the task has already completed, this call has no effect.
     /// </remarks>
-    public void TrySetCompleted()
+    public void SetCompleted()
         => this.completionSource.TrySetResult();
 }

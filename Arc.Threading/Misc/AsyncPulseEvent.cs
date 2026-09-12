@@ -249,7 +249,7 @@ public sealed class AsyncPulseEvent
             this.TimeoutRegistration.Dispose();
             if (this.TimeoutCts is { } source)
             {
-                CancellationTokenPool.TryResetAndReturn(source);
+                CancellationTokenPool.Return(source);
             }
 
             this.TrySetResult(pulsed);

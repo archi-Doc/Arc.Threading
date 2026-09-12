@@ -34,7 +34,7 @@ public class DelayBenchmark
     [Benchmark]
     public async Task Delay10()
     {
-        await Program.Root.Delay(MillisecondsTimeSpan, this.CancellationToken);
+        await Program.Root.TryDelay(MillisecondsTimeSpan, this.CancellationToken);
     }
 
     /*[Benchmark]
@@ -99,7 +99,7 @@ public class DelayBenchmark
         {
             registration1.Dispose();
             registration2.Dispose();
-            CancellationTokenPool.TryResetAndReturn(linkedCts);
+            CancellationTokenPool.Return(linkedCts);
         }
     }
 
