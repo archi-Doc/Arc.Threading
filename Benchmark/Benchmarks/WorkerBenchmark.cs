@@ -7,7 +7,7 @@ using BenchmarkDotNet.Attributes;
 
 namespace Benchmark;
 
-internal record class TestReusableJob : ReusableThreadJob
+internal record class TestReusableJob : ReusableBlockingJob
 {
     public int Id { get; private set; }
 
@@ -53,7 +53,7 @@ internal class TestReusableWorker : ReusableJobWorker<TestReusableJob>
     {
     }
 
-    protected override async Task OnJobProcessing(TestReusableJob job, CancellationToken cancellationToken)
+    protected override async Task ProcessJobAsync(TestReusableJob job, CancellationToken cancellationToken)
     {
         Interlocked.Increment(ref this.count);
     }

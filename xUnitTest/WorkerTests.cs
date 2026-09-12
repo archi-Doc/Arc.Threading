@@ -12,7 +12,7 @@ public class WorkerTests
     public void ThreadJobPoolCycleDoesNotAllocateAfterWarmup()
     {
         using var root = new ExecutionRoot();
-        using var worker = new ReusableJobWorker<ReusableThreadJob>(root, options: ExecutionCoreOptions.DelayedStart);
+        using var worker = new ReusableJobWorker<ReusableBlockingJob>(root, options: ExecutionCoreOptions.DelayedStart);
         worker.Dispose();
         for (var n = 0; n < 1000; n++)
         {
@@ -38,7 +38,7 @@ public class WorkerTests
         using var root = new ExecutionRoot();
         var count = 0;
         using var worker = new ReusableJobWorker<ReusableTaskJob>(root, (_, _) => Interlocked.Increment(ref count));
-        Assert.Equal(ExecutionCoreOptions.Default, worker.Options);
+        Assert.Equal(ExecutionCoreOptions.None, worker.Options);
         Assert.Throws<ArgumentOutOfRangeException>(() => worker.MaxConcurrentTasks = 0);
         var job = worker.Rent();
         var firstTask = job.Task;
@@ -60,7 +60,7 @@ public class WorkerTests
         Assert.NotSame(firstTask, second.Task);
         worker.Add(second);
         await second.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.True(await worker.WaitForCompletion(TimeSpan.FromSeconds(5)));
+        Assert.True(await worker.WaitForCompletionAsync(TimeSpan.FromSeconds(5)));
         Assert.Equal(2, count);
         worker.Return(second);
     }
@@ -87,15 +87,15 @@ public class WorkerTests
         worker.SendSignal(ExecutionSignal.Start);
         await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
         worker.RequestTermination();
-        Assert.False(await worker.WaitForTermination(0));
+        Assert.False(await worker.WaitForTerminationAsync(0));
         release.SetResult();
         await worker.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await Task.WhenAll(jobs.Select(job => job.Task)).WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(1, calls);
         Assert.Equal(ReusableJobState.Completed, jobs[0].State);
         Assert.All(jobs.Skip(1), job => Assert.Equal(ReusableJobState.Aborted, job.State));
-        Assert.True(worker.IsCompleted);
-        Assert.Equal(0, worker.NumberOfPendingJobs);
+        Assert.True(worker.IsIdle);
+        Assert.Equal(0, worker.PendingJobCount);
     }
 
     [Fact]
@@ -135,7 +135,7 @@ public class WorkerTests
         await worker.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.True(worker.Terminated);
         Assert.Equal(2, count);
-        Assert.True(worker.IsCompleted);
+        Assert.True(worker.IsIdle);
     }
 
     [Fact]
@@ -151,10 +151,10 @@ public class WorkerTests
         await Task.WhenAll(first.Task, second.Task).WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(ReusableJobState.Aborted, first.State);
         Assert.Equal(ReusableJobState.Aborted, second.State);
-        Assert.True(await worker.WaitForCompletion(5000));
-        var automatic = worker.Rent(ReusableJobFlags.ReturnToPoolOnCompletion);
+        Assert.True(await worker.WaitForCompletionAsync(5000));
+        var automatic = worker.Rent(ReusableJobOptions.ReturnToPoolOnCompletion);
         worker.Add(automatic);
-        Assert.True(await worker.WaitForCompletion(5000));
+        Assert.True(await worker.WaitForCompletionAsync(5000));
         Assert.Equal(ReusableJobState.Pooled, automatic.State);
         worker.Dispose();
         await worker.Task.WaitAsync(TimeSpan.FromSeconds(5));
@@ -167,13 +167,13 @@ public class WorkerTests
         using var worker = new TestWorker(root, _ => Task.CompletedTask) { ThrowOnFinished = true };
         var job = worker.Rent();
         worker.Add(job);
-        Assert.False(await worker.WaitForCompletion(0));
-        Assert.False(await worker.WaitForCompletion(TimeSpan.Zero));
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => worker.WaitForCompletion(-2));
-        Assert.Throws<ArgumentOutOfRangeException>(() => { _ = worker.WaitForCompletion(TimeSpan.MaxValue); });
+        Assert.False(await worker.WaitForCompletionAsync(0));
+        Assert.False(await worker.WaitForCompletionAsync(TimeSpan.Zero));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => worker.WaitForCompletionAsync(-2));
+        Assert.Throws<ArgumentOutOfRangeException>(() => { _ = worker.WaitForCompletionAsync(TimeSpan.MaxValue); });
         using var source = new CancellationTokenSource();
         source.Cancel();
-        Assert.False(await worker.WaitForCompletion(source.Token));
+        Assert.False(await worker.WaitForCompletionAsync(source.Token));
         worker.Dispose();
         await job.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(ReusableJobState.Aborted, job.State);
@@ -181,15 +181,15 @@ public class WorkerTests
         worker.Add(late);
         await late.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(ReusableJobState.Aborted, late.State);
-        Assert.False(await worker.WaitForCompletion());
-        Assert.True(worker.IsCompleted);
+        Assert.False(await worker.WaitForCompletionAsync());
+        Assert.True(worker.IsIdle);
     }
 
     [Fact]
     public void ThreadJobsReuseTheirWaitHandleWithoutKeepingTheSignal()
     {
         using var root = new ExecutionRoot();
-        using var worker = new ReusableJobWorker<ReusableThreadJob>(root, options: ExecutionCoreOptions.DelayedStart);
+        using var worker = new ReusableJobWorker<ReusableBlockingJob>(root, options: ExecutionCoreOptions.DelayedStart);
         var job = worker.Rent();
         Assert.False(job.Wait(TimeSpan.Zero));
         worker.Add(job);
@@ -211,7 +211,7 @@ public class WorkerTests
         private readonly Func<ReusableTaskJob, Task> process;
 
         public TestWorker(ExecutionGroup parent, Func<ReusableTaskJob, Task> process)
-            : base(parent, options: ExecutionCoreOptions.DelayedStart | ExecutionCoreOptions.KeepAliveOnCompletion)
+            : base(parent, options: ExecutionCoreOptions.DelayedStart | ExecutionCoreOptions.NoDisposeOnCompletion)
         {
             this.process = process;
         }
@@ -220,7 +220,7 @@ public class WorkerTests
 
         public bool Terminated { get; private set; }
 
-        protected override Task OnJobProcessing(ReusableTaskJob job, CancellationToken cancellationToken)
+        protected override Task ProcessJobAsync(ReusableTaskJob job, CancellationToken cancellationToken)
             => this.process(job);
 
         protected override void OnJobFinished(ReusableTaskJob job)

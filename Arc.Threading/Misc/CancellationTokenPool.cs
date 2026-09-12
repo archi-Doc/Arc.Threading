@@ -29,7 +29,7 @@ public static class CancellationTokenPool
         => Pool.Rent();
 
     /// <summary>
-    /// Attempts to reset and return a <see cref="CancellationTokenSource"/> to the shared object pool, or disposes it if reset fails.
+    /// Resets and returns a <see cref="CancellationTokenSource"/> to the shared object pool, or disposes it if it cannot be reset.
     /// </summary>
     /// <param name="cancellationTokenSource">The <see cref="CancellationTokenSource"/> instance to reset and return to the pool.</param>
     /// <remarks>
@@ -39,7 +39,7 @@ public static class CancellationTokenPool
     /// The caller must own the source exclusively, finish all registrations, and stop using its old tokens before returning it.
     /// This ensures that only valid, reusable instances are returned to the pool.
     /// </remarks>
-    public static void TryResetAndReturn(CancellationTokenSource cancellationTokenSource)
+    public static void Return(CancellationTokenSource cancellationTokenSource)
     {
         ArgumentNullException.ThrowIfNull(cancellationTokenSource);
         if (cancellationTokenSource.TryReset())

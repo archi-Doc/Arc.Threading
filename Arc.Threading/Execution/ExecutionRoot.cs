@@ -15,7 +15,7 @@ namespace Arc.Threading;
 /// <remarks>
 /// <para>
 /// <see cref="BaseGroup"/> manages executions that provide base services for the application.<br/>
-/// Executions are managed independently, and when <see cref="WaitForTermination(TimeSpan, TerminationOptions, CancellationToken)"/> is called, <see cref="ExecutionCore.RequestTermination(Arc.Threading.TerminationOptions)"/> is called on the BaseGroup.
+/// Executions are managed independently, and when <see cref="WaitForTerminationAsync(TimeSpan, TerminationOptions, CancellationToken)"/> is called, <see cref="ExecutionCore.RequestTermination(Arc.Threading.TerminationOptions)"/> is called on the BaseGroup.
 /// </para>
 /// <para>
 /// <see cref="IndependentGroup"/> is intended for executions that can be managed independently,
@@ -33,7 +33,7 @@ public class ExecutionRoot : ExecutionGroup
 
     /// <summary>
     /// Gets the execution group that provides base services for the application.<br/>
-    /// Executions are managed independently, and when <see cref="WaitForTermination(TimeSpan, TerminationOptions, CancellationToken)"/> is called, <see cref="ExecutionCore.RequestTermination(Arc.Threading.TerminationOptions)"/> is called on the BaseGroup.
+    /// Executions are managed independently, and when <see cref="WaitForTerminationAsync(TimeSpan, TerminationOptions, CancellationToken)"/> is called, <see cref="ExecutionCore.RequestTermination(Arc.Threading.TerminationOptions)"/> is called on the BaseGroup.
     /// </summary>
     public ExecutionGroup BaseGroup { get; }
 
@@ -66,7 +66,7 @@ public class ExecutionRoot : ExecutionGroup
     /// <param name="options">An additional options for controlling termination behavior.</param>
     /// <param name="cancellationToken">An additional cancellation token to cancel the wait operation.</param>
     /// <returns><see langword="true"/> if termination was observed before timeout/cancellation; otherwise, <see langword="false"/>.</returns>
-    public override async Task<bool> WaitForTermination(TimeSpan timeout, TerminationOptions options = default, CancellationToken cancellationToken = default)
+    public override async Task<bool> WaitForTerminationAsync(TimeSpan timeout, TerminationOptions options = default, CancellationToken cancellationToken = default)
     {
         if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
         {
@@ -79,7 +79,7 @@ public class ExecutionRoot : ExecutionGroup
             this.BaseGroup.RequestTermination(TerminationOptions.IncludeIndependent);
         }
 
-        if (!await this.BaseGroup.WaitForTermination(timeout, TerminationOptions.IncludeIndependent, cancellationToken).ConfigureAwait(false))
+        if (!await this.BaseGroup.WaitForTerminationAsync(timeout, TerminationOptions.IncludeIndependent, cancellationToken).ConfigureAwait(false))
         {
             return false;
         }
@@ -93,7 +93,7 @@ public class ExecutionRoot : ExecutionGroup
             }
         }
 
-        return await base.WaitForTermination(timeout, options, cancellationToken).ConfigureAwait(false);
+        return await base.WaitForTerminationAsync(timeout, options, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -104,7 +104,7 @@ public class ExecutionRoot : ExecutionGroup
     /// An existing independent child group whose name matches <paramref name="unitName"/> using
     /// <see cref="StringComparison.Ordinal"/>, or a newly created independent child group.
     /// </returns>
-    public ExecutionGroup UnitGroup(string unitName)
+    public ExecutionGroup GetOrAddUnitGroup(string unitName)
         => this.IndependentGroup.GetOrAddGroup(true, unitName);
 
     /*public ExecutionCore? Find(long id)

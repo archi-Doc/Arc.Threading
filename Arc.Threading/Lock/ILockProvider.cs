@@ -7,7 +7,7 @@ namespace Arc.Threading;
 /// <summary>
 /// Represents an object that provides a locking mechanism.
 /// </summary>
-public interface ILockObject
+public interface ILockProvider
 {
     /// <summary>
     /// Gets the <see cref="Lock"/> object used for synchronization.

@@ -90,12 +90,12 @@ public static ExecutionRoot Root { get; } = new();
 
 | Property | Description |
 | ---- | ---- |
-| `BaseGroup` | Executions which provide base services for the application. `WaitForTermination()` requests the termination of this group first. |
-| `IndependentGroup` | Executions which are managed independently. `Root.UnitGroup(name)` creates a named group under it. |
+| `BaseGroup` | Executions which provide base services for the application. `WaitForTerminationAsync()` requests the termination of this group first. |
+| `IndependentGroup` | Executions which are managed independently. `Root.GetOrAddUnitGroup(name)` creates a named group under it. |
 
 Executions marked as `IsIndependent` are excluded from the default termination/wait target.
 Specify `TerminationOptions.IncludeIndependent` to include them.
-`Root.WaitForTermination()` always requests and waits for termination of `BaseGroup`, including its independent descendants. It excludes `IndependentGroup` unless `IncludeIndependent` is specified.
+`Root.WaitForTerminationAsync()` always requests and waits for termination of `BaseGroup`, including its independent descendants. It excludes `IndependentGroup` unless `IncludeIndependent` is specified.
 
 Use `GetOrAddGroup(isIndependent, name)` to reuse a named child group, `FindChild(id)` or `TryGetChildCancellationToken(id, out token)` for direct-child lookup, and `Parent`/`AddChild()` to move executions within a root. Cycles and cross-root moves are rejected. Moving under a terminated parent immediately requests termination.
 
@@ -144,8 +144,8 @@ internal class Program
         {// TaskCore: runs on a long-running task.
             Console.WriteLine("TaskCore: Start");
 
-            // core.Delay() returns false if the execution is terminated during the delay.
-            if (await core.Delay(3_000))
+            // core.TryDelay() returns false if the execution is terminated during the delay.
+            if (await core.TryDelay(3_000))
             {
                 Console.WriteLine("TaskCore: End");
             }
@@ -159,16 +159,16 @@ internal class Program
         c2.RequestTermination(); // Terminate the TaskCore (and its children).
 
         // Request the termination of Root.BaseGroup, and wait until all the executions are terminated.
-        await Root.WaitForTermination();
+        await Root.WaitForTerminationAsync();
     }
 }
 ```
 
-Since `ExecutionCore` derives from `CancellationTokenSource`, `core.CancellationToken` can be passed to any cancellable API, and `ExtractCore()` restores the execution from a `CancellationToken`.
+Since `ExecutionCore` derives from `CancellationTokenSource`, `core.CancellationToken` can be passed to any cancellable API, and `AsExecutionCore()` restores the execution from a `CancellationToken`.
 
 ```csharp
 await Task.Delay(1_000, core.CancellationToken); // Throws OperationCanceledException when terminated.
-var core2 = cancellationToken.ExtractCore(); // Gets the ExecutionCore (null if the token is not associated with an execution).
+var core2 = cancellationToken.AsExecutionCore(); // Gets the ExecutionCore (null if the token is not associated with an execution).
 ```
 
 To add a custom property or method, derive from `TaskCore<TSelf>` (or `ThreadCore`).
@@ -186,7 +186,7 @@ internal class CustomCore : TaskCore<CustomCore>
 
     private static async Task Process(CustomCore core)
     {// The derived instance is passed as a parameter.
-        while (await core.Delay(1_000))
+        while (await core.TryDelay(1_000))
         {
         }
     }
@@ -200,15 +200,15 @@ internal class CustomCore : TaskCore<CustomCore>
 | `RequestTermination(options)` | Requests the termination of this execution and its children (cancels the `CancellationToken`). |
 | `CanContinue` | `false` if the termination is requested. Check this property in the execution loop. |
 | `IsTerminated` | For thread/task cores, `true` after exit or cancellation before startup. For plain cores and groups, reflects cancellation. |
-| `WaitForTermination(timeout, options, ct)` | Waits until all the target executions are terminated. |
-| `Delay(milliseconds, ct)` | `Task.Delay()` which returns `false` instead of throwing when the execution is terminated. |
+| `WaitForTerminationAsync(timeout, options, ct)` | Waits until all the target executions are terminated. |
+| `TryDelay(milliseconds, ct)` | `Task.Delay()` which returns `false` instead of throwing when the execution is terminated. |
 | `Dispose()` | Requests the termination, and removes this execution from the tree. |
 
 By default, an execution disposes itself when the execution method exits.
-Specify `ExecutionCoreOptions.KeepAliveOnCompletion` to keep the object alive.
-Termination is cooperative: running code must observe `CanContinue` or its cancellation token. `Dispose()` does not wait for running work to exit. Request termination and await `WaitForTermination()` before releasing resources used by that work. Directly calling the inherited `Cancel()` does not traverse the tree.
+Specify `ExecutionCoreOptions.NoDisposeOnCompletion` to disable the automatic disposal.
+Termination is cooperative: running code must observe `CanContinue` or its cancellation token. `Dispose()` does not wait for running work to exit. Request termination and await `WaitForTerminationAsync()` before releasing resources used by that work. Directly calling the inherited `Cancel()` does not traverse the tree.
 
-`TaskCompletionCore.CompletionTask` and `TaskCompletionGroup.CompletionTask` complete only when `TrySetCompleted()` is called. Completion does not request termination, and termination/disposal does not complete these tasks.
+`TaskCompletionCore.CompletionTask` and `TaskCompletionGroup.CompletionTask` complete only when `SetCompleted()` is called. Completion does not request termination, and termination/disposal does not complete these tasks.
 
 ### Signals and delayed start
 
@@ -230,10 +230,10 @@ Override `OnSignalReceived()`, or pass an `ExecutionSignalHandler` to the constr
 var stack = new ExecutionStack(Root);
 var core = stack.PushNew(Root.BaseGroup); // Creates a TaskCompletionGroup associated with the stack.
 var last = stack.LastCore; // The last execution added to the stack.
-core.TrySetCompleted(); // Completes core.CompletionTask.
+core.SetCompleted(); // Completes core.CompletionTask.
 ```
 
-`Push(core)` associates an existing execution with one stack. `FirstCore`, `LastCore`, `Count`, `IsEmpty`, and `Find(id)` inspect the stack. Disposal removes an execution from its stack.
+`TryPush(core)` associates an existing execution with one stack. `FirstCore`, `LastCore`, `Count`, `IsEmpty`, and `Find(id)` inspect the stack. Disposal removes an execution from its stack.
 
 
 
@@ -245,7 +245,7 @@ Job objects are pooled, so a large number of jobs can be processed with few allo
 | Job class | Wait method |
 | ---- | ---- |
 | `ReusableTaskJob` | `WaitAsync()` (`TaskCompletionSource`-based, recommended) |
-| `ReusableThreadJob` | `Wait()` (`ManualResetEventSlim`-based) |
+| `ReusableBlockingJob` | `Wait()` (`ManualResetEventSlim`-based) |
 | `ReusableJob` | None (the completion cannot be awaited) |
 
 ```csharp
@@ -266,10 +266,10 @@ private static async Task TestWorker(ExecutionGroup parent)
     // Check job.State for Completed or Aborted before returning it.
     worker.Return(job); // Return the job object to the pool.
 
-    // ReusableJobFlags.ReturnToPoolOnCompletion returns the job object automatically (fire-and-forget).
-    worker.Add(worker.Rent(ReusableJobFlags.ReturnToPoolOnCompletion));
+    // ReusableJobOptions.ReturnToPoolOnCompletion returns the job object automatically (fire-and-forget).
+    worker.Add(worker.Rent(ReusableJobOptions.ReturnToPoolOnCompletion));
 
-    await worker.WaitForCompletion(); // Wait until all the jobs are processed.
+    await worker.WaitForCompletionAsync(); // Wait until all the jobs are processed.
     worker.Dispose(); // Terminate the worker (the pending jobs are aborted).
 }
 
@@ -279,7 +279,7 @@ public record class TestJob : ReusableTaskJob
 }
 ```
 
-Instead of a delegate, `OnJobProcessing()` can be overridden. This is recommended, since it supports asynchronous processing.
+Instead of a delegate, `ProcessJobAsync()` can be overridden. This is recommended, since it supports asynchronous processing.
 
 ```csharp
 public class TestWorker : ReusableJobWorker<TestJob>
@@ -289,7 +289,7 @@ public class TestWorker : ReusableJobWorker<TestJob>
     {
     }
 
-    protected override async Task OnJobProcessing(TestJob job, CancellationToken cancellationToken)
+    protected override async Task ProcessJobAsync(TestJob job, CancellationToken cancellationToken)
     {
         await Task.Delay(100, cancellationToken);
         Console.WriteLine($"Process: {job.Id}");
@@ -301,7 +301,7 @@ The state of a job changes as follows: `Initial` -> `Pending` (`Add()`) -> `Runn
 
 `MaxConcurrentTasks` must be at least 1. Set it before submitting work for a fixed limit; lowering it does not interrupt active jobs. Processing exceptions mark jobs as `Aborted`. `OnJobFinished(job)` runs before waiters are released; exceptions from this hook also mark the job as `Aborted` and do not strand waiters.
 
-`WaitForCompletion()` observes an empty queue and no active processing; `true` does not mean every job succeeded. `WaitAsync()` signals either completion or abortion: inspect `State` for the outcome. Its timed overload throws `TimeoutException`; cancellation throws `OperationCanceledException`.
+`WaitForCompletionAsync()` observes an empty queue and no active processing; `true` does not mean every job succeeded. `WaitAsync()` signals either completion or abortion: inspect `State` for the outcome. Its timed overload throws `TimeoutException`; cancellation throws `OperationCanceledException`.
 
 Termination aborts pending jobs and waits for active processors before the worker task exits. `OnTerminated()` runs after active processing exits. `Dispose()` aborts pending jobs immediately but does not block for active work.
 
@@ -320,7 +320,7 @@ private static async Task TestAsyncPulseEvent(ExecutionGroup parent)
 
     var c = new TaskCore(parent, async core =>
     {// Send a pulse after 1 second.
-        await core.Delay(1_000);
+        await core.TryDelay(1_000);
         pulseEvent.Pulse();
     });
 
@@ -368,12 +368,12 @@ if (this.semaphoreLock.TryEnter())
 | `SemaphoreLock` | An exclusive lock which supports both synchronous and asynchronous code. |
 | `MonitorLock` | An `ILockable` wrapper for `Monitor`. |
 | `ILockable` / `IAsyncLockable` | Interfaces of a lock object (`EnterScope()`, `Enter()`, `Exit()`). |
-| `LockStruct` | The lock scope returned by `EnterScope()`. It releases the lock when disposed. |
-| `ILockObject` | An object which exposes a `System.Threading.Lock` object. |
+| `LockScope` | The lock scope returned by `EnterScope()`. It releases the lock when disposed. |
+| `ILockProvider` | An object which exposes a `System.Threading.Lock` object. |
 
 Timed `SemaphoreLock.EnterAsync()` overloads return `false` on timeout or cancellation, including an already canceled token. Invalid timeouts throw before the lock or wait queue changes. If acquisition wins a race with cancellation, the result is `true` and the caller must release the lock.
 
-`MonitorLock` is reentrant and must be released on the acquiring thread; do not hold it across `await`. Dispose each `LockStruct` through its original variable. Copying the struct duplicates its ownership flag and can cause a double release.
+`MonitorLock` is reentrant and must be released on the acquiring thread; do not hold it across `await`. Dispose each `LockScope` through its original variable. Copying the struct duplicates its ownership flag and can cause a double release.
 
 
 
@@ -416,7 +416,7 @@ var delayed = await Task.TryDelay(1_000, cancellationToken);
 
 - Retained pulse waits and uncontended `SemaphoreLock.EnterAsync()` reuse completed tasks. Pending waits allocate a task; timed/cancelable waits also require registration and cleanup state.
 - `FindChild()` does not allocate a search delegate. Group snapshots are reused until membership changes.
-- `ReusableTaskJob` allocates a new completion source for each rental. `ReusableThreadJob` reuses its event. Use `ReusableJob` for fire-and-forget work that needs no completion primitive.
+- `ReusableTaskJob` allocates a new completion source for each rental. `ReusableBlockingJob` reuses its event. Use `ReusableJob` for fire-and-forget work that needs no completion primitive.
 - Return jobs to the worker that rented them only after processing and all waiters have finished. Reset custom fields before reuse. Do not clone active jobs or access jobs after returning them. `ReturnToPoolOnCompletion` is for fire-and-forget use; do not await or return those jobs manually.
 - Return a pooled cancellation source only with exclusive ownership, after registrations finish and old tokens are no longer used. Canceled sources are disposed because they cannot be reset. Passing an already disposed source throws.
 - `TaskCore` uses a long-running task that synchronously hosts its asynchronous delegate. Creating many task cores creates many dedicated threads; reuse a worker for large job streams.

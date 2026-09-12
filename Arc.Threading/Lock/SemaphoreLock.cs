@@ -32,17 +32,17 @@ public class SemaphoreLock : ILockable, IAsyncLockable
     }
 
     /// <summary>
-    /// Acquires an exclusive lock and creates a <see cref="LockStruct"/> for a using statement.
+    /// Acquires an exclusive lock and creates a <see cref="LockScope"/> for a using statement.
     /// </summary>
-    /// <returns><see cref="LockStruct"/>.</returns>
-    public LockStruct EnterScope()
-        => new LockStruct(this);
+    /// <returns><see cref="LockScope"/>.</returns>
+    public LockScope EnterScope()
+        => new LockScope(this);
 
     /// <summary>
-    /// Asynchronously acquires an exclusive lock and creates a <see cref="LockStruct"/> for a using statement.
+    /// Asynchronously acquires an exclusive lock and creates a <see cref="LockScope"/> for a using statement.
     /// </summary>
-    /// <returns><see cref="LockStruct"/>.</returns>
-    public async Task<LockStruct> EnterScopeAsync()
+    /// <returns><see cref="LockScope"/>.</returns>
+    public async Task<LockScope> EnterScopeAsync()
         => new(this, await this.EnterAsync().ConfigureAwait(false));
 
     /// <summary>
@@ -168,12 +168,12 @@ public class SemaphoreLock : ILockable, IAsyncLockable
     /// <summary>
     /// Asynchronously waits to enter the <see cref="SemaphoreLock"/> with a specified timeout and cancellation token.
     /// </summary>
-    /// <param name="timeoutInMilliseconds">The duration in milliseconds to wait: -1 for infinite wait, 0 for no wait.</param>
+    /// <param name="millisecondsTimeout">The duration in milliseconds to wait: -1 for infinite wait, 0 for no wait.</param>
     /// <returns>
     /// A task that returns <see langword="true"/> if the lock was acquired; otherwise, <see langword="false"/> if the timeout elapsed or the operation was canceled.
     /// </returns>
-    public Task<bool> EnterAsync(int timeoutInMilliseconds)
-        => this.EnterAsync(TimeSpan.FromMilliseconds(timeoutInMilliseconds), default);
+    public Task<bool> EnterAsync(int millisecondsTimeout)
+        => this.EnterAsync(TimeSpan.FromMilliseconds(millisecondsTimeout), default);
 
     /// <summary>
     /// Asynchronously waits to enter the <see cref="SemaphoreLock"/> with a specified timeout and cancellation token.

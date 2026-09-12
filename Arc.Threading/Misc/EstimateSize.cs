@@ -47,19 +47,19 @@ public static class EstimateSize
     }
 
     /// <summary>
-    /// Estimates the size in bytes of an object created by a specified constructor delegate by allocating multiple instances and averaging the allocated memory.
+    /// Estimates the size in bytes of an object created by a specified factory delegate by allocating multiple instances and averaging the allocated memory.
     /// </summary>
-    /// <param name="constructor">A delegate that constructs an object instance.</param>
-    /// <returns>The estimated size in bytes of the constructed object.</returns>
-    public static int Constructor(Func<object> constructor)
+    /// <param name="factory">A delegate that creates an object instance.</param>
+    /// <returns>The estimated size in bytes of the created object.</returns>
+    public static int Constructor(Func<object> factory)
     {
-        ArgumentNullException.ThrowIfNull(constructor);
+        ArgumentNullException.ThrowIfNull(factory);
         const int N = 1000;
         long before = GC.GetAllocatedBytesForCurrentThread();
 
         for (int i = 0; i < N; i++)
         {
-            Volatile.Write(ref sink, constructor());
+            Volatile.Write(ref sink, factory());
         }
 
         long after = GC.GetAllocatedBytesForCurrentThread();

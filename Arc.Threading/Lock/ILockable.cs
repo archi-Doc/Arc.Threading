@@ -12,8 +12,8 @@ public interface ILockable
     /// <summary>
     /// Acquires the lock and returns a scope that releases it on disposal.
     /// </summary>
-    /// <returns><see cref="LockStruct"/>.</returns>
-    LockStruct EnterScope() => new LockStruct(this);
+    /// <returns><see cref="LockScope"/>.</returns>
+    LockScope EnterScope() => new LockScope(this);
 
     /// <summary>
     /// Acquires an exclusive lock.

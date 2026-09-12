@@ -11,7 +11,7 @@ namespace Arc.Threading;
 /// <summary>
 /// Provides cancellation-aware delays and conversions between <see cref="CancellationToken"/> and <see cref="ExecutionCore"/>.
 /// </summary>
-public static class ExecutionHelper
+public static class ExecutionExtensions
 {
     extension(Task)
     {
@@ -73,7 +73,7 @@ public static class ExecutionHelper
     /// An instance of <typeparamref name="TExecution"/> when the underlying source is compatible; otherwise, <see langword="null"/>.
     /// </returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static TExecution? Extract<TExecution>(this CancellationToken cancellationToken)
+    public static TExecution? AsExecution<TExecution>(this CancellationToken cancellationToken)
         where TExecution : ExecutionCore
     {// In my opinion, CancellationToken should have been named something like TaskContext, with added features for managing parent-child dependencies and for canceling or terminating processing.
         // CancellationToken is a struct that holds a single CancellationTokenSource reference (null for CancellationToken.None).
@@ -89,9 +89,9 @@ public static class ExecutionHelper
     /// The extracted <see cref="ExecutionCore"/> when available; otherwise, <see langword="null"/>.
     /// </returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ExecutionCore? ExtractCore(this CancellationToken cancellationToken)
+    public static ExecutionCore? AsExecutionCore(this CancellationToken cancellationToken)
     {
-        return Extract<ExecutionCore>(cancellationToken);
+        return AsExecution<ExecutionCore>(cancellationToken);
     }
 
     /*public static Task<bool> Delay(this CancellationToken cancellationToken, TimeSpan delay)
@@ -145,12 +145,12 @@ public static class ExecutionHelper
     }*/
 
     /// <summary>
-    /// Packs an <see cref="ExecutionCore"/> instance into a <see cref="CancellationToken"/>.
+    /// Converts an <see cref="ExecutionCore"/> instance to a <see cref="CancellationToken"/>.
     /// </summary>
-    /// <param name="executionCore">The execution instance to pack.</param>
+    /// <param name="executionCore">The execution instance to convert.</param>
     /// <returns>A token that carries the specified execution instance.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static CancellationToken Pack(this ExecutionCore executionCore)
+    public static CancellationToken ToCancellationToken(this ExecutionCore executionCore)
     {
         return Unsafe.As<ExecutionCore, CancellationToken>(ref executionCore);
     }

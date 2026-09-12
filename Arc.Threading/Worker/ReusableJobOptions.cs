@@ -5,14 +5,14 @@ using System;
 namespace Arc.Threading;
 
 /// <summary>
-/// Defines flags that control the behavior of reusable job instances.<br/>
+/// Defines options that control the behavior of reusable job instances.<br/>
 /// This enumeration supports bitwise combination of its member values.
 /// </summary>
 [Flags]
-public enum ReusableJobFlags : byte
+public enum ReusableJobOptions : byte
 {
     /// <summary>
-    /// No flags are set.
+    /// No options are set.
     /// </summary>
     None = 0,
 

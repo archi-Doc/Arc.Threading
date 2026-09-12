@@ -31,7 +31,7 @@ public class ExecutionGroup : ExecutionCore
     /// <summary>
     /// Gets the current number of registered child executions.
     /// </summary>
-    public int Count => this.childrenList.Count;
+    public int ChildCount => this.childrenList.Count;
 
     #endregion
 
@@ -49,8 +49,8 @@ public class ExecutionGroup : ExecutionCore
         this.Name = name ?? string.Empty;
     }
 
-    internal ExecutionGroup(ExecutionGroup parent, ExecutionStack stack, bool isIndependent, ExecutionSignalHandler? executionSignalHandler = default)
-        : base(parent, stack, isIndependent, executionSignalHandler)
+    internal ExecutionGroup(ExecutionGroup parent, ExecutionStack stack, bool isIndependent, ExecutionSignalHandler? signalHandler = default)
+        : base(parent, stack, isIndependent, signalHandler)
     {
     }
 
@@ -203,7 +203,7 @@ public class ExecutionGroup : ExecutionCore
     public override string ToString()
     {
         var name = string.IsNullOrEmpty(this.Name) ? "Group" : this.Name;
-        return $"{name}({this.Count}) {(ushort)this.Id:x4}";
+        return $"{name}({this.ChildCount}) {(ushort)this.Id:x4}";
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

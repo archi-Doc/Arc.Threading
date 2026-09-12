@@ -9,31 +9,31 @@ namespace Arc.Threading;
 /// The lock is released when this instance is disposed (using statement).
 /// </summary>
 /// <remarks>Do not copy an acquired scope; each copy has its own ownership flag.</remarks>
-public struct LockStruct : IDisposable
+public struct LockScope : IDisposable
 {
-    private readonly ILockable lockableObject;
+    private readonly ILockable lockable;
     private bool locked;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="LockStruct"/> struct, and acquires the exclusive lock.
+    /// Initializes a new instance of the <see cref="LockScope"/> struct, and acquires the exclusive lock.
     /// </summary>
-    /// <param name="lockableObject">The object to lock.</param>
-    public LockStruct(ILockable lockableObject)
+    /// <param name="lockable">The object to lock.</param>
+    public LockScope(ILockable lockable)
     {
-        this.lockableObject = lockableObject;
-        this.locked = lockableObject.Enter();
+        this.lockable = lockable;
+        this.locked = lockable.Enter();
     }
 
-    internal LockStruct(ILockable lockableObject, bool locked)
+    internal LockScope(ILockable lockable, bool locked)
     {
-        this.lockableObject = lockableObject;
+        this.lockable = lockable;
         this.locked = locked;
     }
 
     /// <summary>
     /// Gets the object associated with this lock scope.
     /// </summary>
-    public ILockable LockableObject => this.lockableObject;
+    public ILockable Lockable => this.lockable;
 
     /// <summary>
     /// Gets a value indicating whether this scope currently holds the exclusive lock.
@@ -47,7 +47,7 @@ public struct LockStruct : IDisposable
     {
         if (this.locked)
         {
-            this.lockableObject.Exit();
+            this.lockable.Exit();
             this.locked = false;
         }
     }

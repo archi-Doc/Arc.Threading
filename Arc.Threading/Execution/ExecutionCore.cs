@@ -33,7 +33,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// <param name="parent">The owning group.</param>
     /// <param name="method">The execution delegate.</param>
     /// <returns>The validated parent group.</returns>
-    protected static ExecutionGroup ValidateParent(ExecutionGroup parent, Delegate method)
+    protected static ExecutionGroup ValidateArguments(ExecutionGroup parent, Delegate method)
     {
         ArgumentNullException.ThrowIfNull(parent);
         ArgumentNullException.ThrowIfNull(method);
@@ -44,7 +44,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
 
     #region FieldAndProperty
 
-    private readonly ExecutionSignalHandler? executionSignalHandler;
+    private readonly ExecutionSignalHandler? signalHandler;
 
 #pragma warning disable SA1307 // Accessible fields should begin with upper-case letter
 #pragma warning disable SA1401 // Fields should be private
@@ -116,7 +116,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
                 {
                     if (this.Root != value.Root)
                     {
-                        ExecutionHelper.ThrowDifferentParentException();
+                        ExecutionExtensions.ThrowDifferentParentException();
                     }
 
                     this.parent?.RemoveChildInternal(this);
@@ -166,13 +166,13 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// <summary>
     /// Gets the <see cref="System.Threading.CancellationToken"/> associated with this execution.
     /// </summary>
-    public CancellationToken CancellationToken => ExecutionHelper.Pack(this);
+    public CancellationToken CancellationToken => ExecutionExtensions.ToCancellationToken(this);
 
     /// <summary>
     /// Gets the <see cref="System.Threading.CancellationToken"/> associated with this execution.<br/>
     /// This property hides <see cref="CancellationTokenSource.Token"/>.
     /// </summary>
-    public new CancellationToken Token => ExecutionHelper.Pack(this);
+    public new CancellationToken Token => ExecutionExtensions.ToCancellationToken(this);
 
     #endregion
 
@@ -180,11 +180,11 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// Initializes a new instance of the <see cref="ExecutionCore"/> class.
     /// </summary>
     /// <param name="parent">The parent group that owns this execution.</param>
-    /// <param name="executionSignalHandler">
+    /// <param name="signalHandler">
     /// Optional signal callback invoked by <see cref="SendSignal(ExecutionSignal)"/>.
     /// </param>
-    public ExecutionCore(ExecutionGroup parent, ExecutionSignalHandler? executionSignalHandler = default)
-        : this(parent, null, false, executionSignalHandler)
+    public ExecutionCore(ExecutionGroup parent, ExecutionSignalHandler? signalHandler = default)
+        : this(parent, null, false, signalHandler)
     {
     }
 
@@ -195,25 +195,25 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// <param name="isIndependent">
     /// A value indicating whether this execution is independent from default recursive termination.
     /// </param>
-    /// <param name="executionSignalHandler">
+    /// <param name="signalHandler">
     /// Optional signal callback invoked by <see cref="SendSignal(ExecutionSignal)"/>.
     /// </param>
-    public ExecutionCore(ExecutionGroup parent, bool isIndependent, ExecutionSignalHandler? executionSignalHandler = default)
-        : this(parent, null, isIndependent, executionSignalHandler)
+    public ExecutionCore(ExecutionGroup parent, bool isIndependent, ExecutionSignalHandler? signalHandler = default)
+        : this(parent, null, isIndependent, signalHandler)
     {
     }
 
-    internal ExecutionCore(ExecutionGroup parent, ExecutionStack? stack, bool isIndependent, ExecutionSignalHandler? executionSignalHandler)
+    internal ExecutionCore(ExecutionGroup parent, ExecutionStack? stack, bool isIndependent, ExecutionSignalHandler? signalHandler)
     {
         ArgumentNullException.ThrowIfNull(parent);
         if (stack is not null && stack.Root != parent.Root)
         {
-            ExecutionHelper.ThrowDifferentRootException();
+            ExecutionExtensions.ThrowDifferentRootException();
         }
 
         this.Root = parent.Root;
         this.IsIndependent = isIndependent;
-        this.executionSignalHandler = executionSignalHandler;
+        this.signalHandler = signalHandler;
         bool terminateImmediately;
         using (this.Root.SyncObject.EnterScope())
         {
@@ -249,12 +249,12 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// <summary>
     /// Wait for the specified time (<see cref="Task.Delay(TimeSpan)"/>).
     /// </summary>
-    /// <param name="millisecondsToWait">The number of milliseconds to wait.</param>
+    /// <param name="millisecondsDelay">The number of milliseconds to wait.</param>
     /// <param name="cancellationToken">An additional cancellation token that can be used to cancel the delay.</param>
     /// <returns><see langword="true"/> if the delay elapsed; otherwise, <see langword="false"/><br/>
     /// if this execution was terminated or the additional cancellation token was canceled.</returns>
-    public Task<bool> Delay(int millisecondsToWait, CancellationToken cancellationToken = default)
-        => this.Delay(TimeSpan.FromMilliseconds(millisecondsToWait), cancellationToken);
+    public Task<bool> TryDelay(int millisecondsDelay, CancellationToken cancellationToken = default)
+        => this.TryDelay(TimeSpan.FromMilliseconds(millisecondsDelay), cancellationToken);
 
     /// <summary>
     /// Wait for the specified time (<see cref="Task.Delay(TimeSpan)"/>).
@@ -266,7 +266,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// <exception cref="ArgumentOutOfRangeException">
     /// Thrown when <paramref name="delay"/> is negative and not <see cref="Timeout.InfiniteTimeSpan"/>.
     /// </exception>
-    public async Task<bool> Delay(TimeSpan delay, CancellationToken cancellationToken = default)
+    public async Task<bool> TryDelay(TimeSpan delay, CancellationToken cancellationToken = default)
     {
         if (delay < TimeSpan.Zero && delay != Timeout.InfiniteTimeSpan)
         {
@@ -306,8 +306,8 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// <param name="options">An additional options for controlling termination behavior.</param>
     /// <param name="cancellationToken">An additional token that can cancel the wait operation.</param>
     /// <returns><see langword="true"/> if termination was observed; otherwise, <see langword="false"/>.</returns>
-    public Task<bool> WaitForTermination(TerminationOptions options = default, CancellationToken cancellationToken = default)
-        => this.WaitForTermination(Timeout.InfiniteTimeSpan, options, cancellationToken);
+    public Task<bool> WaitForTerminationAsync(TerminationOptions options = default, CancellationToken cancellationToken = default)
+        => this.WaitForTerminationAsync(Timeout.InfiniteTimeSpan, options, cancellationToken);
 
     /// <summary>
     /// Asynchronously waits for the termination of the execution.<br/>
@@ -317,8 +317,8 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// <param name="options">An additional options for controlling termination behavior.</param>
     /// <param name="cancellationToken">An additional cancellation token to cancel the wait operation.</param>
     /// <returns><see langword="true"/> if termination was observed; otherwise, <see langword="false"/>.</returns>
-    public Task<bool> WaitForTermination(int millisecondsTimeout, TerminationOptions options = default, CancellationToken cancellationToken = default)
-        => this.WaitForTermination(TimeSpan.FromMilliseconds(millisecondsTimeout), options, cancellationToken);
+    public Task<bool> WaitForTerminationAsync(int millisecondsTimeout, TerminationOptions options = default, CancellationToken cancellationToken = default)
+        => this.WaitForTerminationAsync(TimeSpan.FromMilliseconds(millisecondsTimeout), options, cancellationToken);
 
     /// <summary>
     /// Asynchronously waits for the termination of the execution.<br/>
@@ -331,7 +331,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// <exception cref="ArgumentOutOfRangeException">
     /// Thrown when <paramref name="timeout"/> is negative and not <see cref="Timeout.InfiniteTimeSpan"/>.
     /// </exception>
-    public virtual async Task<bool> WaitForTermination(TimeSpan timeout, TerminationOptions options = default, CancellationToken cancellationToken = default)
+    public virtual async Task<bool> WaitForTerminationAsync(TimeSpan timeout, TerminationOptions options = default, CancellationToken cancellationToken = default)
     {
         if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
         {
@@ -386,7 +386,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
 
             if (core is ExecutionGroup group)
             {// ExecutionGroup is treated as a container. This method waits for non-group executions only.
-                if (group.Count > 0)
+                if (group.ChildCount > 0)
                 {
                     var children = group.GetChildrenArrayInternal();
                     foreach (var x in children)
@@ -415,13 +415,13 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// </remarks>
     public void SendSignal(ExecutionSignal signal)
     {
-        if (this.executionSignalHandler is null)
+        if (this.signalHandler is null)
         {
             this.OnSignalReceived(signal);
         }
         else
         {
-            this.executionSignalHandler.Invoke(this, signal);
+            this.signalHandler.Invoke(this, signal);
         }
     }
 

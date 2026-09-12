@@ -31,7 +31,7 @@ internal class TestWork : Benchmark.Obsolete.ThreadWork
     public long Result { get; set; }
 }
 
-internal record class TestJob : ReusableThreadJob
+internal record class TestJob : ReusableBlockingJob
 {
     public TestJob()
     {
@@ -112,7 +112,7 @@ internal class ThreadWorkerBenchmark
         {
             Console.WriteLine($"ReusableJobWorker (Task fire-and-forget)");
             jobWorker2 = new ReusableJobWorker<TestJob2>(Root, EmptyMethodThread, N);
-            BenchWorker3(N, jobWorker2, ReusableJobFlags.ReturnToPoolOnCompletion);
+            BenchWorker3(N, jobWorker2, ReusableJobOptions.ReturnToPoolOnCompletion);
             jobWorker2.Dispose();
             Console.WriteLine(Count.ToString());
             Count = 0;
@@ -155,7 +155,7 @@ internal class ThreadWorkerBenchmark
         Console.WriteLine($"ReusableJobWorker heavy (Task fire-and-forget)");
         jobWorker4 = new ReusableJobWorker<TestJob2>(Root, HeavyMethod3, N2);
         jobWorker4.MaxConcurrentTasks = 4;
-        BenchWorker3(N2, jobWorker4, ReusableJobFlags.ReturnToPoolOnCompletion);
+        BenchWorker3(N2, jobWorker4, ReusableJobOptions.ReturnToPoolOnCompletion);
         jobWorker4.Dispose();
         Console.WriteLine(Count.ToString());
 
@@ -376,7 +376,7 @@ internal class ThreadWorkerBenchmark
                 worker.Add(job);
             }
 
-            worker.WaitForCompletion(-1).Wait();
+            worker.WaitForCompletionAsync(-1).Wait();
             benchTimer.Stop();
         }
 
@@ -396,7 +396,7 @@ internal class ThreadWorkerBenchmark
                 }
             });
 
-            worker.WaitForCompletion(-1).Wait();
+            worker.WaitForCompletionAsync(-1).Wait();
             benchTimer.Stop();
         }
 
@@ -413,7 +413,7 @@ internal class ThreadWorkerBenchmark
                 worker.Add(job);
             }
 
-            worker.WaitForCompletion(-1).Wait();
+            worker.WaitForCompletionAsync(-1).Wait();
             benchTimer.Stop();
         }
 
@@ -433,7 +433,7 @@ internal class ThreadWorkerBenchmark
                 }
             });
 
-            worker.WaitForCompletion(-1).Wait();
+            worker.WaitForCompletionAsync(-1).Wait();
             benchTimer.Stop();
         }
 
@@ -453,7 +453,7 @@ internal class ThreadWorkerBenchmark
                 }
             });
 
-            worker.WaitForCompletion(-1).Wait();
+            worker.WaitForCompletionAsync(-1).Wait();
             benchTimer.Stop();
         }
 
@@ -461,7 +461,7 @@ internal class ThreadWorkerBenchmark
         benchTimer.Clear();
     }
 
-    private static void BenchWorker3(int count, ReusableJobWorker<TestJob2> worker, ReusableJobFlags flags)
+    private static void BenchWorker3(int count, ReusableJobWorker<TestJob2> worker, ReusableJobOptions flags)
     {
         for (var repeat = 0; repeat < Repeat; repeat++)
         {
@@ -473,7 +473,7 @@ internal class ThreadWorkerBenchmark
                 worker.Add(job);
             }
 
-            worker.WaitForCompletion(-1).Wait();
+            worker.WaitForCompletionAsync(-1).Wait();
             benchTimer.Stop();
         }
 
@@ -494,7 +494,7 @@ internal class ThreadWorkerBenchmark
                 }
             });
 
-            worker.WaitForCompletion(-1).Wait();
+            worker.WaitForCompletionAsync(-1).Wait();
             benchTimer.Stop();
         }
 
@@ -512,7 +512,7 @@ internal class ThreadWorkerBenchmark
                 worker.Add(job);
             }
 
-            worker.WaitForCompletion(-1).Wait();
+            worker.WaitForCompletionAsync(-1).Wait();
             benchTimer.Stop();
         }
 
@@ -533,7 +533,7 @@ internal class ThreadWorkerBenchmark
                 }
             });
 
-            worker.WaitForCompletion(-1).Wait();
+            worker.WaitForCompletionAsync(-1).Wait();
             benchTimer.Stop();
         }
 
@@ -554,7 +554,7 @@ internal class ThreadWorkerBenchmark
                 }
             });
 
-            worker.WaitForCompletion(-1).Wait();
+            worker.WaitForCompletionAsync(-1).Wait();
             benchTimer.Stop();
         }
 

@@ -17,32 +17,6 @@ namespace Arc.Threading;
 /// </summary>
 public class MicroSleep : IDisposable
 {
-    /// <summary>
-    /// Mode of MicroSleep.
-    /// </summary>
-    public enum Mode
-    {
-        /// <summary>
-        /// MicroSleep instance has been disposed.
-        /// </summary>
-        Disposed,
-
-        /// <summary>
-        /// MicroSleep instance uses the nanosleep method for sleep operations.
-        /// </summary>
-        Nanosleep,
-
-        /// <summary>
-        /// MicroSleep instance uses the WaitableTimerEx method for sleep operations.
-        /// </summary>
-        WaitableTimerEx,
-
-        /// <summary>
-        /// MicroSleep instance uses the timeBeginPeriod method for sleep operations.
-        /// </summary>
-        TimeBeginPeriod,
-    }
-
     [DllImport("winmm.dll", EntryPoint = "timeBeginPeriod")]
     private static extern uint timeBeginPeriod(uint uMilliseconds);
 
@@ -109,7 +83,7 @@ public class MicroSleep : IDisposable
     /// <summary>
     /// Gets the current mode of the MicroSleep instance.
     /// </summary>
-    public Mode CurrentMode { get; private set; }
+    public MicroSleepMode CurrentMode { get; private set; }
 
     private WaitableTimerEx? waitableTimerEx;
 
@@ -126,21 +100,21 @@ public class MicroSleep : IDisposable
             var request = default(Timespec);
             var remaining = default(Timespec);
             nanosleep(ref request, ref remaining);
-            this.CurrentMode = Mode.Nanosleep;
+            this.CurrentMode = MicroSleepMode.Nanosleep;
             return;
         }
 
         try
         {
             this.waitableTimerEx = new();
-            this.CurrentMode = Mode.WaitableTimerEx;
+            this.CurrentMode = MicroSleepMode.WaitableTimerEx;
             return;
         }
         catch
         {
         }
 
-        this.CurrentMode = Mode.TimeBeginPeriod;
+        this.CurrentMode = MicroSleepMode.TimeBeginPeriod;
         timeBeginPeriod(1);
     }
 
@@ -153,13 +127,13 @@ public class MicroSleep : IDisposable
     public void Sleep(int microSeconds)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(microSeconds);
-        ObjectDisposedException.ThrowIf(this.CurrentMode == Mode.Disposed, this);
+        ObjectDisposedException.ThrowIf(this.CurrentMode == MicroSleepMode.Disposed, this);
         if (microSeconds == 0)
         {
             return;
         }
 
-        if (this.CurrentMode == Mode.Nanosleep)
+        if (this.CurrentMode == MicroSleepMode.Nanosleep)
         {
             try
             {
@@ -187,7 +161,7 @@ public class MicroSleep : IDisposable
     /// </summary>
     public void Dispose()
     {
-        if (this.CurrentMode == Mode.TimeBeginPeriod)
+        if (this.CurrentMode == MicroSleepMode.TimeBeginPeriod)
         {
             timeEndPeriod(1);
         }
@@ -195,6 +169,6 @@ public class MicroSleep : IDisposable
         this.waitableTimerEx?.Dispose();
         this.waitableTimerEx = default;
 
-        this.CurrentMode = Mode.Disposed;
+        this.CurrentMode = MicroSleepMode.Disposed;
     }
 }

@@ -12,11 +12,11 @@ public class MonitorLock : ILockable
     private readonly object syncObject = new();
 
     /// <summary>
-    /// Acquires an exclusive lock and creates a <see cref="LockStruct"/> for a using statement.
+    /// Acquires an exclusive lock and creates a <see cref="LockScope"/> for a using statement.
     /// </summary>
-    /// <returns><see cref="LockStruct"/>.</returns>
-    public LockStruct EnterScope()
-        => new LockStruct(this);
+    /// <returns><see cref="LockScope"/>.</returns>
+    public LockScope EnterScope()
+        => new LockScope(this);
 
     /// <summary>
     /// Gets a value indicating whether the current thread holds the exclusive lock.

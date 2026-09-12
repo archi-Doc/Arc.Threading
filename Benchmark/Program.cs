@@ -48,7 +48,7 @@ public class Program
         _ = switcher.Run(args);
 
         Root.RequestTermination();
-        await Root.WaitForTermination();
+        await Root.WaitForTerminationAsync();
     }
 
     public static void DebugRun<T>()

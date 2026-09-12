@@ -10,10 +10,10 @@ namespace Arc.Threading;
 public interface IAsyncLockable : ILockable
 {
     /// <summary>
-    /// Asynchronously acquires an exclusive lock and creates a <see cref="LockStruct"/> for a using statement.
+    /// Asynchronously acquires an exclusive lock and creates a <see cref="LockScope"/> for a using statement.
     /// </summary>
-    /// <returns><see cref="LockStruct"/>.</returns>
-    async Task<LockStruct> EnterScopeAsync()
+    /// <returns><see cref="LockScope"/>.</returns>
+    async Task<LockScope> EnterScopeAsync()
     {
         var lockTaken = await this.EnterAsync().ConfigureAwait(false);
         return new(this, lockTaken);

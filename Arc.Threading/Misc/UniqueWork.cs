@@ -26,11 +26,11 @@ public class UniqueWork
     /// <summary>
     /// Initializes a new instance of the <see cref="UniqueWork"/> class.
     /// </summary>
-    /// <param name="task">The asynchronous work to execute.</param>
-    public UniqueWork(Func<Task> task)
+    /// <param name="asyncAction">The asynchronous work to execute.</param>
+    public UniqueWork(Func<Task> asyncAction)
     {
-        ArgumentNullException.ThrowIfNull(task);
-        this.workTask = task;
+        ArgumentNullException.ThrowIfNull(asyncAction);
+        this.workTask = asyncAction;
         this.runWork = this.RunAsync;
     }
 

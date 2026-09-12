@@ -16,11 +16,11 @@ namespace Arc.Threading;
 public enum ExecutionCoreOptions : byte
 {
     /// <summary>
-    /// Default behavior.<br/>
+    /// No options are set (default behavior).<br/>
     /// Starts the execution immediately after the instance is initialized.<br/>
     /// Disposes the execution core when the execution method exits.
     /// </summary>
-    Default = 0,
+    None = 0,
 
     /// <summary>
     /// Delays starting the execution after the instance is initialized.
@@ -28,7 +28,7 @@ public enum ExecutionCoreOptions : byte
     DelayedStart = 1 << 0,
 
     /// <summary>
-    /// Keeps the execution core alive when the execution method exits.
+    /// Does not dispose the execution core automatically when the execution method exits.
     /// </summary>
-    KeepAliveOnCompletion = 1 << 1,
+    NoDisposeOnCompletion = 1 << 1,
 }

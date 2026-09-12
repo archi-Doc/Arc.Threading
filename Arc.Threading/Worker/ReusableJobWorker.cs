@@ -15,7 +15,7 @@ namespace Arc.Threading;
 
 /// <summary>
 /// Provides a reusable, pooled job worker that processes <typeparamref name="TJob"/> instances on a background task.<br/>
-/// To process the actual job, either override <see cref="OnJobProcessing(TJob, CancellationToken)"/> (recommended) or provide a <see cref="ProcessJobDelegate"/> in the constructor.<br/>
+/// To process the actual job, either override <see cref="ProcessJobAsync(TJob, CancellationToken)"/> (recommended) or provide a <see cref="JobProcessor"/> in the constructor.<br/>
 /// <br/>
 /// Example: <br/>
 /// var job = worker.Rent(); // Rent a job object from the pool.<br/>
@@ -45,7 +45,7 @@ public class ReusableJobWorker<TJob> : TaskCore<ReusableJobWorker<TJob>>, IDispo
     /// </summary>
     /// <param name="worker">The <see cref="ReusableJobWorker{TJob}"/> instance which owns the job.</param>
     /// <param name="job">The job to process.</param>
-    public delegate void ProcessJobDelegate(object worker, TJob job);
+    public delegate void JobProcessor(object worker, TJob job);
 
     private static async Task Process(ReusableJobWorker<TJob> worker)
     {
@@ -117,7 +117,7 @@ Terminated:
             job.State = ReusableJobState.Running;
             if (worker.processJob is null)
             {
-                await worker.OnJobProcessing(job, worker.CancellationToken).ConfigureAwait(false);
+                await worker.ProcessJobAsync(job, worker.CancellationToken).ConfigureAwait(false);
             }
             else
             {
@@ -160,16 +160,16 @@ Terminated:
     /// <summary>
     /// Gets a value indicating whether no job is pending and no job is being processed.
     /// </summary>
-    public bool IsCompleted
+    public bool IsIdle
         => Volatile.Read(ref this.numberOfOutstandingJobs) == 0 &&
            Volatile.Read(ref this.numberOfTasks) == 0;
 
     /// <summary>
     /// Gets the current number of jobs waiting to be processed.
     /// </summary>
-    public int NumberOfPendingJobs => Volatile.Read(ref this.numberOfPendingJobs);
+    public int PendingJobCount => Volatile.Read(ref this.numberOfPendingJobs);
 
-    private readonly ProcessJobDelegate? processJob;
+    private readonly JobProcessor? processJob;
     private readonly ObjectPool<TJob> freeJobs;
     private readonly ConcurrentQueue<TJob> pendingJobs;
     private AsyncPulseEvent? addEvent = new();
@@ -186,11 +186,11 @@ Terminated:
     /// </summary>
     /// <param name="parent">The parent execution group used for lifecycle coordination.</param>
     /// <param name="processJob">
-    /// Optional delegate used to process each job. If <see langword="null"/>, <see cref="OnJobProcessing(TJob, CancellationToken)"/> is invoked.
+    /// Optional delegate used to process each job. If <see langword="null"/>, <see cref="ProcessJobAsync(TJob, CancellationToken)"/> is invoked.
     /// </param>
     /// <param name="poolCapacity">Initial capacity of the reusable job object pool.</param>
     /// <param name="options">Behavior flags controlling startup and completion semantics.</param>
-    public ReusableJobWorker(ExecutionGroup parent, ProcessJobDelegate? processJob = default, int poolCapacity = DefaultPoolCapacity, ExecutionCoreOptions options = ExecutionCoreOptions.Default)
+    public ReusableJobWorker(ExecutionGroup parent, JobProcessor? processJob = default, int poolCapacity = DefaultPoolCapacity, ExecutionCoreOptions options = ExecutionCoreOptions.None)
         : base(parent, Process, options, true)
     {
         this.processJob = processJob;
@@ -205,13 +205,13 @@ Terminated:
     /// <summary>
     /// Rents a reusable job instance from the internal pool.
     /// </summary>
-    /// <param name="flags">Flags that control the behavior of reusable job instances.</param>
+    /// <param name="options">Options that control the behavior of reusable job instances.</param>
     /// <returns>A job in the <see cref="ReusableJobState.Initial"/> state.</returns>
-    public TJob Rent(ReusableJobFlags flags = default)
+    public TJob Rent(ReusableJobOptions options = default)
     {
         var job = this.freeJobs.Rent();
         job.State = ReusableJobState.Initial;
-        job.Flags = flags;
+        job.Options = options;
         job._PrepareSynchronizationPrimitive();
         return job;
     }
@@ -233,7 +233,7 @@ Terminated:
         {// Completed -> Initial, Aborted -> Initial
             if (Interlocked.CompareExchange(ref job.state, (byte)ReusableJobState.Pooled, currentState) == currentState)
             {
-                job.Flags = default;
+                job.Options = default;
                 job._ResetSynchronizationPrimitive();
                 // job.OnReturnToPool();
                 this.freeJobs.Return(job);
@@ -280,8 +280,8 @@ Terminated:
     /// A task that returns <see langword="true"/> once no jobs remain outstanding, including aborted jobs,<br/>
     /// or <see langword="false"/> if the operation was cancelled.
     /// </returns>
-    public Task<bool> WaitForCompletion(CancellationToken cancellationToken = default)
-        => this.WaitForCompletion(Timeout.Infinite, cancellationToken);
+    public Task<bool> WaitForCompletionAsync(CancellationToken cancellationToken = default)
+        => this.WaitForCompletionAsync(Timeout.Infinite, cancellationToken);
 
     /// <summary>
     /// Waits for the completion of all jobs.
@@ -291,11 +291,11 @@ Terminated:
     /// A cancellation token that can be used to cancel the wait operation.
     /// </param>
     /// <returns><see langword="true"/>: All works are complete.<br/><see langword="false"/>: Timeout or cancelled.</returns>
-    public Task<bool> WaitForCompletion(TimeSpan timeout, CancellationToken cancellationToken = default)
+    public Task<bool> WaitForCompletionAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
     {
         if (timeout == Timeout.InfiniteTimeSpan)
         {
-            return this.WaitForCompletion(Timeout.Infinite, cancellationToken);
+            return this.WaitForCompletionAsync(Timeout.Infinite, cancellationToken);
         }
         else if (timeout < TimeSpan.Zero ||
             timeout.TotalMilliseconds > int.MaxValue)
@@ -303,7 +303,7 @@ Terminated:
             throw new ArgumentOutOfRangeException(nameof(timeout));
         }
 
-        return this.WaitForCompletion((int)timeout.TotalMilliseconds, cancellationToken);
+        return this.WaitForCompletionAsync((int)timeout.TotalMilliseconds, cancellationToken);
     }
 
     /// <summary>
@@ -314,7 +314,7 @@ Terminated:
     /// A cancellation token that can be used to cancel the wait operation.
     /// </param>
     /// <returns><see langword="true"/>: All works are complete.<br/><see langword="false"/>: Timeout or cancelled.</returns>
-    public async Task<bool> WaitForCompletion(int millisecondsTimeout, CancellationToken cancellationToken = default)
+    public async Task<bool> WaitForCompletionAsync(int millisecondsTimeout, CancellationToken cancellationToken = default)
     {
         if (this.IsDisposed)
         {
@@ -334,7 +334,7 @@ Terminated:
 
         while (true)
         {
-            if (this.IsCompleted)
+            if (this.IsIdle)
             {
                 return true;
             }
@@ -362,7 +362,7 @@ Terminated:
                 }
             }
 
-            if (await this.Delay(delayMilliseconds, cancellationToken).ConfigureAwait(false) == false)
+            if (await this.TryDelay(delayMilliseconds, cancellationToken).ConfigureAwait(false) == false)
             {
                 return false;
             }
@@ -380,7 +380,7 @@ Terminated:
     /// This method is called automatically by the worker when a job is dequeued from the pending queue.<br/>
     /// Alternatively, you can provide a <c>processJob</c> delegate in the constructor instead of overriding this method.
     /// </remarks>
-    protected virtual Task OnJobProcessing(TJob job, CancellationToken cancellationToken)
+    protected virtual Task ProcessJobAsync(TJob job, CancellationToken cancellationToken)
     {
         return Task.CompletedTask;
     }
@@ -486,7 +486,7 @@ Terminated:
 
     private void FinishJob(TJob job)
     {
-        var returnToPool = job.ReturnToPoolOnCompletion;
+        var returnToPool = job.ReturnsToPoolOnCompletion;
         try
         {
             this.OnJobFinished(job);

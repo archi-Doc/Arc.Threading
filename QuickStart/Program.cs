@@ -14,10 +14,10 @@ internal class Program
 
     public static async Task Main(string[] args)
     {
-        AppCloseHandler.Set(() =>
+        AppCloseHandler.Register(() =>
         {// Closing the console window or terminating the process.
             Root.RequestTermination(); // Send a termination signal to the root.
-            Root.WaitForTermination(TimeSpan.FromSeconds(2)).Wait();
+            Root.WaitForTerminationAsync(TimeSpan.FromSeconds(2)).Wait();
         });
 
         Console.CancelKeyPress += (s, e) =>
@@ -30,7 +30,7 @@ internal class Program
 
         await TestThreadCore();
 
-        await Root.WaitForTermination(); // Wait for the termination infinitely.
+        await Root.WaitForTerminationAsync(); // Wait for the termination infinitely.
     }
 
     private static async Task TestThreadCore()

@@ -14,7 +14,7 @@ public class LockTests
         var mutex = new SemaphoreLock();
         Assert.Throws<SynchronizationLockException>(mutex.Exit);
         var scope = mutex.EnterScope();
-        Assert.Same(mutex, scope.LockableObject);
+        Assert.Same(mutex, scope.Lockable);
         Assert.True(scope.IsLocked);
         Assert.True(mutex.IsLocked);
         Assert.False(mutex.TryEnter());
@@ -119,6 +119,6 @@ public class LockTests
 
         Assert.False(mutex.IsLocked);
         Assert.Throws<SynchronizationLockException>(mutex.Exit);
-        default(LockStruct).Dispose();
+        default(LockScope).Dispose();
     }
 }
