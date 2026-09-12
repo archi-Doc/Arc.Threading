@@ -56,7 +56,7 @@ class Program
 
     static async Task Main(string[] args)
     {
-        AppCloseHandler.Set(() =>
+        AppCloseHandler.Register(() =>
         {// Closing the console window or terminating the process.
             Root.RequestTermination(); // Send a termination signal to the root.
             Root.WaitForTermination(TimeSpan.FromSeconds(2)).Wait();
