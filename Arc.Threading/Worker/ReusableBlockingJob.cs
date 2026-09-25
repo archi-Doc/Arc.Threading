@@ -9,8 +9,8 @@ namespace Arc.Threading;
 /// Represents a reusable worker job that supports synchronous waiting for completion.
 /// </summary>
 /// <remarks>
-    /// This job type reuses one <see cref="ManualResetEventSlim"/> across rentals.<br/>
-    /// All waiters must finish before the job is returned to the pool.<br/>
+/// This job type reuses one <see cref="ManualResetEventSlim"/> across rentals.<br/>
+/// All waiters must finish before the job is returned to the pool.<br/>
 /// Call <see cref="Wait(CancellationToken)"/> or <see cref="Wait(TimeSpan, CancellationToken)"/> to block until completion.<br/>
 /// If asynchronous waiting is acceptable, <see cref="ReusableTaskJob"/> is recommended.
 /// </remarks>

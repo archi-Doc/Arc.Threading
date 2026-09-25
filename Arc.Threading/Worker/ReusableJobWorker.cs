@@ -223,7 +223,9 @@ Terminated:
     /// <param name="job">The job to return.</param>
     /// <remarks>
     /// Only jobs in the <see cref="ReusableJobState.Completed"/> or <see cref="ReusableJobState.Aborted"/> state are accepted.<br/>
-    /// Other jobs are silently ignored.
+    /// Other jobs are silently ignored.<br/>
+    /// Return a job only after its wait has completed: the state becomes final before <see cref="OnJobFinished(TJob)"/> runs and waiters are released,<br/>
+    /// so returning a job as soon as <see cref="ReusableJob.State"/> is final lets the worker touch a job that may already be rented again.
     /// </remarks>
     public void Return(TJob job)
     {

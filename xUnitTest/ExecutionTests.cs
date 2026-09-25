@@ -235,6 +235,79 @@ public class ExecutionTests
     }
 
     [Fact]
+    public async Task WaitingOnAnIndependentExecutionWaitsForItself()
+    {
+        using var root = new ExecutionRoot();
+        var unit = root.GetOrAddUnitGroup("unit");
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var core = new TaskCore(unit, async _ =>
+        {
+            started.SetResult();
+            await release.Task;
+        });
+        using var independentCore = new TaskCore(root, _ => release.Task) { IsIndependent = true };
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        unit.RequestTermination();
+        Assert.False(core.CanContinue);
+        Assert.False(await unit.WaitForTerminationAsync(0)); // The independent target itself is not excluded.
+        Assert.False(await independentCore.WaitForTerminationAsync(0));
+        release.SetResult();
+        Assert.True(await unit.WaitForTerminationAsync(5000));
+        Assert.True(await independentCore.WaitForTerminationAsync(5000));
+    }
+
+    [Fact]
+    public async Task RootWaitRequestsIndependentBaseDescendantsAfterAnEarlierRequest()
+    {
+        using var root = new ExecutionRoot();
+        using var service = new ExecutionGroup(root.BaseGroup, isIndependent: true);
+        using var core = new TaskCore(service, async x => await x.TryDelay(Timeout.Infinite));
+        root.BaseGroup.RequestTermination(); // Skips the independent service group.
+        Assert.False(root.BaseGroup.CanContinue);
+        Assert.True(core.CanContinue);
+        Assert.True(await root.WaitForTerminationAsync(5000));
+        Assert.False(core.CanContinue);
+    }
+
+    [Fact]
+    public void TaskCoreCanceledBeforeStartNeverRuns()
+    {
+        using var root = new ExecutionRoot();
+        var ran = 0;
+        using var core = new TaskCore(
+            root,
+            _ =>
+            {
+                Interlocked.Increment(ref ran);
+                return Task.CompletedTask;
+            },
+            ExecutionCoreOptions.DelayedStart);
+        Assert.False(core.IsTerminated);
+        core.RequestTermination();
+        Assert.True(core.IsTerminated);
+        core.SendSignal(ExecutionSignal.Start);
+        Assert.True(core.IsTerminated);
+        Assert.Equal(TaskStatus.Created, core.Task.Status);
+        Assert.Equal(0, ran);
+    }
+
+    [Fact]
+    public void StacksRejectDisposedAndNullExecutions()
+    {
+        using var root = new ExecutionRoot();
+        var stack = new ExecutionStack(root);
+        var core = new TaskCompletionCore(root);
+        core.Dispose();
+        Assert.False(stack.TryPush(core));
+        Assert.True(stack.IsEmpty);
+        Assert.Null(core.Stack);
+        Assert.Throws<ArgumentNullException>(() => stack.TryPush(null!));
+        Assert.Throws<ArgumentNullException>(() => stack.PushNew(null!));
+        Assert.Throws<ArgumentNullException>(() => new ExecutionStack(null!));
+    }
+
+    [Fact]
     public void ChildLookupDoesNotAllocate()
     {
         using var root = new ExecutionRoot();

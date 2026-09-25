@@ -112,7 +112,8 @@ public sealed class DelayedTaskExecutor
         {
             while (true)
             {
-                await Task.Delay(this.delay, this.cancellationToken).ConfigureAwait(false);
+                // ForceYielding: a zero delay completes synchronously, which would otherwise run the action inline in Request().
+                await Task.Delay(this.delay, this.cancellationToken).ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
 
                 // Waiting -> Running
                 if (Interlocked.CompareExchange(ref this.state, Running, Waiting) != Waiting)

@@ -1,5 +1,6 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
+using System;
 using System.Collections.Generic;
 
 namespace Arc.Threading;
@@ -72,8 +73,10 @@ public class ExecutionStack
     /// Initializes a new instance of the <see cref="ExecutionStack"/> class.
     /// </summary>
     /// <param name="root">The owning execution root.</param>
+    /// <exception cref="System.ArgumentNullException"><paramref name="root"/> is <see langword="null"/>.</exception>
     public ExecutionStack(ExecutionRoot root)
     {
+        ArgumentNullException.ThrowIfNull(root);
         this.Root = root;
     }
 
@@ -89,11 +92,13 @@ public class ExecutionStack
     /// An optional handler invoked when this execution processes an <see cref="ExecutionSignal"/>.
     /// </param>
     /// <returns>The newly created execution.</returns>
+    /// <exception cref="System.ArgumentNullException"><paramref name="parent"/> is <see langword="null"/>.</exception>
     /// <exception cref="System.InvalidOperationException">
     /// Thrown when <paramref name="parent"/> belongs to a different <see cref="ExecutionRoot"/>.
     /// </exception>
     public TaskCompletionGroup PushNew(ExecutionGroup parent, ExecutionSignalHandler? signalHandler = default)
     {
+        ArgumentNullException.ThrowIfNull(parent);
         if (this.Root != parent.Root)
         {
             ExecutionExtensions.ThrowDifferentRootException();
@@ -108,13 +113,15 @@ public class ExecutionStack
     /// <param name="core">The execution to push.</param>
     /// <returns>
     /// <see langword="true"/> when the execution is now associated with this stack;
-    /// otherwise, <see langword="false"/> when it is already associated with another stack.
+    /// otherwise, <see langword="false"/> when it is already associated with another stack or has been disposed.
     /// </returns>
+    /// <exception cref="System.ArgumentNullException"><paramref name="core"/> is <see langword="null"/>.</exception>
     /// <exception cref="System.InvalidOperationException">
     /// Thrown when <paramref name="core"/> belongs to a different <see cref="ExecutionRoot"/>.
     /// </exception>
     public bool TryPush(ExecutionCore core)
     {
+        ArgumentNullException.ThrowIfNull(core);
         using (this.Root.SyncObject.EnterScope())
         {
             if (this.Root != core.Root)
@@ -125,6 +132,11 @@ public class ExecutionStack
             if (core.Stack is not null)
             {
                 return core.Stack == this;
+            }
+
+            if (core.IsDisposed)
+            {// Disposal detaches the core only once, so a disposed core added now would never be removed.
+                return false;
             }
 
             this.AddInternal(core);

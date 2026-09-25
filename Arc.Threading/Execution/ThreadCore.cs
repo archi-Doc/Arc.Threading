@@ -14,16 +14,28 @@ namespace Arc.Threading;
 /// </remarks>
 public class ThreadCore : ExecutionCore
 {
+    private const int StateCreated = 0;
+    private const int StateStarted = 1;
+    private const int StateAbandoned = 2; // Cancellation won the start race; the thread never starts.
+
     private readonly Action<ThreadCore> method;
-    private int started;
+    private int state;
 
     /// <summary>
     /// Gets a value indicating whether the underlying thread has completed,<br/>
     /// or whether this execution was canceled before the thread was started.
     /// </summary>
     public override bool IsTerminated
-        => (Volatile.Read(ref this.started) == 0 && this.IsCancellationRequested) ||
-        (this.Thread is { } thread && (thread.ThreadState & ThreadState.Stopped) != 0);
+    {
+        get
+        {
+            // Read cancellation before the state: a start claimed after this read observes the cancellation and abandons the thread.
+            var canceled = this.IsCancellationRequested;
+            var state = Volatile.Read(ref this.state);
+            return state == StateAbandoned || (canceled && state == StateCreated) ||
+                (this.Thread is { } thread && (thread.ThreadState & ThreadState.Stopped) != 0);
+        }
+    }
 
     /// <summary>
     /// Gets the dedicated thread instance used to run this core.
@@ -95,8 +107,14 @@ public class ThreadCore : ExecutionCore
             return;
         }
 
-        if (Interlocked.CompareExchange(ref this.started, 1, 0) != 0)
+        if (Interlocked.CompareExchange(ref this.state, StateStarted, StateCreated) != StateCreated)
         {
+            return;
+        }
+
+        if (this.IsCancellationRequested)
+        {// Canceled after the check above; IsTerminated may already have reported this core as terminated.
+            Volatile.Write(ref this.state, StateAbandoned);
             return;
         }
 
@@ -106,7 +124,7 @@ public class ThreadCore : ExecutionCore
         }
         catch
         {
-            Interlocked.CompareExchange(ref this.started, 0, 1);
+            Interlocked.CompareExchange(ref this.state, StateCreated, StateStarted);
             throw;
         }
     }
