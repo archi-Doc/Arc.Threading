@@ -32,7 +32,7 @@ public class SingleTask
     /// <param name="action">The work to execute asynchronously.</param>
     /// <returns>Returns a valid task instance if there is no currently running Task.<br/>
     /// <see langword="null"/> if a task is already in progress.<br/>
-    /// The returned task faults if the work throws an exception.</returns>
+    /// The returned task completes with the same outcome as the work (faulted or canceled on failure).</returns>
     public Task? TryRun(Action action)
     {
         ArgumentNullException.ThrowIfNull(action);
@@ -54,7 +54,7 @@ public class SingleTask
     /// <param name="asyncAction">The asynchronous work to execute.</param>
     /// <returns>Returns a valid task instance if there is no currently running Task.<br/>
     /// <see langword="null"/> if a task is already in progress.<br/>
-    /// The returned task faults if the work throws an exception.</returns>
+    /// The returned task completes with the same outcome as the work (faulted or canceled on failure).</returns>
     public Task? TryRun(Func<Task> asyncAction)
     {
         ArgumentNullException.ThrowIfNull(asyncAction);
@@ -71,28 +71,14 @@ public class SingleTask
 
     private async Task RunAsync(Task work, TaskCompletionSource completionSource)
     {
-        Exception? exception = default;
-        try
-        {
-            await work.ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            exception = ex;
-        }
+        await work.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 
         // Release the instance before completing the task, so that the continuation can start the next task.
         Volatile.Write(ref this.task, default);
         Volatile.Write(ref this.running, 0);
 
-        if (exception is null)
-        {
-            completionSource.TrySetResult();
-        }
-        else
-        {
-            completionSource.TrySetException(exception);
-        }
+        // Propagate the exact outcome: all exceptions, or cancellation (rather than a fault wrapping it).
+        completionSource.TrySetFromTask(work);
     }
 
     private int running;

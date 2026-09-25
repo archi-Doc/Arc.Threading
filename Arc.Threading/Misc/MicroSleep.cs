@@ -27,16 +27,16 @@ public class MicroSleep : IDisposable
     private static extern int nanosleep(ref Timespec req, ref Timespec rem);
 
     private struct Timespec
-    {
-        public Timespec(long seconds, long nanoseconds)
+    {// struct timespec { time_t tv_sec; long tv_nsec; }: both are pointer-sized (nint), not always 64-bit.
+        public Timespec(nint seconds, nint nanoseconds)
         {
             this.tv_sec = seconds;
             this.tv_nsec = nanoseconds;
         }
 
 #pragma warning disable SA1310 // Field names should not contain underscore
-        private long tv_sec; // Seconds.
-        private long tv_nsec; // Nanoseconds.
+        private nint tv_sec; // Seconds.
+        private nint tv_nsec; // Nanoseconds.
 #pragma warning restore SA1310 // Field names should not contain underscore
     }
 
@@ -137,8 +137,8 @@ public class MicroSleep : IDisposable
         {
             try
             {
-                long seconds = microSeconds / 1_000_000;
-                var request = new Timespec(seconds, ((long)microSeconds * 1_000) - (seconds * 1_000_000_000));
+                var seconds = microSeconds / 1_000_000;
+                var request = new Timespec(seconds, (microSeconds - (seconds * 1_000_000)) * 1_000); // < 1e9 fits in 32-bit.
                 var remaining = default(Timespec);
                 nanosleep(ref request, ref remaining);
             }

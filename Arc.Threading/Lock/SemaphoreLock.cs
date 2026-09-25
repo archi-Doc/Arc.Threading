@@ -10,7 +10,7 @@ namespace Arc.Threading;
 /// <see cref="SemaphoreLock"/> is a simplified version of <see cref="SemaphoreSlim"/>.<br/>
 /// Used for object mutual exclusion and can also be used in code that includes await syntax.<br/>
 /// An instance of <see cref="SemaphoreLock"/> should be a private member since it uses `lock (this)` statement to reduce memory usage.<br/>
-    /// The lock is non-reentrant and does not track ownership by thread or task.
+/// The lock is non-reentrant and does not track ownership by thread or task.
 /// </summary>
 public class SemaphoreLock : ILockable, IAsyncLockable
 {// object:16, 1+2+4+8+8 -> 39

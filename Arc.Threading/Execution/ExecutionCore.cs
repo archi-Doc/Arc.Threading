@@ -341,11 +341,9 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
         var startTimestamp = Stopwatch.GetTimestamp();
         while (true)
         {
-            var notTerminated = 0;
             using (this.Root.SyncObject.EnterScope())
             {
-                CountObjects(this, ref notTerminated, options);
-                if (notTerminated == 0)
+                if (!HasActiveExecution(this, options))
                 {
                     return true;
                 }
@@ -376,32 +374,27 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
             }
         }
 
-        static void CountObjects(ExecutionCore core, ref int notTerminated, TerminationOptions options)
+        static bool HasActiveExecution(ExecutionCore core, TerminationOptions options)
         {
-            if (core.IsIndependent &&
-                (options & TerminationOptions.IncludeIndependent) == 0)
-            {
-                return;
-            }
-
             if (core is ExecutionGroup group)
             {// ExecutionGroup is treated as a container. This method waits for non-group executions only.
                 if (group.ChildCount > 0)
                 {
                     var children = group.GetChildrenArrayInternal();
                     foreach (var x in children)
-                    {
-                        CountObjects(x, ref notTerminated, options);
+                    {// Like RequestTermination(), IsIndependent excludes descendants only, not the target itself.
+                        if ((!x.IsIndependent || (options & TerminationOptions.IncludeIndependent) != 0) &&
+                            HasActiveExecution(x, options))
+                        {
+                            return true;
+                        }
                     }
                 }
+
+                return false;
             }
-            else
-            {
-                if (!core.IsTerminated)
-                {
-                    notTerminated++;
-                }
-            }
+
+            return !core.IsTerminated;
         }
     }
 

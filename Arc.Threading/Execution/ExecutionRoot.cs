@@ -74,10 +74,9 @@ public class ExecutionRoot : ExecutionGroup
         }
 
         var start = Stopwatch.GetTimestamp();
-        if (this.BaseGroup.CanContinue)
-        {
-            this.BaseGroup.RequestTermination(TerminationOptions.IncludeIndependent);
-        }
+
+        // Always request: BaseGroup may already be canceled by a request that skipped its independent descendants.
+        this.BaseGroup.RequestTermination(TerminationOptions.IncludeIndependent);
 
         if (!await this.BaseGroup.WaitForTerminationAsync(timeout, TerminationOptions.IncludeIndependent, cancellationToken).ConfigureAwait(false))
         {

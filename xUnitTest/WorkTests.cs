@@ -27,6 +27,22 @@ public class WorkTests
     }
 
     [Fact]
+    public async Task SingleTaskPreservesCancellationAndAllExceptions()
+    {
+        var single = new SingleTask();
+        var canceled = single.TryRun(() => Task.FromCanceled(new CancellationToken(true)))!;
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => canceled);
+        Assert.True(canceled.IsCanceled);
+
+        var faulted = single.TryRun(() => Task.WhenAll(
+            Task.FromException(new InvalidOperationException()),
+            Task.FromException(new ArgumentException())))!;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => faulted);
+        Assert.Equal(2, faulted.Exception!.InnerExceptions.Count);
+        Assert.Null(single.RunningTask);
+    }
+
+    [Fact]
     public async Task UniqueWorkJoinsAsyncWorkAndPreservesOriginalException()
     {
         Assert.Throws<ArgumentNullException>(() => new UniqueWork((Action)null!));
@@ -116,6 +132,27 @@ public class WorkTests
         Assert.Equal(2, calls);
         source.Cancel();
         Assert.False(executor.Request());
+    }
+
+    [Fact]
+    public async Task DelayedExecutorWithZeroDelayDoesNotRunInsideRequest()
+    {
+        var requestThread = Environment.CurrentManagedThreadId;
+        var inRequest = true;
+        var ranInline = false;
+        var ran = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var executor = new DelayedTaskExecutor(
+            _ =>
+            {
+                ranInline = Volatile.Read(ref inRequest) && Environment.CurrentManagedThreadId == requestThread;
+                ran.TrySetResult();
+                return Task.CompletedTask;
+            },
+            TimeSpan.Zero);
+        Assert.True(executor.Request());
+        Volatile.Write(ref inRequest, false);
+        await ran.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.False(ranInline);
     }
 
     [Fact]

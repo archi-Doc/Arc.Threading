@@ -62,6 +62,7 @@ public class TaskCore : ExecutionCore
 {
     private const int StateCreated = 0;
     private const int StateStarted = 1;
+    private const int StateAbandoned = 2; // Cancellation won the start race; the task never starts.
 
     private int state;
     private Task? task;
@@ -85,7 +86,10 @@ public class TaskCore : ExecutionCore
                 return true;
             }
 
-            return Volatile.Read(ref this.state) == StateCreated && this.IsCancellationRequested;
+            // Read cancellation before the state: a start claimed after this read observes the cancellation and abandons the task.
+            var canceled = this.IsCancellationRequested;
+            var state = Volatile.Read(ref this.state);
+            return state == StateAbandoned || (canceled && state == StateCreated);
         }
     }
 
@@ -152,6 +156,12 @@ public class TaskCore : ExecutionCore
 
         if (Interlocked.CompareExchange(ref this.state, StateStarted, StateCreated) != StateCreated)
         {
+            return;
+        }
+
+        if (this.IsCancellationRequested)
+        {// Canceled after the check above; IsTerminated may already have reported this core as terminated.
+            Volatile.Write(ref this.state, StateAbandoned);
             return;
         }
 
