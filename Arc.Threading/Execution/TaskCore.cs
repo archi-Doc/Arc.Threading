@@ -51,13 +51,14 @@ public class TaskCore<TSelf> : TaskCore
             throw new InvalidOperationException($"{this.GetType().Name} must use itself as the {nameof(TSelf)} type argument.");
         }
 
-        this.Initialize(this.CreateLongRunningTask(this, () => method(self)), !delayStart);
+        this.Initialize(CreateLongRunningTask(self, method), !delayStart);
     }
 }
 
 /// <summary>
 /// Represents an <see cref="ExecutionCore"/> backed by a dedicated long-running <see cref="System.Threading.Tasks.Task"/>.
 /// </summary>
+/// <remarks>The dedicated task waits for the asynchronous delegate; asynchronous continuations may run on other threads.</remarks>
 public class TaskCore : ExecutionCore
 {
     private const int StateCreated = 0;
@@ -94,8 +95,9 @@ public class TaskCore : ExecutionCore
     }
 
     /// <summary>
-    /// Gets the underlying task managed by this execution core.
+    /// Gets the task representing execution of the delegate.
     /// </summary>
+    /// <remarks>If cancellation prevents a delayed start, this task remains unstarted; use <see cref="ExecutionCore.WaitForTerminationAsync(TerminationOptions, CancellationToken)"/> to observe termination.</remarks>
     /// <exception cref="InvalidOperationException">
     /// The task has not been initialized yet.
     /// </exception>
@@ -117,7 +119,7 @@ public class TaskCore : ExecutionCore
         : base(ValidateArguments(parent, method))
     {
         this.Options = options;
-        this.Initialize(this.CreateLongRunningTask(this, () => method(this)));
+        this.Initialize(CreateLongRunningTask(this, method));
     }
 
     /// <summary>
@@ -133,7 +135,7 @@ public class TaskCore : ExecutionCore
     }
 
     /// <summary>
-    /// Processes execution signals for this task core.
+    /// Starts this task once for <see cref="ExecutionSignal.Start"/>; other signals are ignored.
     /// </summary>
     /// <param name="signal">The received execution signal.</param>
     public override void OnSignalReceived(ExecutionSignal signal)
@@ -220,6 +222,21 @@ public class TaskCore : ExecutionCore
     protected Task CreateLongRunningTask(TaskCore core, Func<Task> method)
     {
         ArgumentNullException.ThrowIfNull(method);
+        return CreateLongRunningTask(core, _ => method());
+    }
+
+    /// <summary>
+    /// Creates an unstarted task without allocating a separate delegate to bind its core argument.
+    /// </summary>
+    /// <typeparam name="TCore">The type passed to the execution delegate.</typeparam>
+    /// <param name="core">The owning execution core.</param>
+    /// <param name="method">The execution delegate.</param>
+    /// <returns>An unstarted task, or a completed task if cancellation already prevented startup.</returns>
+    private protected static Task CreateLongRunningTask<TCore>(TCore core, Func<TCore, Task> method)
+        where TCore : TaskCore
+    {
+        ArgumentNullException.ThrowIfNull(core);
+        ArgumentNullException.ThrowIfNull(method);
 
         if (core.IsTerminated)
         {
@@ -231,7 +248,7 @@ public class TaskCore : ExecutionCore
             {
                 try
                 {
-                    method().GetAwaiter().GetResult();
+                    method(core).GetAwaiter().GetResult();
                 }
                 finally
                 {

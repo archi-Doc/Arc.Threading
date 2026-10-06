@@ -5,7 +5,7 @@ using System;
 namespace Arc.Threading;
 
 /// <summary>
-/// Represents an exception that is thrown when a fatal error occurs and the application must be aborted.
+/// Represents an application-defined fatal error. Throwing this exception does not terminate the process by itself.
 /// </summary>
 public class PanicException : Exception
 {

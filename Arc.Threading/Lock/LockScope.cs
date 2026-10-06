@@ -5,8 +5,7 @@ using System;
 namespace Arc.Threading;
 
 /// <summary>
-/// Represents an exclusive lock scope of an <see cref="ILockable"/> object.<br/>
-/// The lock is released when this instance is disposed (using statement).
+/// Holds an exclusive lock until the scope is disposed.
 /// </summary>
 /// <remarks>Do not copy an acquired scope; each copy has its own ownership flag.</remarks>
 public struct LockScope : IDisposable
@@ -18,8 +17,10 @@ public struct LockScope : IDisposable
     /// Initializes a new instance of the <see cref="LockScope"/> struct, and acquires the exclusive lock.
     /// </summary>
     /// <param name="lockable">The object to lock.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="lockable"/> is <see langword="null"/>.</exception>
     public LockScope(ILockable lockable)
     {
+        ArgumentNullException.ThrowIfNull(lockable);
         this.lockable = lockable;
         this.locked = lockable.Enter();
     }
@@ -41,7 +42,7 @@ public struct LockScope : IDisposable
     public bool IsLocked => this.locked;
 
     /// <summary>
-    /// Releases the exclusive lock if it is held.
+    /// Releases the exclusive lock if held. Repeated disposal of this instance has no effect.
     /// </summary>
     public void Dispose()
     {

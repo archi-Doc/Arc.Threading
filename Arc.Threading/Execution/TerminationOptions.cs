@@ -6,7 +6,7 @@ namespace Arc.Threading;
 
 /// <summary>
 /// Specifies optional behavior for termination and wait operations of an <see cref="ExecutionCore"/>.<br/>
-/// By default, executions marked as <see cref="ExecutionCore.IsIndependent"/> are excluded.
+/// By default, descendants marked as <see cref="ExecutionCore.IsIndependent"/> are excluded; the target itself is included.
 /// </summary>
 [Flags]
 public enum TerminationOptions : byte

@@ -11,7 +11,7 @@ namespace Arc.Threading;
 public enum ReusableJobState : byte
 {
     /// <summary>
-    /// Initial state. The job has been created but not yet queued.
+    /// The job has been created or rented, but not yet queued.
     /// </summary>
     Initial,
 
@@ -31,7 +31,7 @@ public enum ReusableJobState : byte
     Completed,
 
     /// <summary>
-    /// Aborted state. The job was terminated before completion.
+    /// Processing was skipped or failed, or the completion callback failed.
     /// </summary>
     Aborted,
 

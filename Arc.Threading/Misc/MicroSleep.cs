@@ -12,8 +12,7 @@ using Microsoft.Win32.SafeHandles;
 namespace Arc.Threading;
 
 /// <summary>
-/// Represents a class for performing microsecond-level sleep operations.<br/>
-/// NOT thread-safe.
+/// Sleeps for a duration specified in microseconds using platform timers. Not thread-safe.
 /// </summary>
 public class MicroSleep : IDisposable
 {
@@ -23,7 +22,7 @@ public class MicroSleep : IDisposable
     [DllImport("winmm.dll", EntryPoint = "timeEndPeriod")]
     private static extern uint timeEndPeriod(uint uMilliseconds);
 
-    [DllImport("libc")]
+    [DllImport("libc", SetLastError = true)]
     private static extern int nanosleep(ref Timespec req, ref Timespec rem);
 
     private struct Timespec
@@ -91,15 +90,14 @@ public class MicroSleep : IDisposable
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MicroSleep"/> class.<br/>
-    /// The most accurate sleep method available on the current platform is selected (<see cref="CurrentMode"/>).
+    /// Uses nanosleep on Unix or a high-resolution waitable timer on Windows, with a Windows timer-period fallback.
     /// </summary>
     public MicroSleep()
     {
         if (!OperatingSystem.IsWindows())
         {
             var request = default(Timespec);
-            var remaining = default(Timespec);
-            nanosleep(ref request, ref remaining);
+            SleepUnix(request);
             this.CurrentMode = MicroSleepMode.Nanosleep;
             return;
         }
@@ -110,7 +108,7 @@ public class MicroSleep : IDisposable
             this.CurrentMode = MicroSleepMode.WaitableTimerEx;
             return;
         }
-        catch
+        catch (Win32Exception)
         {
         }
 
@@ -119,11 +117,12 @@ public class MicroSleep : IDisposable
     }
 
     /// <summary>
-    /// Sleeps for the specified number of microseconds.
+    /// Sleeps for the specified number of microseconds. Actual scheduling precision depends on the platform.
     /// </summary>
     /// <param name="microSeconds">The number of microseconds to sleep.</param>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="microSeconds"/> is negative.</exception>
     /// <exception cref="ObjectDisposedException">This instance has been disposed.</exception>
+    /// <exception cref="Win32Exception">The native sleep operation fails.</exception>
     public void Sleep(int microSeconds)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(microSeconds);
@@ -135,16 +134,9 @@ public class MicroSleep : IDisposable
 
         if (this.CurrentMode == MicroSleepMode.Nanosleep)
         {
-            try
-            {
-                var seconds = microSeconds / 1_000_000;
-                var request = new Timespec(seconds, (microSeconds - (seconds * 1_000_000)) * 1_000); // < 1e9 fits in 32-bit.
-                var remaining = default(Timespec);
-                nanosleep(ref request, ref remaining);
-            }
-            catch
-            {
-            }
+            var seconds = microSeconds / 1_000_000;
+            var request = new Timespec(seconds, (microSeconds - (seconds * 1_000_000)) * 1_000); // < 1e9 fits in 32-bit.
+            SleepUnix(request);
         }
         else if (this.waitableTimerEx is { } waitableTimer)
         {
@@ -152,7 +144,7 @@ public class MicroSleep : IDisposable
         }
         else
         {
-            Thread.Sleep(microSeconds / 1000);
+            Thread.Sleep((int)((microSeconds + 999L) / 1000));
         }
     }
 
@@ -170,5 +162,21 @@ public class MicroSleep : IDisposable
         this.waitableTimerEx = default;
 
         this.CurrentMode = MicroSleepMode.Disposed;
+    }
+
+    private static void SleepUnix(Timespec request)
+    {
+        var remaining = default(Timespec);
+        while (nanosleep(ref request, ref remaining) != 0)
+        {
+            const int Interrupted = 4; // EINTR on supported Unix platforms.
+            var error = Marshal.GetLastPInvokeError();
+            if (error != Interrupted)
+            {
+                throw new Win32Exception(error);
+            }
+
+            request = remaining;
+        }
     }
 }

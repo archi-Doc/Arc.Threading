@@ -7,8 +7,7 @@ using System.Threading.Tasks;
 namespace Arc.Threading;
 
 /// <summary>
-/// This class guarantees that only one task will be executed at a time per instance.<br/>
-/// When the <see cref="TryRun(Action)"/> or <see cref="TryRun(Func{Task})"/> function is called, it executes if there is no currently running task, and returns <see langword="null"/> if a task is already in progress.
+/// Runs at most one operation at a time on the thread pool. Overlapping calls return <see langword="null"/>.
 /// </summary>
 public class SingleTask
 {
@@ -26,13 +25,11 @@ public class SingleTask
         => Volatile.Read(ref this.task);
 
     /// <summary>
-    /// Attempts to execute the specified task.<br/>
-    /// It executes if there is no currently running task, and returns <see langword="null"/> if a task is already in progress.
+    /// Schedules the action if no operation is running.
     /// </summary>
     /// <param name="action">The work to execute asynchronously.</param>
-    /// <returns>Returns a valid task instance if there is no currently running Task.<br/>
-    /// <see langword="null"/> if a task is already in progress.<br/>
-    /// The returned task completes with the same outcome as the work (faulted or canceled on failure).</returns>
+    /// <returns>The action's completion task, or <see langword="null"/> if an operation is already running. Failures propagate through the task.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="action"/> is <see langword="null"/>.</exception>
     public Task? TryRun(Action action)
     {
         ArgumentNullException.ThrowIfNull(action);
@@ -48,13 +45,11 @@ public class SingleTask
     }
 
     /// <summary>
-    /// Attempts to execute the specified task.<br/>
-    /// It executes if there is no currently running task, and returns <see langword="null"/> if a task is already in progress.
+    /// Schedules the asynchronous action if no operation is running.
     /// </summary>
     /// <param name="asyncAction">The asynchronous work to execute.</param>
-    /// <returns>Returns a valid task instance if there is no currently running Task.<br/>
-    /// <see langword="null"/> if a task is already in progress.<br/>
-    /// The returned task completes with the same outcome as the work (faulted or canceled on failure).</returns>
+    /// <returns>The action's completion task, or <see langword="null"/> if an operation is already running. Faults and cancellation are preserved.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="asyncAction"/> is <see langword="null"/>.</exception>
     public Task? TryRun(Func<Task> asyncAction)
     {
         ArgumentNullException.ThrowIfNull(asyncAction);

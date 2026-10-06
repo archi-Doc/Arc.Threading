@@ -23,7 +23,7 @@ public enum ExecutionCoreOptions : byte
     None = 0,
 
     /// <summary>
-    /// Delays starting the execution after the instance is initialized.
+    /// Waits for <see cref="ExecutionSignal.Start"/> before starting the execution.
     /// </summary>
     DelayedStart = 1 << 0,
 

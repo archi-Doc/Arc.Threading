@@ -2,6 +2,7 @@
 
 namespace xUnitTest;
 
+using System.Runtime.CompilerServices;
 using Arc.Threading;
 
 public class UtilityTests
@@ -27,6 +28,7 @@ public class UtilityTests
     public void AllocationEstimatesAndExceptionConstructors()
     {
         Assert.Equal(sizeof(long), EstimateSize.Struct<long>());
+        Assert.Equal(IntPtr.Size, EstimateSize.Struct<object>());
         Assert.True(EstimateSize.Class<object>() >= IntPtr.Size * 2);
         Assert.True(EstimateSize.Constructor(() => new byte[100]) >= 100);
         Assert.Throws<ArgumentNullException>(() => EstimateSize.Constructor(null!));
@@ -34,6 +36,16 @@ public class UtilityTests
         Assert.NotNull(new PanicException());
         Assert.Equal("failure", new PanicException("failure").Message);
         Assert.Same(cause, new PanicException("failure", cause).InnerException);
+    }
+
+    [Fact]
+    public void FailedAllocationEstimateReleasesTheLastObject()
+    {
+        var reference = RunFailingEstimate();
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+        Assert.False(reference.IsAlive);
     }
 
     [Fact]
@@ -82,6 +94,24 @@ public class UtilityTests
         }
 
         Assert.False(mutex.IsLocked);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static WeakReference RunFailingEstimate()
+    {
+        WeakReference? reference = null;
+        Assert.Throws<InvalidOperationException>(() => EstimateSize.Constructor(() =>
+        {
+            if (reference is not null)
+            {
+                throw new InvalidOperationException();
+            }
+
+            var instance = new object();
+            reference = new WeakReference(instance);
+            return instance;
+        }));
+        return Assert.IsType<WeakReference>(reference);
     }
 
     private sealed class InterfaceLock : IAsyncLockable

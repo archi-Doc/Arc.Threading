@@ -25,20 +25,21 @@ public static class CancellationTokenPool
     /// Retrieves a <see cref="CancellationTokenSource"/> from the shared object pool.
     /// </summary>
     /// <returns>A <see cref="CancellationTokenSource"/> instance from the pool, which may be new or reused.</returns>
+    /// <remarks>The caller owns the source exclusively and must return it once when finished.</remarks>
     public static CancellationTokenSource Rent()
         => Pool.Rent();
 
     /// <summary>
-    /// Resets and returns a <see cref="CancellationTokenSource"/> to the shared object pool, or disposes it if it cannot be reset.
+    /// Resets and returns a source to the shared pool, or disposes it if reset fails or the pool is full.
     /// </summary>
     /// <param name="cancellationTokenSource">The <see cref="CancellationTokenSource"/> instance to reset and return to the pool.</param>
     /// <remarks>
-    /// This method first attempts to reset the <see cref="CancellationTokenSource"/> to its initial state.
-    /// If the reset succeeds, the instance is returned to the pool for reuse.
-    /// Canceled sources cannot be reset and are disposed. Passing a disposed source throws.
+    /// Canceled sources cannot be reset and are disposed.
     /// The caller must own the source exclusively, finish all registrations, and stop using its old tokens before returning it.
-    /// This ensures that only valid, reusable instances are returned to the pool.
+    /// Return each source only once.
     /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="cancellationTokenSource"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ObjectDisposedException">The source has already been disposed.</exception>
     public static void Return(CancellationTokenSource cancellationTokenSource)
     {
         ArgumentNullException.ThrowIfNull(cancellationTokenSource);

@@ -100,6 +100,68 @@ public class WorkTests
     }
 
     [Fact]
+    public async Task UniqueWorkCanRunAgainAfterCancellationOrSynchronousFailure()
+    {
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        var calls = 0;
+        var asyncWork = new UniqueWork(() => Interlocked.Increment(ref calls) == 1
+            ? Task.FromCanceled(cancellation.Token)
+            : Task.CompletedTask);
+        var first = asyncWork.Run();
+        var error = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => first);
+        Assert.Equal(cancellation.Token, error.CancellationToken);
+        Assert.True(first.IsCanceled);
+        await asyncWork.Run();
+        Assert.Equal(2, calls);
+
+        calls = 0;
+        var synchronousWork = new UniqueWork((Action)(() =>
+        {
+            if (Interlocked.Increment(ref calls) == 1)
+            {
+                throw new InvalidOperationException("first run");
+            }
+        }));
+        await Assert.ThrowsAsync<InvalidOperationException>(synchronousWork.Run);
+        await synchronousWork.Run();
+        Assert.Equal(2, calls);
+    }
+
+    [Fact]
+    public async Task DelayedExecutorCancellationStopsAnActiveRunAndItsRequestedRerun()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var calls = 0;
+        var executor = new DelayedTaskExecutor(
+            async token =>
+            {
+                Assert.Equal(cancellation.Token, token);
+                Interlocked.Increment(ref calls);
+                started.TrySetResult();
+                try
+                {
+                    await Task.Delay(Timeout.Infinite, token);
+                }
+                finally
+                {
+                    stopped.TrySetResult();
+                }
+            },
+            TimeSpan.Zero,
+            cancellation.Token);
+        Assert.True(executor.Request());
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(executor.Request());
+        cancellation.Cancel();
+        await stopped.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.False(executor.Request());
+        Assert.Equal(1, Volatile.Read(ref calls));
+    }
+
+    [Fact]
     public async Task DelayedExecutorCoalescesWaitingAndSchedulesOneRerun()
     {
         using var source = new CancellationTokenSource();

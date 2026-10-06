@@ -36,7 +36,7 @@ public sealed class DelayedTaskExecutor
     /// The delay from the first request. Further requests do not restart it.
     /// </param>
     /// <param name="cancellationToken">
-    /// A token used to cancel pending delays and action execution.
+    /// Cancels pending delays and is passed to the action for cooperative cancellation.
     /// </param>
     /// <exception cref="ArgumentNullException"><paramref name="action"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="delay"/> is negative or exceeds the timer limit.</exception>
@@ -115,12 +115,8 @@ public sealed class DelayedTaskExecutor
                 // ForceYielding: a zero delay completes synchronously, which would otherwise run the action inline in Request().
                 await Task.Delay(this.delay, this.cancellationToken).ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
 
-                // Waiting -> Running
-                if (Interlocked.CompareExchange(ref this.state, Running, Waiting) != Waiting)
-                {
-                    Volatile.Write(ref this.state, Idle);
-                    return;
-                }
+                // Only this loop can change the Waiting state; requests during the delay are coalesced.
+                Volatile.Write(ref this.state, Running);
 
                 await this.action(this.cancellationToken).ConfigureAwait(false);
 

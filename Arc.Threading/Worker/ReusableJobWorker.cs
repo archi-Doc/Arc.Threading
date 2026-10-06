@@ -96,9 +96,14 @@ public class ReusableJobWorker<TJob> : TaskCore<ReusableJobWorker<TJob>>, IDispo
 
 Terminated:
         worker.AbortAllJobs();
-        while (Volatile.Read(ref worker.numberOfTasks) != 0)
+        if (Volatile.Read(ref worker.numberOfTasks) != 0)
         {
-            await Task.Delay(1).ConfigureAwait(false);
+            var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            Volatile.Write(ref worker.concurrentTasksCompletion, completion);
+            if (Volatile.Read(ref worker.numberOfTasks) != 0)
+            {
+                await completion.Task.ConfigureAwait(false);
+            }
         }
 
         worker.OnTerminated();
@@ -170,9 +175,11 @@ Terminated:
     public int PendingJobCount => Volatile.Read(ref this.numberOfPendingJobs);
 
     private readonly JobProcessor? processJob;
+    private readonly Func<Task> processConcurrentJobs;
     private readonly ObjectPool<TJob> freeJobs;
     private readonly ConcurrentQueue<TJob> pendingJobs;
     private AsyncPulseEvent? addEvent = new();
+    private TaskCompletionSource? concurrentTasksCompletion;
     private int numberOfPendingJobs;
     private int numberOfTasks;
     private int numberOfConcurrentTasks;
@@ -194,6 +201,7 @@ Terminated:
         : base(parent, Process, options, true)
     {
         this.processJob = processJob;
+        this.processConcurrentJobs = this.ProcessConcurrentJobsAsync;
         this.freeJobs = new(() => new(), poolCapacity);
         this.pendingJobs = new();
         if ((options & ExecutionCoreOptions.DelayedStart) == 0)
@@ -227,12 +235,14 @@ Terminated:
     /// Return a job only after its wait has completed: the state becomes final before <see cref="OnJobFinished(TJob)"/> runs and waiters are released,<br/>
     /// so returning a job as soon as <see cref="ReusableJob.State"/> is final lets the worker touch a job that may already be rented again.
     /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="job"/> is <see langword="null"/>.</exception>
     public void Return(TJob job)
     {
+        ArgumentNullException.ThrowIfNull(job);
         var currentState = Volatile.Read(ref job.state);
         if (currentState == (byte)ReusableJobState.Completed ||
             currentState == (byte)ReusableJobState.Aborted)
-        {// Completed -> Initial, Aborted -> Initial
+        {// Completed -> Pooled, Aborted -> Pooled
             if (Interlocked.CompareExchange(ref job.state, (byte)ReusableJobState.Pooled, currentState) == currentState)
             {
                 job.Options = default;
@@ -249,12 +259,15 @@ Terminated:
     /// <param name="job">The job to enqueue.</param>
     /// <remarks>
     /// The job transitions from <see cref="ReusableJobState.Initial"/> to <see cref="ReusableJobState.Pending"/>.
+    /// A stopped or disposed worker aborts the job and releases its waiters.
     /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="job"/> is <see langword="null"/>.</exception>
     /// <exception cref="InvalidOperationException">
     /// <paramref name="job"/> is not in the <see cref="ReusableJobState.Initial"/> state.
     /// </exception>
     public void Add(TJob job)
     {
+        ArgumentNullException.ThrowIfNull(job);
         // Initial -> Pending
         if (Interlocked.CompareExchange(ref job.state, (byte)ReusableJobState.Pending, (byte)ReusableJobState.Initial) != (byte)ReusableJobState.Initial)
         {
@@ -265,6 +278,11 @@ Terminated:
         Interlocked.Increment(ref this.numberOfPendingJobs);
         this.pendingJobs.Enqueue(job);
         this.addEvent?.Pulse();
+
+        if (this.MaxConcurrentTasks > 1 && Volatile.Read(ref this.numberOfTasks) != 0)
+        {
+            this.TryAddConcurrentTask(Volatile.Read(ref this.numberOfPendingJobs));
+        }
 
         if (!this.CanContinue)
         {
@@ -280,7 +298,7 @@ Terminated:
     /// </param>
     /// <returns>
     /// A task that returns <see langword="true"/> once no jobs remain outstanding, including aborted jobs,<br/>
-    /// or <see langword="false"/> if the operation was cancelled.
+    /// or <see langword="false"/> if the wait is canceled or the worker is disposed or stops with jobs outstanding.
     /// </returns>
     public Task<bool> WaitForCompletionAsync(CancellationToken cancellationToken = default)
         => this.WaitForCompletionAsync(Timeout.Infinite, cancellationToken);
@@ -288,11 +306,12 @@ Terminated:
     /// <summary>
     /// Waits for the completion of all jobs.
     /// </summary>
-    /// <param name="timeout">The time span to wait.</param>
+    /// <param name="timeout">The maximum wait, or <see cref="Timeout.InfiniteTimeSpan"/> to wait indefinitely.</param>
     /// <param name="cancellationToken">
     /// A cancellation token that can be used to cancel the wait operation.
     /// </param>
-    /// <returns><see langword="true"/>: All works are complete.<br/><see langword="false"/>: Timeout or cancelled.</returns>
+    /// <returns><see langword="true"/> if all jobs finish; otherwise, <see langword="false"/> on timeout, cancellation, or disposal.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">The timeout is negative other than -1 ms, or exceeds <see cref="int.MaxValue"/> milliseconds.</exception>
     public Task<bool> WaitForCompletionAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
     {
         if (timeout == Timeout.InfiniteTimeSpan)
@@ -315,17 +334,15 @@ Terminated:
     /// <param name="cancellationToken">
     /// A cancellation token that can be used to cancel the wait operation.
     /// </param>
-    /// <returns><see langword="true"/>: All works are complete.<br/><see langword="false"/>: Timeout or cancelled.</returns>
+    /// <returns><see langword="true"/> if all jobs finish; otherwise, <see langword="false"/> on timeout, cancellation, or disposal.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="millisecondsTimeout"/> is less than -1.</exception>
     public async Task<bool> WaitForCompletionAsync(int millisecondsTimeout, CancellationToken cancellationToken = default)
     {
+        ArgumentOutOfRangeException.ThrowIfLessThan(millisecondsTimeout, Timeout.Infinite);
         if (this.IsDisposed)
         {
             // throw new ObjectDisposedException(this.GetType().Name);
             return false;
-        }
-        else if (millisecondsTimeout < Timeout.Infinite)
-        {
-            throw new ArgumentOutOfRangeException(nameof(millisecondsTimeout));
         }
 
         long startTimestamp = 0;
@@ -381,6 +398,7 @@ Terminated:
     /// Override this method to implement custom job processing logic.<br/>
     /// This method is called automatically by the worker when a job is dequeued from the pending queue.<br/>
     /// Alternatively, you can provide a <c>processJob</c> delegate in the constructor instead of overriding this method.
+    /// Exceptions mark the job as <see cref="ReusableJobState.Aborted"/> and do not stop other jobs.
     /// </remarks>
     protected virtual Task ProcessJobAsync(TJob job, CancellationToken cancellationToken)
     {
@@ -439,41 +457,69 @@ Terminated:
     }
 
     private void TryAddConcurrentTask(int numberOfPendingJobs)
-    {// Add a task to process the pending jobs concurrently, if the queue is long enough.
-        var currentTasks = Volatile.Read(ref this.numberOfConcurrentTasks);
-        if (currentTasks >= this.MaxConcurrentTasks - 1 ||
-            currentTasks + 1 >= (long)numberOfPendingJobs * 2)
+    {// Let each processor recruit another until the queue or concurrency limit is exhausted.
+        while (true)
         {
-            return;
-        }
+            var currentTasks = Volatile.Read(ref this.numberOfConcurrentTasks);
+            if (numberOfPendingJobs <= 0 || !this.CanContinue ||
+                currentTasks >= this.MaxConcurrentTasks - 1)
+            {
+                return;
+            }
 
-        if (Interlocked.CompareExchange(ref this.numberOfConcurrentTasks, currentTasks + 1, currentTasks) != currentTasks)
-        {
-            return;
+            if (Interlocked.CompareExchange(ref this.numberOfConcurrentTasks, currentTasks + 1, currentTasks) == currentTasks)
+            {
+                break;
+            }
         }
 
         Interlocked.Increment(ref this.numberOfTasks);
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                while (this.pendingJobs.TryDequeue(out var job))
-                {
-                    Interlocked.Decrement(ref this.numberOfPendingJobs);
-                    await ProcessJob(this, job).ConfigureAwait(false);
+        if (!this.CanContinue)
+        {// Add may race with shutdown; reserve the processor before the final cancellation check.
+            this.CompleteConcurrentTask();
+            return;
+        }
 
-                    if (!this.CanContinue)
-                    {// To prevent the job from freezing, complete the acquired job first, then check whether it has been terminated.
-                        return;
-                    }
+        _ = Task.Run(this.processConcurrentJobs);
+    }
+
+    private async Task ProcessConcurrentJobsAsync()
+    {
+        try
+        {
+            while (this.pendingJobs.TryDequeue(out var job))
+            {
+                var numberOfPendingJobs = Interlocked.Decrement(ref this.numberOfPendingJobs);
+                this.TryAddConcurrentTask(numberOfPendingJobs);
+                await ProcessJob(this, job).ConfigureAwait(false);
+
+                if (!this.CanContinue)
+                {// To prevent the job from freezing, complete the acquired job first, then check whether it has been terminated.
+                    return;
                 }
             }
-            finally
-            {
-                Interlocked.Decrement(ref this.numberOfConcurrentTasks);
-                Interlocked.Decrement(ref this.numberOfTasks);
-            }
-        });
+        }
+        finally
+        {
+            this.CompleteConcurrentTask();
+        }
+    }
+
+    private void CompleteConcurrentTask()
+    {
+        Interlocked.Decrement(ref this.numberOfConcurrentTasks);
+
+        // A submission may have seen a full worker after this processor found the queue empty.
+        // Hand off that work while this processor is still counted for termination.
+        if (!this.pendingJobs.IsEmpty)
+        {
+            this.TryAddConcurrentTask(Volatile.Read(ref this.numberOfPendingJobs));
+        }
+
+        if (Interlocked.Decrement(ref this.numberOfTasks) == 0)
+        {
+            Volatile.Read(ref this.concurrentTasksCompletion)?.TrySetResult();
+        }
     }
 
     private void AbortAllJobs()

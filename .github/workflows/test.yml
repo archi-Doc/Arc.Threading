@@ -7,7 +7,11 @@ on:
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
 
     steps:
     - uses: actions/checkout@v7
@@ -20,12 +24,12 @@ jobs:
     - name: Build
       run: dotnet build --configuration Release --no-restore
     - name: Test
-      run: dotnet test xUnitTest/xUnitTest.csproj -c Release --no-build --coverage --coverage-output-format cobertura --coverage-output coverage.cobertura.xml --results-directory artifacts/coverage
+      run: dotnet test --project xUnitTest/xUnitTest.csproj -c Release --no-build --coverage --coverage-output-format cobertura --coverage-output coverage.cobertura.xml --results-directory artifacts/coverage
     - name: Upload coverage
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: coverage
+        name: coverage-${{ runner.os }}
         path: artifacts/coverage
 
   native-aot:

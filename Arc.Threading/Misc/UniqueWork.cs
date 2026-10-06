@@ -16,6 +16,7 @@ public class UniqueWork
     /// Initializes a new instance of the <see cref="UniqueWork"/> class.
     /// </summary>
     /// <param name="action">The work to execute.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="action"/> is <see langword="null"/>.</exception>
     public UniqueWork(Action action)
     {
         ArgumentNullException.ThrowIfNull(action);
@@ -27,6 +28,7 @@ public class UniqueWork
     /// Initializes a new instance of the <see cref="UniqueWork"/> class.
     /// </summary>
     /// <param name="asyncAction">The asynchronous work to execute.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="asyncAction"/> is <see langword="null"/>.</exception>
     public UniqueWork(Func<Task> asyncAction)
     {
         ArgumentNullException.ThrowIfNull(asyncAction);
@@ -35,7 +37,7 @@ public class UniqueWork
     }
 
     /// <summary>
-    /// Starts the work, or joins the work which is already in progress.
+    /// Schedules the work on the thread pool, or joins the work already in progress.
     /// </summary>
     /// <returns>The task of the work being executed.</returns>
     public Task Run()

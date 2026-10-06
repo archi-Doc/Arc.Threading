@@ -14,10 +14,10 @@ public static class EstimateSize
     private static object? sink; // Prevents the JIT from eliminating the allocations (escape analysis).
 
     /// <summary>
-    /// Estimates the size in bytes of a struct type.
+    /// Returns the size of the managed representation of a type, in bytes.
     /// </summary>
-    /// <typeparam name="TStruct">The struct type to estimate the size of.</typeparam>
-    /// <returns>The size in bytes of the struct.</returns>
+    /// <typeparam name="TStruct">The type to measure, including ref structs.</typeparam>
+    /// <returns>The value size for value types, or the reference size for reference types.</returns>
     public static int Struct<TStruct>()
         where TStruct : allows ref struct
     {
@@ -35,36 +35,45 @@ public static class EstimateSize
         const int N = 1000;
         long before = GC.GetAllocatedBytesForCurrentThread();
 
-        for (int i = 0; i < N; i++)
+        try
         {
-            Volatile.Write(ref sink, new TClass());
+            for (int i = 0; i < N; i++)
+            {
+                Volatile.Write(ref sink, new TClass());
+            }
+
+            return (int)((GC.GetAllocatedBytesForCurrentThread() - before) / N);
         }
-
-        long after = GC.GetAllocatedBytesForCurrentThread();
-        Volatile.Write(ref sink, null);
-
-        return (int)((after - before) / N);
+        finally
+        {
+            Volatile.Write(ref sink, null);
+        }
     }
 
     /// <summary>
-    /// Estimates the size in bytes of an object created by a specified factory delegate by allocating multiple instances and averaging the allocated memory.
+    /// Estimates the average allocation per factory call on the current thread.
     /// </summary>
     /// <param name="factory">A delegate that creates an object instance.</param>
-    /// <returns>The estimated size in bytes of the created object.</returns>
+    /// <returns>The average bytes allocated, including allocations made inside the factory.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="factory"/> is null.</exception>
     public static int Constructor(Func<object> factory)
     {
         ArgumentNullException.ThrowIfNull(factory);
         const int N = 1000;
         long before = GC.GetAllocatedBytesForCurrentThread();
 
-        for (int i = 0; i < N; i++)
+        try
         {
-            Volatile.Write(ref sink, factory());
+            for (int i = 0; i < N; i++)
+            {
+                Volatile.Write(ref sink, factory());
+            }
+
+            return (int)((GC.GetAllocatedBytesForCurrentThread() - before) / N);
         }
-
-        long after = GC.GetAllocatedBytesForCurrentThread();
-        Volatile.Write(ref sink, null);
-
-        return (int)((after - before) / N);
+        finally
+        {
+            Volatile.Write(ref sink, null);
+        }
     }
 }
