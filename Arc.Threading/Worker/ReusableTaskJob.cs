@@ -9,6 +9,10 @@ namespace Arc.Threading;
 /// <summary>
 /// Represents a reusable job that uses task-based asynchronous waiting.
 /// </summary>
+/// <remarks>
+/// Completion includes aborted jobs; inspect <see cref="ReusableJob.State"/> for the outcome.
+/// Canceling or timing out a wait does not cancel job processing. Finish all waits before returning the job to its pool.
+/// </remarks>
 public record class ReusableTaskJob : ReusableJob
 {
     private TaskCompletionSource? tcs;
@@ -41,11 +45,11 @@ public record class ReusableTaskJob : ReusableJob
     }
 
     /// <summary>
-    /// Asynchronously waits until this job is completed.
+    /// Asynchronously waits until this job completes or is aborted.
     /// </summary>
     /// <param name="cancellationToken">A token used to cancel the wait operation.</param>
     /// <returns>
-    /// A task that completes when the job is set, or is canceled if <paramref name="cancellationToken"/> is canceled.
+    /// A task that completes when the job finishes, or is canceled if <paramref name="cancellationToken"/> is canceled.
     /// </returns>
     /// <exception cref="InvalidOperationException">The job has no synchronization primitive (it has been returned to the pool).</exception>
     public Task WaitAsync(CancellationToken cancellationToken = default)
@@ -61,10 +65,10 @@ public record class ReusableTaskJob : ReusableJob
     /// <summary>
     /// Starts an asynchronous wait for completion with a timeout and optional cancellation.
     /// </summary>
-    /// <param name="timeout">The maximum time to wait before timing out. </param>
+    /// <param name="timeout">The maximum wait, or <see cref="Timeout.InfiniteTimeSpan"/> to wait indefinitely.</param>
     /// <param name="cancellationToken">A token used to cancel the wait operation.</param>
     /// <returns>
-    /// A task that completes when the job is set, is canceled if <paramref name="cancellationToken"/> is canceled,<br/>
+    /// A task that completes when the job finishes, is canceled if <paramref name="cancellationToken"/> is canceled,<br/>
     /// or faults with a <see cref="TimeoutException"/> if <paramref name="timeout"/> elapses.
     /// </returns>
     /// <exception cref="InvalidOperationException">The job has no synchronization primitive (it has been returned to the pool).</exception>

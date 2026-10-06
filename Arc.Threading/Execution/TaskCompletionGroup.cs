@@ -25,7 +25,7 @@ public class TaskCompletionGroup : ExecutionGroup
     /// <param name="parent">The parent <see cref="ExecutionGroup"/> that contains this group.</param>
     /// <param name="stack">The <see cref="ExecutionStack"/> used for this group's execution context.</param>
     /// <param name="isIndependent">
-    /// <see langword="true"/> to make this group independent from the parent group's lifecycle; otherwise, <see langword="false"/>.
+    /// Whether default recursive termination skips this group. Parent disposal detaches independent groups.
     /// </param>
     /// <param name="signalHandler">An optional <see cref="ExecutionSignalHandler"/> that handles execution signals for this group.
     /// </param>

@@ -9,10 +9,10 @@ using System.Threading;
 namespace Arc.Threading;
 
 /// <summary>
-/// Represents the base record class for reusable jobs that can be executed by a worker.<br/>
-/// Since this class does not provide a way to wait for completion, inherit from <br/>
-/// <see cref="ReusableTaskJob" /> (TaskCompletionSource-based, recommended) or <see cref="ReusableBlockingJob" /> (ManualResetEventSlim-based).
+/// Represents a reusable worker job without a completion wait primitive.
+/// Use <see cref="ReusableTaskJob"/> for asynchronous waits or <see cref="ReusableBlockingJob"/> for blocking waits.
 /// </summary>
+/// <remarks>Initialize custom fields before submission. Do not mutate or return a submitted job until its wait completes.</remarks>
 public record class ReusableJob
 {
     /// <summary>

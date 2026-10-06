@@ -11,6 +11,8 @@ namespace Arc.Threading;
 /// <remarks>
 /// This job type reuses one <see cref="ManualResetEventSlim"/> across rentals.<br/>
 /// All waiters must finish before the job is returned to the pool.<br/>
+/// Completion includes aborted jobs; inspect <see cref="ReusableJob.State"/> for the outcome.<br/>
+/// Canceling or timing out a wait does not cancel job processing.<br/>
 /// Call <see cref="Wait(CancellationToken)"/> or <see cref="Wait(TimeSpan, CancellationToken)"/> to block until completion.<br/>
 /// If asynchronous waiting is acceptable, <see cref="ReusableTaskJob"/> is recommended.
 /// </remarks>

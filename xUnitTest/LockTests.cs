@@ -9,6 +9,142 @@ using Arc.Threading;
 public class LockTests
 {
     [Fact]
+    public async Task InterruptedSynchronousWaiterDoesNotStrandAsyncWaiter()
+    {
+        var mutex = new SemaphoreLock();
+        mutex.Enter();
+        Exception? interruption = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                mutex.Enter();
+                mutex.Exit();
+            }
+            catch (Exception exception)
+            {
+                interruption = exception;
+            }
+        })
+        {
+            IsBackground = true,
+        };
+        thread.Start();
+        Assert.True(SpinWait.SpinUntil(() => (thread.ThreadState & ThreadState.WaitSleepJoin) != 0, TimeSpan.FromSeconds(5)));
+        var asynchronousWaiter = mutex.EnterAsync();
+
+        // Delay monitor reacquisition until interruption and release have both happened.
+        lock (mutex)
+        {
+            thread.Interrupt();
+            mutex.Exit();
+        }
+
+        Assert.True(thread.Join(TimeSpan.FromSeconds(5)));
+        Assert.IsType<ThreadInterruptedException>(interruption);
+        Assert.True(await asynchronousWaiter.WaitAsync(TimeSpan.FromSeconds(5)));
+        mutex.Exit();
+        Assert.False(mutex.IsLocked);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task InterruptedSynchronousWaiterInAsyncQueueDoesNotKeepOwnership(bool transferBeforeCleanup)
+    {
+        var mutex = new SemaphoreLock();
+        mutex.Enter();
+        var firstWaiter = mutex.EnterAsync();
+        Exception? interruption = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                mutex.Enter();
+                mutex.Exit();
+            }
+            catch (Exception exception)
+            {
+                interruption = exception;
+            }
+        })
+        {
+            IsBackground = true,
+        };
+        thread.Start();
+        Assert.True(SpinWait.SpinUntil(() => (thread.ThreadState & ThreadState.WaitSleepJoin) != 0, TimeSpan.FromSeconds(5)));
+
+        lock (mutex)
+        {
+            thread.Interrupt();
+            mutex.Exit();
+            if (transferBeforeCleanup)
+            {
+                // The first asynchronous waiter owns the lock, then passes it to the interrupted thread.
+                mutex.Exit();
+            }
+        }
+
+        Assert.True(thread.Join(TimeSpan.FromSeconds(5)));
+        Assert.IsType<ThreadInterruptedException>(interruption);
+        Assert.True(await firstWaiter.WaitAsync(TimeSpan.FromSeconds(5)));
+        if (!transferBeforeCleanup)
+        {
+            mutex.Exit();
+        }
+
+        Assert.False(mutex.IsLocked);
+        Assert.True(mutex.TryEnter());
+        mutex.Exit();
+    }
+
+    [Fact]
+    public async Task CancelingMiddleAndTailWaitersPreservesQueueOrder()
+    {
+        var mutex = new SemaphoreLock();
+        mutex.Enter();
+        using var middleSource = new CancellationTokenSource();
+        using var tailSource = new CancellationTokenSource();
+        var first = mutex.EnterAsync();
+        var middle = mutex.EnterAsync(middleSource.Token);
+        var last = mutex.EnterAsync();
+        var tail = mutex.EnterAsync(tailSource.Token);
+        middleSource.Cancel();
+        tailSource.Cancel();
+        Assert.False(await middle.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.False(await tail.WaitAsync(TimeSpan.FromSeconds(5)));
+
+        mutex.Exit();
+        Assert.True(await first.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.False(last.IsCompleted);
+        mutex.Exit();
+        Assert.True(await last.WaitAsync(TimeSpan.FromSeconds(5)));
+        mutex.Exit();
+        Assert.False(mutex.IsLocked);
+    }
+
+    [Fact]
+    public async Task CancellationAndReleaseRacesPreserveOwnership()
+    {
+        var mutex = new SemaphoreLock();
+        for (var iteration = 0; iteration < 100; iteration++)
+        {
+            mutex.Enter();
+            using var source = new CancellationTokenSource();
+            var waiter = mutex.EnterAsync(source.Token);
+            await Task.WhenAll(Task.Run(source.Cancel), Task.Run(mutex.Exit)).WaitAsync(TimeSpan.FromSeconds(5));
+            if (await waiter.WaitAsync(TimeSpan.FromSeconds(5)))
+            {
+                Assert.True(mutex.IsLocked);
+                mutex.Exit();
+            }
+
+            Assert.True(mutex.TryEnter());
+            mutex.Exit();
+        }
+    }
+
+    [Fact]
     public async Task ScopeAndTryEnterReleaseExactlyOnce()
     {
         var mutex = new SemaphoreLock();
@@ -105,6 +241,7 @@ public class LockTests
     [Fact]
     public void MonitorScopesAreReentrant()
     {
+        Assert.Throws<ArgumentNullException>(() => new LockScope(null!));
         var mutex = new MonitorLock();
         Assert.False(mutex.IsLocked);
         using (mutex.EnterScope())

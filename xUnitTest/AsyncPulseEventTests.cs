@@ -29,12 +29,21 @@ public sealed class AsyncPulseEventTests
     [InlineData(-2)]
     [InlineData(-0.5)]
     [InlineData(2147483648)]
-    public void InvalidTimeoutDoesNotConsumeRetainedPulse(double milliseconds)
+    public async Task InvalidTimeoutDoesNotConsumeRetainedPulse(double milliseconds)
     {
         var ev = new AsyncPulseEvent();
         ev.Pulse();
         Assert.Throws<ArgumentOutOfRangeException>(() => { _ = ev.WaitAsync(TimeSpan.FromMilliseconds(milliseconds), TestContext.Current.CancellationToken); });
-        Assert.True(ev.WaitAsync(TestContext.Current.CancellationToken).IsCompletedSuccessfully);
+        Assert.True(await ev.WaitAsync(0, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task InvalidIntegerTimeoutDoesNotConsumeRetainedPulse()
+    {
+        var ev = new AsyncPulseEvent();
+        ev.Pulse();
+        Assert.Throws<ArgumentOutOfRangeException>(() => { _ = ev.WaitAsync(-2, new CancellationToken(true)); });
+        Assert.True(await ev.WaitAsync(0, TestContext.Current.CancellationToken));
     }
 
     [Fact]

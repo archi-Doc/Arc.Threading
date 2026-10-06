@@ -81,12 +81,10 @@ public class ExecutionStack
     }
 
     /// <summary>
-    /// Creates and pushes a new <see cref="ExecutionCore"/> onto the stack.
+    /// Creates and pushes a new <see cref="TaskCompletionGroup"/> onto the stack.
     /// </summary>
     /// <param name="parent">
-    /// The parent execution group.
-    /// <br/>
-    /// When the parent is deleted, this execution is automatically canceled and deleted as well.
+    /// The owning group. Parent disposal cancels and detaches this group, without completing its completion task.
     /// </param>
     /// <param name="signalHandler">
     /// An optional handler invoked when this execution processes an <see cref="ExecutionSignal"/>.

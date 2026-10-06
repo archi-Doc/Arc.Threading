@@ -13,14 +13,9 @@ namespace Arc.Threading;
 /// Represents the root execution group that owns and coordinates top-level execution groups.
 /// </summary>
 /// <remarks>
-/// <para>
-/// <see cref="BaseGroup"/> manages executions that provide base services for the application.<br/>
-/// Executions are managed independently, and when <see cref="WaitForTerminationAsync(TimeSpan, TerminationOptions, CancellationToken)"/> is called, <see cref="ExecutionCore.RequestTermination(Arc.Threading.TerminationOptions)"/> is called on the BaseGroup.
-/// </para>
-/// <para>
-/// <see cref="IndependentGroup"/> is intended for executions that can be managed independently,
-/// but are still tracked under the same root lifecycle.
-/// </para>
+/// <see cref="BaseGroup"/> and <see cref="IndependentGroup"/> are excluded from default recursive termination.
+/// Waiting on the root first cancels and waits for all base services, including independent descendants,
+/// then waits for the remaining tree according to the requested options.
 /// </remarks>
 public class ExecutionRoot : ExecutionGroup
 {
@@ -32,13 +27,12 @@ public class ExecutionRoot : ExecutionGroup
     // internal readonly Dictionary<long, ExecutionCore> IdToCore = new(); // SyncObject
 
     /// <summary>
-    /// Gets the execution group that provides base services for the application.<br/>
-    /// Executions are managed independently, and when <see cref="WaitForTerminationAsync(TimeSpan, TerminationOptions, CancellationToken)"/> is called, <see cref="ExecutionCore.RequestTermination(Arc.Threading.TerminationOptions)"/> is called on the BaseGroup.
+    /// Gets the base services group, whose entire subtree is canceled and awaited when waiting on this root.
     /// </summary>
     public ExecutionGroup BaseGroup { get; }
 
     /// <summary>
-    /// Gets the execution group for work that is independent from the base flow.
+    /// Gets the group excluded from root termination and waiting unless independent descendants are explicitly included.
     /// </summary>
     public ExecutionGroup IndependentGroup { get; }
 
@@ -62,10 +56,12 @@ public class ExecutionRoot : ExecutionGroup
     /// <summary>
     /// Requests the termination of <see cref="BaseGroup"/>, and asynchronously waits for the termination of the execution tree.
     /// </summary>
-    /// <param name="timeout">The <see cref="TimeSpan"/> to wait before termination.</param>
-    /// <param name="options">An additional options for controlling termination behavior.</param>
+    /// <param name="timeout">The total time to wait, or <see cref="Timeout.InfiniteTimeSpan"/> to wait indefinitely.</param>
+    /// <param name="options">Options controlling which descendants to wait for after base services terminate.</param>
     /// <param name="cancellationToken">An additional cancellation token to cancel the wait operation.</param>
     /// <returns><see langword="true"/> if termination was observed before timeout/cancellation; otherwise, <see langword="false"/>.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">The timeout is negative other than <see cref="Timeout.InfiniteTimeSpan"/>.</exception>
+    /// <remarks>Only base services are canceled by this method. Including independent descendants waits for <see cref="IndependentGroup"/> without requesting its cancellation.</remarks>
     public override async Task<bool> WaitForTerminationAsync(TimeSpan timeout, TerminationOptions options = default, CancellationToken cancellationToken = default)
     {
         if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)

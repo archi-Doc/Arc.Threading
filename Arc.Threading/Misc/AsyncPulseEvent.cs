@@ -37,9 +37,7 @@ public sealed class AsyncPulseEvent
     }
 
     /// <summary>
-    /// Sends a pulse.<br/>
-    /// If a waiter exists, it is released.<br/>
-    /// Otherwise, the pulse is either retained or dropped depending on <c>retainPulseIfNoWaiter</c>.
+    /// Releases the current waiter, or retains or drops the pulse according to the constructor option.
     /// </summary>
     public void Pulse()
     {
@@ -84,10 +82,10 @@ public sealed class AsyncPulseEvent
     /// <summary>
     /// Waits asynchronously for a pulse, with optional cancellation.
     /// </summary>
-    /// <param name="cancellationToken"> A token used to observe cancellation while waiting.</param>
+    /// <param name="cancellationToken">A token used to observe cancellation while waiting.</param>
     /// <returns>
     /// A task that resolves to <see langword="true"/> when a pulse is consumed; otherwise
-    /// <see langword="false"/> if the wait is canceled or times out.
+    /// <see langword="false"/> if the wait is canceled.
     /// </returns>
     /// <exception cref="InvalidOperationException">
     /// Thrown when another wait operation is already in progress. Only one concurrent waiter is supported.
@@ -98,8 +96,8 @@ public sealed class AsyncPulseEvent
     /// <summary>
     /// Waits asynchronously for a pulse, with a timeout specified in milliseconds and optional cancellation.
     /// </summary>
-    /// <param name="millisecondsTimeout">The number of milliseconds to wait for a pulse.</param>
-    /// <param name="cancellationToken"> A token used to observe cancellation while waiting.</param>
+    /// <param name="millisecondsTimeout">The number of milliseconds to wait; -1 waits indefinitely and 0 checks for a retained pulse.</param>
+    /// <param name="cancellationToken">A token used to observe cancellation while waiting.</param>
     /// <returns>
     /// A task that resolves to <see langword="true"/> when a pulse is consumed; otherwise
     /// <see langword="false"/> if the wait is canceled or times out.
@@ -107,6 +105,7 @@ public sealed class AsyncPulseEvent
     /// <exception cref="InvalidOperationException">
     /// Thrown when another wait operation is already in progress. Only one concurrent waiter is supported.
     /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">The timeout is less than -1.</exception>
     public Task<bool> WaitAsync(int millisecondsTimeout, CancellationToken cancellationToken = default)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(millisecondsTimeout, Timeout.Infinite);

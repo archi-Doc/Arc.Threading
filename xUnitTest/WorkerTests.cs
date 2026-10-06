@@ -8,6 +8,183 @@ using Arc.Threading;
 
 public class WorkerTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task QueuedJobsUseAllConfiguredProcessorsWithoutExceedingTheLimit(bool addWhileProcessing)
+    {
+        using var root = new ExecutionRoot();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var firstEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var active = 0;
+        var exceededLimit = 0;
+        using var worker = new TestWorker(root, async _ =>
+        {
+            var count = Interlocked.Increment(ref active);
+            firstEntered.TrySetResult();
+            if (count > 4)
+            {
+                Interlocked.Exchange(ref exceededLimit, 1);
+            }
+
+            if (count == 4)
+            {
+                entered.TrySetResult();
+            }
+
+            try
+            {
+                await release.Task;
+            }
+            finally
+            {
+                Interlocked.Decrement(ref active);
+            }
+        }) { MaxConcurrentTasks = 4 };
+        var jobs = Enumerable.Range(0, 12).Select(_ => worker.Rent()).ToArray();
+        try
+        {
+            worker.Add(jobs[0]);
+            if (addWhileProcessing)
+            {
+                worker.SendSignal(ExecutionSignal.Start);
+                await firstEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            }
+
+            foreach (var job in jobs.Skip(1))
+            {
+                worker.Add(job);
+            }
+
+            worker.SendSignal(ExecutionSignal.Start);
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal(4, Volatile.Read(ref active));
+            Assert.Equal(8, worker.PendingJobCount);
+        }
+        finally
+        {
+            release.TrySetResult();
+        }
+
+        await Task.WhenAll(jobs.Select(job => job.Task)).WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(await worker.WaitForCompletionAsync(TimeSpan.FromSeconds(5)));
+        Assert.Equal(0, exceededLimit);
+        Assert.All(jobs, job => Assert.Equal(ReusableJobState.Completed, job.State));
+    }
+
+    [Fact]
+    public async Task ConcurrentSubmissionAcceptsEachJobOnlyOnce()
+    {
+        using var root = new ExecutionRoot();
+        using var worker = new ReusableJobWorker<ReusableTaskJob>(root, options: ExecutionCoreOptions.DelayedStart);
+        var job = worker.Rent();
+        var accepted = 0;
+        var rejected = 0;
+        Parallel.For(0, 32, _ =>
+        {
+            try
+            {
+                worker.Add(job);
+                Interlocked.Increment(ref accepted);
+            }
+            catch (InvalidOperationException)
+            {
+                Interlocked.Increment(ref rejected);
+            }
+        });
+
+        Assert.Equal(1, accepted);
+        Assert.Equal(31, rejected);
+        Assert.Equal(1, worker.PendingJobCount);
+        worker.SendSignal(ExecutionSignal.Start);
+        await job.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(ReusableJobState.Completed, job.State);
+    }
+
+    [Theory]
+    [InlineData(2)]
+    [InlineData(3)]
+    public async Task ConcurrentSubmissionsKeepProgressingWhileTheMainProcessorIsBlocked(int concurrency)
+    {
+        using var root = new ExecutionRoot();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        ReusableTaskJob? blockedJob = null;
+        var completed = 0;
+        using var worker = new TestWorker(root, async job =>
+        {
+            if (ReferenceEquals(job, blockedJob))
+            {
+                entered.TrySetResult();
+                await release.Task;
+            }
+            else
+            {
+                Interlocked.Increment(ref completed);
+            }
+        }) { MaxConcurrentTasks = concurrency };
+        blockedJob = worker.Rent();
+        worker.Add(blockedJob);
+        worker.SendSignal(ExecutionSignal.Start);
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        try
+        {
+            var producers = Enumerable.Range(0, 4).Select(_ => Task.Run(async () =>
+            {
+                for (var n = 0; n < 250; n++)
+                {
+                    var job = worker.Rent();
+                    worker.Add(job);
+                    await job.WaitAsync(TimeSpan.FromSeconds(5));
+                    Assert.Equal(ReusableJobState.Completed, job.State);
+                    worker.Return(job);
+                }
+            }));
+            await Task.WhenAll(producers).WaitAsync(TimeSpan.FromSeconds(15));
+            Assert.Equal(1000, Volatile.Read(ref completed));
+            Assert.False(blockedJob.Task.IsCompleted);
+        }
+        finally
+        {
+            release.TrySetResult();
+        }
+
+        Assert.True(await worker.WaitForCompletionAsync(TimeSpan.FromSeconds(5)));
+    }
+
+    [Fact]
+    public async Task InvalidArgumentsAreRejectedAfterDisposal()
+    {
+        using var root = new ExecutionRoot();
+        using var worker = new ReusableJobWorker<ReusableTaskJob>(root, options: ExecutionCoreOptions.DelayedStart);
+        worker.Dispose();
+        Assert.Throws<ArgumentNullException>(() => worker.Add(null!));
+        Assert.Throws<ArgumentNullException>(() => worker.Return(null!));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => worker.WaitForCompletionAsync(-2));
+        Assert.Throws<ArgumentOutOfRangeException>(() => { _ = worker.WaitForCompletionAsync(TimeSpan.FromTicks(-1)); });
+    }
+
+    [Fact]
+    public async Task CancelingOrTimingOutAJobWaitDoesNotCompleteTheJob()
+    {
+        var taskJob = new ReusableTaskJob();
+        using var cancellation = new CancellationTokenSource();
+        var wait = taskJob.WaitAsync(cancellation.Token);
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wait);
+        await Assert.ThrowsAsync<TimeoutException>(() => taskJob.WaitAsync(TimeSpan.Zero));
+        Assert.False(taskJob.Task.IsCompleted);
+        Assert.Equal(ReusableJobState.Initial, taskJob.State);
+
+        var blockingJob = new ReusableBlockingJob();
+        Assert.False(blockingJob.Wait(TimeSpan.Zero));
+        Assert.ThrowsAny<OperationCanceledException>(() => blockingJob.Wait(cancellation.Token));
+        Assert.ThrowsAny<OperationCanceledException>(() => blockingJob.Wait(TimeSpan.Zero, cancellation.Token));
+        Assert.Equal(ReusableJobState.Initial, blockingJob.State);
+    }
+
     [Fact]
     public void ThreadJobPoolCycleDoesNotAllocateAfterWarmup()
     {

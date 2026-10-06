@@ -29,7 +29,7 @@ public class ExecutionGroup : ExecutionCore
     private ExecutionCore[]? childrenArray; // Root.SyncObject
 
     /// <summary>
-    /// Gets the current number of registered child executions.
+    /// Gets the number of registered child executions. The value is advisory during concurrent changes.
     /// </summary>
     public int ChildCount => this.childrenList.Count;
 
@@ -64,6 +64,7 @@ public class ExecutionGroup : ExecutionCore
     /// </summary>
     /// <param name="child">The child execution to add.</param>
     /// <exception cref="ArgumentNullException"><paramref name="child"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ObjectDisposedException">This group or <paramref name="child"/> has been disposed.</exception>
     public void AddChild(ExecutionCore child)
     {
         if (child is null)
@@ -90,12 +91,14 @@ public class ExecutionGroup : ExecutionCore
     /// <exception cref="InvalidOperationException">
     /// A group with the same name exists, but its independence setting differs from <paramref name="isIndependent"/>.
     /// </exception>
+    /// <exception cref="ObjectDisposedException">This group has been disposed.</exception>
     public ExecutionGroup GetOrAddGroup(bool isIndependent, string name)
     {
         ArgumentNullException.ThrowIfNull(name);
 
         using (this.Root.SyncObject.EnterScope())
         {
+            ObjectDisposedException.ThrowIf(this.IsDisposed, this);
             foreach (var x in this.childrenList)
             {
                 if (x is ExecutionGroup group &&

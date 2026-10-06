@@ -62,6 +62,9 @@ public class HotPathBenchmark
     public ExecutionCore? FindChild() => this.root.FindChild(this.child.Id);
 
     [Benchmark]
+    public Task<bool> ZeroDelayWithExternalCancellation() => this.child.TryDelay(0, this.source.Token);
+
+    [Benchmark]
     public bool UncontendedLock()
     {
         var entered = this.mutex.EnterAsync().GetAwaiter().GetResult();

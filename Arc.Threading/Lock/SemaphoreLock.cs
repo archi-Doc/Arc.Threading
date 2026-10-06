@@ -7,11 +7,9 @@ using System.Threading.Tasks;
 namespace Arc.Threading;
 
 /// <summary>
-/// <see cref="SemaphoreLock"/> is a simplified version of <see cref="SemaphoreSlim"/>.<br/>
-/// Used for object mutual exclusion and can also be used in code that includes await syntax.<br/>
-/// An instance of <see cref="SemaphoreLock"/> should be a private member since it uses `lock (this)` statement to reduce memory usage.<br/>
-/// The lock is non-reentrant and does not track ownership by thread or task.
+/// Provides a non-reentrant exclusive lock for synchronous and asynchronous callers.
 /// </summary>
+/// <remarks>Keep instances private: internal synchronization locks the instance itself. Ownership is not tracked by thread or task.</remarks>
 public class SemaphoreLock : ILockable, IAsyncLockable
 {// object:16, 1+2+4+8+8 -> 39
     private const int DefaultSpinCountBeforeWait = 35 * 4;
@@ -51,8 +49,7 @@ public class SemaphoreLock : ILockable, IAsyncLockable
     public bool IsLocked => Volatile.Read(ref this.entered);
 
     /// <summary>
-    /// Attempts to acquire an exclusive lock without blocking.<br/>
-    /// If an exclusive lock is already held by another thread, return <see langword="false"/> without waiting.
+    /// Attempts to acquire the exclusive lock without waiting for it to be released.
     /// </summary>
     /// <returns>
     /// <see langword="true"/> if the lock was successfully acquired; otherwise, <see langword="false"/>.
@@ -76,11 +73,12 @@ public class SemaphoreLock : ILockable, IAsyncLockable
     /// <summary>
     /// Blocks the current thread until it can enter the <see cref="SemaphoreLock"/>.
     /// </summary>
-    /// <returns><see langword="true"/>; Entered.</returns>
+    /// <returns><see langword="true"/> when the lock is acquired.</returns>
+    /// <exception cref="ThreadInterruptedException">The thread is interrupted while waiting.</exception>
     public bool Enter()
     {
         var lockTaken = false;
-        Task<bool>? task = null;
+        TaskNode? asyncWaiter = null;
 
         try
         {
@@ -101,18 +99,24 @@ public class SemaphoreLock : ILockable, IAsyncLockable
             Monitor.Enter(this.SyncObject, ref lockTaken);
             this.waitCount++;
 
-            if (this.head is not null)
+            if (this.head is not null && Volatile.Read(ref this.entered))
             {// Async waiters.
-                task = this.EnterAsync();
+                asyncWaiter = this.AddAsyncWaiter();
             }
             else
             {// No async waiters.
                 while (Volatile.Read(ref this.entered))
                 {
-                    Monitor.Wait(this.SyncObject);
-                    if (this.countOfWaitersPulsedToWake != 0)
+                    try
                     {
-                        this.countOfWaitersPulsedToWake--;
+                        Monitor.Wait(this.SyncObject);
+                    }
+                    finally
+                    {
+                        if (this.countOfWaitersPulsedToWake != 0)
+                        {
+                            this.countOfWaitersPulsedToWake--;
+                        }
                     }
                 }
 
@@ -124,17 +128,44 @@ public class SemaphoreLock : ILockable, IAsyncLockable
             if (lockTaken)
             {
                 this.waitCount--;
+                if (!Volatile.Read(ref this.entered))
+                {
+                    // An interrupted waiter must pass an available lock to the next waiter.
+                    this.ReleaseNextWaiter();
+                }
+
                 Monitor.Exit(this.SyncObject);
             }
         }
 
-        return task == null ? true : task.GetAwaiter().GetResult();
+        if (asyncWaiter is null)
+        {
+            return true;
+        }
+
+        try
+        {
+            return asyncWaiter.Task.GetAwaiter().GetResult();
+        }
+        catch (ThreadInterruptedException)
+        {
+            lock (this.SyncObject)
+            {
+                if (!this.RemoveAsyncWaiter(asyncWaiter))
+                {
+                    // A concurrent release may already have transferred ownership to this waiter.
+                    this.ReleaseNextWaiter();
+                }
+            }
+
+            throw;
+        }
     }
 
     /// <summary>
     /// Asynchronously waits to enter the <see cref="SemaphoreLock"/>.
     /// </summary>
-    /// <returns><see langword="true"/>; Entered.</returns>
+    /// <returns><see langword="true"/> when the lock is acquired.</returns>
     public Task<bool> EnterAsync()
     {
         lock (this.SyncObject)
@@ -146,45 +177,33 @@ public class SemaphoreLock : ILockable, IAsyncLockable
             }
             else
             {
-                var node = new TaskNode();
-
-                if (this.head == null)
-                {
-                    this.head = node;
-                    this.tail = node;
-                }
-                else
-                {
-                    this.tail!.Next = node;
-                    node.Prev = this.tail;
-                    this.tail = node;
-                }
-
-                return node.Task;
+                return this.AddAsyncWaiter().Task;
             }
         }
     }
 
     /// <summary>
-    /// Asynchronously waits to enter the <see cref="SemaphoreLock"/> with a specified timeout and cancellation token.
+    /// Asynchronously waits to acquire the lock within the specified timeout.
     /// </summary>
     /// <param name="millisecondsTimeout">The duration in milliseconds to wait: -1 for infinite wait, 0 for no wait.</param>
     /// <returns>
-    /// A task that returns <see langword="true"/> if the lock was acquired; otherwise, <see langword="false"/> if the timeout elapsed or the operation was canceled.
+    /// A task that returns <see langword="true"/> if the lock was acquired; otherwise, <see langword="false"/> if the timeout elapsed.
     /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException">The timeout is less than -1.</exception>
     public Task<bool> EnterAsync(int millisecondsTimeout)
         => this.EnterAsync(TimeSpan.FromMilliseconds(millisecondsTimeout), default);
 
     /// <summary>
-    /// Asynchronously waits to enter the <see cref="SemaphoreLock"/> with a specified timeout and cancellation token.
+    /// Asynchronously waits to acquire the lock within the specified timeout.
     /// </summary>
     /// <param name="timeout">The maximum time to wait for the lock.<br/>
     /// <see cref="TimeSpan.Zero"/>: The method returns immediately.<br/>
     /// <see cref="Timeout.InfiniteTimeSpan"/>: The method waits indefinitely until the lock is acquired.
     /// </param>
     /// <returns>
-    /// A task that returns <see langword="true"/> if the lock was acquired; otherwise, <see langword="false"/> if the timeout elapsed or the operation was canceled.
+    /// A task that returns <see langword="true"/> if the lock was acquired; otherwise, <see langword="false"/> if the timeout elapsed.
     /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException">The timeout is negative other than -1 ms, or exceeds 4,294,967,294 milliseconds.</exception>
     public Task<bool> EnterAsync(TimeSpan timeout)
         => this.EnterAsync(timeout, default);
 
@@ -193,7 +212,7 @@ public class SemaphoreLock : ILockable, IAsyncLockable
     /// </summary>
     /// <param name="cancellationToken">A token to observe while waiting for the lock to be acquired.</param>
     /// <returns>
-    /// A task that returns <see langword="true"/> if the lock was acquired; otherwise, <see langword="false"/> if the timeout elapsed or the operation was canceled.
+    /// A task that returns <see langword="true"/> if the lock was acquired; otherwise, <see langword="false"/> if the operation was canceled.
     /// </returns>
     public Task<bool> EnterAsync(CancellationToken cancellationToken)
         => this.EnterAsync(Timeout.InfiniteTimeSpan, cancellationToken);
@@ -236,19 +255,7 @@ public class SemaphoreLock : ILockable, IAsyncLockable
                     return Task.FromResult(false);
                 }
 
-                var node = new TaskNode();
-
-                if (this.head == null)
-                {
-                    this.head = node;
-                    this.tail = node;
-                }
-                else
-                {
-                    this.tail!.Next = node;
-                    node.Prev = this.tail;
-                    this.tail = node;
-                }
+                var node = this.AddAsyncWaiter();
 
                 return (timeout == Timeout.InfiniteTimeSpan && !cancellationToken.CanBeCanceled) ?
                     node.Task :
@@ -258,7 +265,7 @@ public class SemaphoreLock : ILockable, IAsyncLockable
     }
 
     /// <summary>
-    /// Releases the exclusive lock held by the current thread or task.
+    /// Releases the exclusive lock. The caller must hold the lock.
     /// </summary>
     /// <exception cref="SynchronizationLockException">The lock is not held.</exception>
     public void Exit()
@@ -270,24 +277,46 @@ public class SemaphoreLock : ILockable, IAsyncLockable
                 throw new SynchronizationLockException();
             }
 
-            var waitersToNotify = Math.Min((ushort)1, this.waitCount) - this.countOfWaitersPulsedToWake;
-            if (waitersToNotify > 0)
-            {// waitersToNotify == 1
-                this.countOfWaitersPulsedToWake++;
-                Monitor.Pulse(this.SyncObject);
-            }
-
-            if (this.head is not null && this.waitCount == 0)
-            {
-                var waiterTask = this.head;
-                this.RemoveAsyncWaiter(waiterTask);
-                waiterTask.TrySetResult(result: true);
-            }
-            else
-            {
-                Volatile.Write(ref this.entered, false);
-            }
+            this.ReleaseNextWaiter();
         }
+    }
+
+    private void ReleaseNextWaiter()
+    {
+        if (this.waitCount > 0 && this.countOfWaitersPulsedToWake == 0)
+        {// waitersToNotify == 1
+            this.countOfWaitersPulsedToWake++;
+            Monitor.Pulse(this.SyncObject);
+        }
+
+        if (this.head is not null && this.waitCount == 0)
+        {
+            var waiterTask = this.head;
+            this.RemoveAsyncWaiter(waiterTask);
+            Volatile.Write(ref this.entered, true);
+            waiterTask.TrySetResult(result: true);
+        }
+        else
+        {
+            Volatile.Write(ref this.entered, false);
+        }
+    }
+
+    private TaskNode AddAsyncWaiter()
+    {
+        var node = new TaskNode();
+        if (this.head is null)
+        {
+            this.head = node;
+        }
+        else
+        {
+            this.tail!.Next = node;
+            node.Prev = this.tail;
+        }
+
+        this.tail = node;
+        return node;
     }
 
     private async Task<bool> WaitUntilCountOrTimeoutAsync(TaskNode asyncWaiter, TimeSpan timeout, CancellationToken cancellationToken)

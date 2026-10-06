@@ -12,6 +12,7 @@ public delegate void ExecutionSignalHandler(ExecutionCore core, ExecutionSignal 
 /// <summary>
 /// Specifies the signal sent to an <see cref="ExecutionCore"/>.
 /// </summary>
+/// <remarks>Task and thread cores handle only <see cref="Start"/>. Other signals require a custom handler; use <see cref="ExecutionCore.RequestTermination(TerminationOptions)"/> for cancellation.</remarks>
 public enum ExecutionSignal : byte
 {
     /// <summary>
@@ -20,12 +21,12 @@ public enum ExecutionSignal : byte
     Start,
 
     /// <summary>
-    /// Requests cancellation of the execution.
+    /// Delivers an application-defined cancellation signal.
     /// </summary>
     Cancel,
 
     /// <summary>
-    /// Requests termination of the execution.
+    /// Delivers an application-defined termination signal.
     /// </summary>
     Terminate,
 }

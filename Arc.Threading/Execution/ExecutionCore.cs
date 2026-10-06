@@ -80,7 +80,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// <exception cref="InvalidOperationException">
     /// Thrown for self-parenting, cycles, or cross-root moves.
     /// </exception>
-    /// <exception cref="ObjectDisposedException">A disposed execution is assigned a new parent.</exception>
+    /// <exception cref="ObjectDisposedException">This execution or the new parent has been disposed.</exception>
     public ExecutionGroup? Parent
     {
         get => this.parent;
@@ -97,6 +97,12 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
                 ObjectDisposedException.ThrowIf(this.IsDisposed, this);
                 if (value is not null)
                 {
+                    ObjectDisposedException.ThrowIf(value.IsDisposed, value);
+                    if (this.Root != value.Root)
+                    {
+                        ExecutionExtensions.ThrowDifferentParentException();
+                    }
+
                     if (ReferenceEquals(this, value))
                     {
                         throw new InvalidOperationException("An execution cannot be its own parent.");
@@ -114,11 +120,6 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
                 }
                 else
                 {
-                    if (this.Root != value.Root)
-                    {
-                        ExecutionExtensions.ThrowDifferentParentException();
-                    }
-
                     this.parent?.RemoveChildInternal(this);
                     value.AddChildInternal(this);
                     terminateImmediately = value.IsTerminated;
@@ -143,9 +144,9 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     public bool IsRoot => ReferenceEquals(this, this.Root); // this.Id == 0;
 
     /// <summary>
-    /// Gets or sets a value indicating whether this execution should be excluded from default
-    /// recursive termination requests.
+    /// Gets or sets a value indicating whether recursive termination and waiting skip this execution when it is a descendant.
     /// </summary>
+    /// <remarks>Direct requests still apply. Parent disposal detaches independent children without canceling them.</remarks>
     public bool IsIndependent { get; set; }
 
     /// <summary>
@@ -154,7 +155,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     public virtual bool CanContinue => !this.IsCancellationRequested;
 
     /// <summary>
-    /// Gets a value indicating whether this execution has been terminated.
+    /// Gets a value indicating whether cancellation has been requested.
     /// </summary>
     public virtual bool IsTerminated => this.IsCancellationRequested;
 
@@ -183,6 +184,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// <param name="signalHandler">
     /// Optional signal callback invoked by <see cref="SendSignal(ExecutionSignal)"/>.
     /// </param>
+    /// <exception cref="ObjectDisposedException"><paramref name="parent"/> has been disposed.</exception>
     public ExecutionCore(ExecutionGroup parent, ExecutionSignalHandler? signalHandler = default)
         : this(parent, null, false, signalHandler)
     {
@@ -198,6 +200,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// <param name="signalHandler">
     /// Optional signal callback invoked by <see cref="SendSignal(ExecutionSignal)"/>.
     /// </param>
+    /// <exception cref="ObjectDisposedException"><paramref name="parent"/> has been disposed.</exception>
     public ExecutionCore(ExecutionGroup parent, bool isIndependent, ExecutionSignalHandler? signalHandler = default)
         : this(parent, null, isIndependent, signalHandler)
     {
@@ -217,6 +220,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
         bool terminateImmediately;
         using (this.Root.SyncObject.EnterScope())
         {
+            ObjectDisposedException.ThrowIf(parent.IsDisposed, parent);
             /*while (true)
             {
                 var id = Random.Shared.NextInt64();
@@ -247,7 +251,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     }
 
     /// <summary>
-    /// Wait for the specified time (<see cref="Task.Delay(TimeSpan)"/>).
+    /// Asynchronously waits for the specified duration or cancellation.
     /// </summary>
     /// <param name="millisecondsDelay">The number of milliseconds to wait.</param>
     /// <param name="cancellationToken">An additional cancellation token that can be used to cancel the delay.</param>
@@ -257,14 +261,14 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
         => this.TryDelay(TimeSpan.FromMilliseconds(millisecondsDelay), cancellationToken);
 
     /// <summary>
-    /// Wait for the specified time (<see cref="Task.Delay(TimeSpan)"/>).
+    /// Asynchronously waits for the specified duration or cancellation.
     /// </summary>
     /// <param name="delay">The TimeSpan to wait.</param>
     /// <param name="cancellationToken">An additional cancellation token that can be used to cancel the delay.</param>
     /// <returns><see langword="true"/> if the delay elapsed; otherwise, <see langword="false"/><br/>
     /// if this execution was terminated or the additional cancellation token was canceled.</returns>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// Thrown when <paramref name="delay"/> is negative and not <see cref="Timeout.InfiniteTimeSpan"/>.
+    /// The delay is negative other than <see cref="Timeout.InfiniteTimeSpan"/>, or exceeds the range supported by <see cref="Task.Delay(TimeSpan)"/>.
     /// </exception>
     public async Task<bool> TryDelay(TimeSpan delay, CancellationToken cancellationToken = default)
     {
@@ -277,6 +281,11 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
         if (internalToken.IsCancellationRequested || cancellationToken.IsCancellationRequested)
         {
             return false;
+        }
+
+        if (delay == TimeSpan.Zero)
+        {
+            return true;
         }
 
         try
@@ -303,7 +312,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// Asynchronously waits for the termination of the execution.<br/>
     /// Note that you need to call <see cref="RequestTermination(TerminationOptions)"/> to terminate the execution.
     /// </summary>
-    /// <param name="options">An additional options for controlling termination behavior.</param>
+    /// <param name="options">Options controlling which descendants to wait for.</param>
     /// <param name="cancellationToken">An additional token that can cancel the wait operation.</param>
     /// <returns><see langword="true"/> if termination was observed; otherwise, <see langword="false"/>.</returns>
     public Task<bool> WaitForTerminationAsync(TerminationOptions options = default, CancellationToken cancellationToken = default)
@@ -314,7 +323,7 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// Note that you need to call <see cref="RequestTermination(TerminationOptions)"/> to terminate the execution.
     /// </summary>
     /// <param name="millisecondsTimeout">The number of milliseconds to wait before termination, or -1 to wait indefinitely.</param>
-    /// <param name="options">An additional options for controlling termination behavior.</param>
+    /// <param name="options">Options controlling which descendants to wait for.</param>
     /// <param name="cancellationToken">An additional cancellation token to cancel the wait operation.</param>
     /// <returns><see langword="true"/> if termination was observed; otherwise, <see langword="false"/>.</returns>
     public Task<bool> WaitForTerminationAsync(int millisecondsTimeout, TerminationOptions options = default, CancellationToken cancellationToken = default)
@@ -325,12 +334,13 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
     /// Note that you need to call <see cref="RequestTermination(TerminationOptions)"/> to terminate the execution.
     /// </summary>
     /// <param name="timeout">The <see cref="TimeSpan"/> to wait before termination.</param>
-    /// <param name="options">An additional options for controlling termination behavior.</param>
+    /// <param name="options">Options controlling which descendants to wait for.</param>
     /// <param name="cancellationToken">An additional cancellation token to cancel the wait operation.</param>
     /// <returns><see langword="true"/> if termination was observed before timeout/cancellation; otherwise, <see langword="false"/>.</returns>
     /// <exception cref="ArgumentOutOfRangeException">
     /// Thrown when <paramref name="timeout"/> is negative and not <see cref="Timeout.InfiniteTimeSpan"/>.
     /// </exception>
+    /// <remarks>Groups are containers: this waits for their non-group descendants, excluding independent descendants unless requested.</remarks>
     public virtual async Task<bool> WaitForTerminationAsync(TimeSpan timeout, TerminationOptions options = default, CancellationToken cancellationToken = default)
     {
         if (timeout < TimeSpan.Zero && timeout != Timeout.InfiniteTimeSpan)
@@ -347,6 +357,11 @@ public class ExecutionCore : CancellationTokenSource, IDisposable
                 {
                     return true;
                 }
+            }
+
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return false;
             }
 
             var interval = TimeSpan.FromMilliseconds(WaitInterval);
