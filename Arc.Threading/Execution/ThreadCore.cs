@@ -9,8 +9,12 @@ namespace Arc.Threading;
 /// Represents an <see cref="ExecutionCore"/> implementation backed by a dedicated <see cref="System.Threading.Thread"/>.
 /// </summary>
 /// <remarks>
-/// This type starts at most once. When started, it executes the provided delegate and can optionally dispose itself
-/// when execution completes.
+/// This type starts at most once. When started, it executes the provided delegate and, unless <see cref="ExecutionCoreOptions.NoDisposeOnCompletion"/> is set,
+/// disposes itself when the delegate exits.<br/>
+/// The thread is a foreground thread and keeps the process alive until the delegate returns. To make it a background thread,
+/// create the core with <see cref="ExecutionCoreOptions.DelayedStart"/>, set <see cref="System.Threading.Thread.IsBackground"/> on <see cref="Thread"/>, then send <see cref="ExecutionSignal.Start"/>.<br/>
+/// An <see cref="OperationCanceledException"/> that escapes the delegate after termination was requested is treated as a normal exit;
+/// any other exception is unhandled and terminates the process.
 /// </remarks>
 public class ThreadCore : ExecutionCore
 {
@@ -20,6 +24,7 @@ public class ThreadCore : ExecutionCore
 
     private readonly Action<ThreadCore> method;
     private int state;
+    private bool keepAbandonedCore; // Set while this constructor starts a derived instance, whose constructor has not run yet.
 
     /// <summary>
     /// Gets a value indicating whether the underlying thread has completed,<br/>
@@ -40,6 +45,10 @@ public class ThreadCore : ExecutionCore
     /// <summary>
     /// Gets the dedicated thread instance used to run this core.
     /// </summary>
+    /// <remarks>
+    /// Do not start this thread directly; send <see cref="ExecutionSignal.Start"/>.
+    /// Properties such as <see cref="System.Threading.Thread.IsBackground"/> can be set before the start when using <see cref="ExecutionCoreOptions.DelayedStart"/>.
+    /// </remarks>
     public Thread Thread { get; }
 
     /// <summary>
@@ -53,7 +62,13 @@ public class ThreadCore : ExecutionCore
     /// <param name="parent">The parent execution group that owns this core.</param>
     /// <param name="method">The delegate executed on the dedicated thread.</param>
     /// <param name="options">Behavior flags controlling startup and completion semantics.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="method"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="parent"/> or <paramref name="method"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ObjectDisposedException"><paramref name="parent"/> has been disposed.</exception>
+    /// <remarks>
+    /// If <paramref name="parent"/> is already terminated, the thread is never started.
+    /// Unless <see cref="ExecutionCoreOptions.DelayedStart"/> or <see cref="ExecutionCoreOptions.NoDisposeOnCompletion"/> is set,
+    /// an instance of exactly <see cref="ThreadCore"/> is then disposed before the constructor returns; an instance of a derived type is not.
+    /// </remarks>
     public ThreadCore(ExecutionGroup parent, Action<ThreadCore> method, ExecutionCoreOptions options = default)
         : base(ValidateArguments(parent, method))
     {
@@ -66,6 +81,9 @@ public class ThreadCore : ExecutionCore
             try
             {
                 core.method(core);
+            }
+            catch (OperationCanceledException) when (core.IsCancellationRequested)
+            {// Cooperative termination is a normal exit, not an unhandled exception.
             }
             finally
             {
@@ -80,7 +98,15 @@ public class ThreadCore : ExecutionCore
 
         if ((this.Options & ExecutionCoreOptions.DelayedStart) == 0)
         {
-            this.SendSignal(ExecutionSignal.Start);
+            this.keepAbandonedCore = this.GetType() != typeof(ThreadCore);
+            try
+            {
+                this.SendSignal(ExecutionSignal.Start);
+            }
+            finally
+            {
+                this.keepAbandonedCore = false;
+            }
         }
     }
 
@@ -88,21 +114,32 @@ public class ThreadCore : ExecutionCore
     /// Starts this thread once for <see cref="ExecutionSignal.Start"/>; other signals are ignored.
     /// </summary>
     /// <param name="signal">The received execution signal.</param>
+    /// <remarks>
+    /// The signal is ignored after disposal.<br/>
+    /// If this core was canceled before it started, the thread is abandoned and, unless <see cref="ExecutionCoreOptions.NoDisposeOnCompletion"/> is set, this core is disposed.
+    /// A start sent by the constructor does not dispose an instance of a derived type.
+    /// </remarks>
+    /// <exception cref="ThreadStateException">The thread was started directly instead of through this signal.</exception>
     public override void OnSignalReceived(ExecutionSignal signal)
     {
-        if (signal != ExecutionSignal.Start)
-        {
-            return;
-        }
-
-        if (this.IsDisposed || this.IsCancellationRequested)
+        if (signal != ExecutionSignal.Start || this.IsDisposed)
         {
             return;
         }
 
         var thread = this.Thread;
         if (thread is null)
-        {
+        {// A group broadcast reached this core during base construction.
+            return;
+        }
+
+        if (this.IsCancellationRequested)
+        {// Canceled before start: the delegate never runs, so its self-dispose never runs either.
+            if (Interlocked.CompareExchange(ref this.state, StateAbandoned, StateCreated) == StateCreated)
+            {
+                this.DisposeUnstarted();
+            }
+
             return;
         }
 
@@ -114,6 +151,7 @@ public class ThreadCore : ExecutionCore
         if (this.IsCancellationRequested)
         {// Canceled after the check above; IsTerminated may already have reported this core as terminated.
             Volatile.Write(ref this.state, StateAbandoned);
+            this.DisposeUnstarted();
             return;
         }
 
@@ -122,9 +160,17 @@ public class ThreadCore : ExecutionCore
             thread.Start(this);
         }
         catch
-        {
+        {// A failed Thread.Start leaves the thread unstarted, so a later Start signal may retry.
             Interlocked.CompareExchange(ref this.state, StateCreated, StateStarted);
             throw;
+        }
+    }
+
+    private void DisposeUnstarted()
+    {
+        if ((this.Options & ExecutionCoreOptions.NoDisposeOnCompletion) == 0 && !this.keepAbandonedCore)
+        {// A derived Dispose(bool) must not run before the derived constructor body.
+            this.Dispose();
         }
     }
 }

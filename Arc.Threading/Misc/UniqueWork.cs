@@ -21,7 +21,6 @@ public class UniqueWork
     {
         ArgumentNullException.ThrowIfNull(action);
         this.workAction = action;
-        this.runWork = this.RunAsync;
     }
 
     /// <summary>
@@ -33,13 +32,13 @@ public class UniqueWork
     {
         ArgumentNullException.ThrowIfNull(asyncAction);
         this.workTask = asyncAction;
-        this.runWork = this.RunAsync;
     }
 
     /// <summary>
     /// Schedules the work on the thread pool, or joins the work already in progress.
     /// </summary>
-    /// <returns>The task of the work being executed.</returns>
+    /// <returns>A task that completes when the work completes. Callers that join the work share the same task.</returns>
+    /// <remarks>The work never runs inline in this method. Once the work has finished, the next call starts a new run.</remarks>
     public Task Run()
     {
         using (this.syncObject.EnterScope())
@@ -50,12 +49,14 @@ public class UniqueWork
             }
 
             // Publish while holding the lock so a fast completion cannot clear an unpublished task.
-            return this.currentTask = Task.Run(this.runWork);
+            return this.currentTask = this.RunAsync();
         }
     }
 
     private async Task RunAsync()
     {
+        // Continue on the thread pool before running the work, so it never runs inline under the lock (as with Task.Run).
+        await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
         try
         {
             if (this.workAction is not null)
@@ -80,6 +81,5 @@ public class UniqueWork
     private readonly Action? workAction;
     private readonly Func<Task>? workTask;
     private readonly Lock syncObject = new();
-    private readonly Func<Task> runWork;
     private Task? currentTask;
 }

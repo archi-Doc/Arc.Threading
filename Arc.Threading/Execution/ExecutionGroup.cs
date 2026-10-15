@@ -4,6 +4,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
+using System.Runtime.InteropServices;
 using System.Threading;
 
 namespace Arc.Threading;
@@ -14,11 +16,12 @@ namespace Arc.Threading;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Child membership is stored in a list and exposed through a cached array snapshot for efficient iteration.
-/// The cache is invalidated whenever children are added or removed.
+/// A group is a container with no thread or task of its own. Terminating a group cancels the group and its non-independent descendants;
+/// waiting for a group waits for its non-group descendants. By default, signals are forwarded to all children, including independent ones.
 /// </para>
 /// <para>
-/// Synchronization is performed via <c>Root.SyncObject</c> when list access requires consistency.
+/// Child membership is synchronized via <c>Root.SyncObject</c> and exposed through a cached array snapshot for efficient iteration.
+/// The cache is invalidated whenever children are added or removed.
 /// </para>
 /// </remarks>
 public class ExecutionGroup : ExecutionCore
@@ -40,9 +43,12 @@ public class ExecutionGroup : ExecutionCore
     /// </summary>
     /// <param name="parent">The parent group that owns this group.</param>
     /// <param name="isIndependent">
-    /// Whether default recursive termination skips this group. Signals are still forwarded.
+    /// Whether recursive termination and waiting skip this group by default. Signals are still forwarded.
     /// </param>
     /// <param name="name">An optional display name. If <see langword="null"/>, an empty name is used.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="parent"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ObjectDisposedException"><paramref name="parent"/> has been disposed.</exception>
+    /// <remarks>If <paramref name="parent"/> is terminated, this group is terminated before the constructor returns.</remarks>
     public ExecutionGroup(ExecutionGroup parent, bool isIndependent = false, string? name = default)
         : base(parent, isIndependent)
     {
@@ -60,18 +66,21 @@ public class ExecutionGroup : ExecutionCore
     }
 
     /// <summary>
-    /// Adds a child execution to this group by assigning its <c>Parent</c> to the current instance.
+    /// Adds a child execution to this group by assigning its <see cref="ExecutionCore.Parent"/> to the current instance.
     /// </summary>
-    /// <param name="child">The child execution to add.</param>
+    /// <param name="child">The child execution to add. It is moved from its current parent.</param>
     /// <exception cref="ArgumentNullException"><paramref name="child"/> is <see langword="null"/>.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// <paramref name="child"/> belongs to a different root, or is this group or one of its ancestors.
+    /// </exception>
     /// <exception cref="ObjectDisposedException">This group or <paramref name="child"/> has been disposed.</exception>
+    /// <remarks>
+    /// If this group is terminated, termination of <paramref name="child"/> is requested immediately.
+    /// Adding a current child or the root has no effect.
+    /// </remarks>
     public void AddChild(ExecutionCore child)
     {
-        if (child is null)
-        {
-            throw new ArgumentNullException(nameof(child));
-        }
-
+        ArgumentNullException.ThrowIfNull(child);
         child.Parent = this;
     }
 
@@ -80,7 +89,7 @@ public class ExecutionGroup : ExecutionCore
     /// or creates and returns a new one when no match exists.
     /// </summary>
     /// <param name="isIndependent">
-    /// Whether default recursive termination skips a newly created group.
+    /// Whether recursive termination and waiting skip a newly created group by default. An existing group must have the same setting.
     /// </param>
     /// <param name="name">The group name to search for.</param>
     /// <returns>
@@ -92,6 +101,10 @@ public class ExecutionGroup : ExecutionCore
     /// A group with the same name exists, but its independence setting differs from <paramref name="isIndependent"/>.
     /// </exception>
     /// <exception cref="ObjectDisposedException">This group has been disposed.</exception>
+    /// <remarks>
+    /// Matching ignores termination state, so the returned group may already be terminated, and work attached to it terminates immediately.
+    /// Dispose a terminated group so that a later call creates a new group with the same name.
+    /// </remarks>
     public ExecutionGroup GetOrAddGroup(bool isIndependent, string name)
     {
         ArgumentNullException.ThrowIfNull(name);
@@ -126,7 +139,7 @@ public class ExecutionGroup : ExecutionCore
     /// <returns>An array containing the current child executions.</returns>
     /// <remarks>
     /// Returns a cached snapshot when available; otherwise, builds and caches a new snapshot under synchronization.
-    /// Callers must not modify the returned array.
+    /// The array is shared with other callers and does not reflect later membership changes. Callers must not modify it.
     /// </remarks>
     public ExecutionCore[] GetChildren()
     {
@@ -187,22 +200,46 @@ public class ExecutionGroup : ExecutionCore
     }
 
     /// <summary>
-    /// Propagates an execution signal to all current children.
+    /// Propagates an execution signal to all current children, including independent children.
     /// </summary>
     /// <param name="signal">The signal to forward.</param>
+    /// <remarks>
+    /// Each child receives the signal through <see cref="ExecutionCore.SendSignal(ExecutionSignal)"/>, using a snapshot of the children taken at the start.
+    /// Every child receives the signal even if another child throws.
+    /// A single exception is rethrown after forwarding; multiple exceptions are thrown as an <see cref="AggregateException"/>.
+    /// </remarks>
+    /// <exception cref="AggregateException">More than one child threw an exception.</exception>
     public override void OnSignalReceived(ExecutionSignal signal)
     {
+        List<Exception>? exceptions = null;
         var children = this.GetChildren();
         foreach (var x in children)
         {
-            x.SendSignal(signal);
+            try
+            {
+                x.SendSignal(signal);
+            }
+            catch (Exception ex)
+            {
+                (exceptions ??= new()).Add(ex);
+            }
+        }
+
+        if (exceptions is not null)
+        {
+            if (exceptions.Count == 1)
+            {
+                ExceptionDispatchInfo.Throw(exceptions[0]);
+            }
+
+            throw new AggregateException(exceptions);
         }
     }
 
     /// <summary>
     /// Returns a compact debug string for this group.
     /// </summary>
-    /// <returns>A display string containing the name, the number of children, and the truncated identifier.</returns>
+    /// <returns>A display string containing the name (or "Group" if empty), the number of children, and the lower 16 bits of the identifier in hexadecimal.</returns>
     public override string ToString()
     {
         var name = string.IsNullOrEmpty(this.Name) ? "Group" : this.Name;
@@ -220,6 +257,14 @@ public class ExecutionGroup : ExecutionCore
         this.childrenList.Clear();
         this.ClearChildrenArrayInternal();
     }
+
+    /// <summary>
+    /// Gets the current children without creating a snapshot. Requires <c>Root.SyncObject</c>.
+    /// </summary>
+    /// <returns>A span over the child list. Do not add or remove children while iterating it.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal ReadOnlySpan<ExecutionCore> GetChildrenSpanInternal()
+        => CollectionsMarshal.AsSpan(this.childrenList);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ExecutionCore[] GetChildrenArrayInternal()

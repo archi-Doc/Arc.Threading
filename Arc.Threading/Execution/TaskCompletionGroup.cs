@@ -1,5 +1,6 @@
 ﻿// Copyright (c) All contributors. All rights reserved. Licensed under the MIT license.
 
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Arc.Threading;
@@ -7,15 +8,34 @@ namespace Arc.Threading;
 /// <summary>
 /// Provides an <see cref="ExecutionGroup"/> implementation that completes via an internal <see cref="TaskCompletionSource"/>.
 /// </summary>
-/// <remarks>Completion and termination are independent; disposal does not complete <see cref="CompletionTask"/>.</remarks>
+/// <remarks>
+/// Completion and termination are independent: <see cref="SetCompleted"/> does not terminate this instance,
+/// and termination or disposal does not complete <see cref="CompletionTask"/>.<br/>
+/// This group is not disposed automatically when terminated; dispose it to detach it from its parent and stack.
+/// </remarks>
 public class TaskCompletionGroup : ExecutionGroup
 {
-    private readonly TaskCompletionSource completionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private static readonly TaskCompletionSource CompletedMarker = new(); // Records completion before the first read; its task is never exposed.
+
+    private TaskCompletionSource? completionSource; // Created on first read, or CompletedMarker if completed before any read.
 
     /// <summary>
     /// Gets the task that is completed when <see cref="SetCompleted"/> is called.
     /// </summary>
-    public Task CompletionTask => this.completionSource.Task;
+    /// <remarks>The task is created on first read. Continuations registered before completion run asynchronously.</remarks>
+    public Task CompletionTask
+    {
+        get
+        {
+            var source = Volatile.Read(ref this.completionSource);
+            if (source is null || ReferenceEquals(source, CompletedMarker))
+            {
+                source = this.CreateCompletionSource(source);
+            }
+
+            return source.Task;
+        }
+    }
 
     // public override bool IsTerminated => !this.CompletionSource.Task.IsCompleted;
 
@@ -23,12 +43,17 @@ public class TaskCompletionGroup : ExecutionGroup
     /// Initializes a new instance of the <see cref="TaskCompletionGroup"/> class.
     /// </summary>
     /// <param name="parent">The parent <see cref="ExecutionGroup"/> that contains this group.</param>
-    /// <param name="stack">The <see cref="ExecutionStack"/> used for this group's execution context.</param>
+    /// <param name="stack">The <see cref="ExecutionStack"/> that tracks this group. It must belong to the same root as <paramref name="parent"/>.</param>
     /// <param name="isIndependent">
-    /// Whether default recursive termination skips this group. Parent disposal detaches independent groups.
+    /// Whether recursive termination and waiting skip this group by default. Parent disposal detaches independent groups without canceling them.
     /// </param>
     /// <param name="signalHandler">An optional <see cref="ExecutionSignalHandler"/> that handles execution signals for this group.
+    /// It replaces the default forwarding of signals to the children.
     /// </param>
+    /// <exception cref="System.ArgumentNullException"><paramref name="parent"/> is <see langword="null"/>.</exception>
+    /// <exception cref="System.InvalidOperationException"><paramref name="stack"/> belongs to a different root.</exception>
+    /// <exception cref="System.ObjectDisposedException"><paramref name="parent"/> has been disposed.</exception>
+    /// <remarks>If <paramref name="parent"/> is terminated, this group is terminated before the constructor returns.</remarks>
     public TaskCompletionGroup(ExecutionGroup parent, ExecutionStack stack, bool isIndependent = false, ExecutionSignalHandler? signalHandler = default)
         : base(parent, stack, isIndependent, signalHandler)
     {
@@ -38,8 +63,38 @@ public class TaskCompletionGroup : ExecutionGroup
     /// Transitions <see cref="CompletionTask"/> to the completed state.
     /// </summary>
     /// <remarks>
-    /// If the task has already completed, this call has no effect.
+    /// This method is thread-safe. If the task has already completed, this call has no effect.
     /// </remarks>
     public void SetCompleted()
-        => this.completionSource.TrySetResult();
+    {// Before the first read, only record the completion; the task is created when it is read.
+        var source = Interlocked.CompareExchange(ref this.completionSource, CompletedMarker, null);
+        if (source is not null && !ReferenceEquals(source, CompletedMarker))
+        {
+            source.TrySetResult();
+        }
+    }
+
+    private TaskCompletionSource CreateCompletionSource(TaskCompletionSource? comparand)
+    {
+        while (true)
+        {
+            var source = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            if (comparand is not null)
+            {// Completed before the first read.
+                source.SetResult();
+            }
+
+            var current = Interlocked.CompareExchange(ref this.completionSource, source, comparand);
+            if (ReferenceEquals(current, comparand))
+            {
+                return source;
+            }
+            else if (current is not null && !ReferenceEquals(current, CompletedMarker))
+            {
+                return current;
+            }
+
+            comparand = current; // Completed concurrently: retry from the marker.
+        }
+    }
 }

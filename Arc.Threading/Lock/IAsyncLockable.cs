@@ -12,7 +12,7 @@ public interface IAsyncLockable : ILockable
     /// <summary>
     /// Asynchronously acquires the lock and returns a scope that releases it on disposal.
     /// </summary>
-    /// <returns>A scope representing the acquisition result.</returns>
+    /// <returns>A task that returns a scope representing the acquisition result.</returns>
     async Task<LockScope> EnterScopeAsync()
     {
         var lockTaken = await this.EnterAsync().ConfigureAwait(false);
@@ -22,6 +22,6 @@ public interface IAsyncLockable : ILockable
     /// <summary>
     /// Asynchronously waits to acquire an exclusive lock.
     /// </summary>
-    /// <returns><see langword="true"/> if the lock is acquired; otherwise, <see langword="false"/>.</returns>
+    /// <returns>A task that returns <see langword="true"/> if the lock is acquired; otherwise, <see langword="false"/>.</returns>
     Task<bool> EnterAsync();
 }

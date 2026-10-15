@@ -6,7 +6,9 @@ namespace Arc.Threading;
 /// Represents the lifecycle state of a reusable job handled by <see cref="ReusableJobWorker{TJob}"/>.
 /// </summary>
 /// <remarks>
-/// Typical progression is <see cref="Initial"/> → <see cref="Pending"/> → <see cref="Running"/> → <see cref="Completed"/>.
+/// Typical progression is <see cref="Initial"/> → <see cref="Pending"/> → <see cref="Running"/> → <see cref="Completed"/>.<br/>
+/// A pending or running job becomes <see cref="Aborted"/> instead of <see cref="Completed"/> when it is not processed or fails.
+/// A completed or aborted job becomes <see cref="Pooled"/> when it is returned.
 /// </remarks>
 public enum ReusableJobState : byte
 {
@@ -31,7 +33,7 @@ public enum ReusableJobState : byte
     Completed,
 
     /// <summary>
-    /// Processing was skipped or failed, or the completion callback failed.
+    /// Processing was skipped because the worker stopped, processing threw an exception, or the completion callback threw an exception.
     /// </summary>
     Aborted,
 
