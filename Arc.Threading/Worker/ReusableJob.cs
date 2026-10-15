@@ -12,7 +12,10 @@ namespace Arc.Threading;
 /// Represents a reusable worker job without a completion wait primitive.
 /// Use <see cref="ReusableTaskJob"/> for asynchronous waits or <see cref="ReusableBlockingJob"/> for blocking waits.
 /// </summary>
-/// <remarks>Initialize custom fields before submission. Do not mutate or return a submitted job until its wait completes.</remarks>
+/// <remarks>
+/// Initialize custom fields before submission. Do not mutate or return a submitted job until its wait completes.<br/>
+/// Jobs use reference equality. A copy made with a <c>with</c> expression is a new job in the <see cref="ReusableJobState.Initial"/> state.
+/// </remarks>
 public record class ReusableJob
 {
     /// <summary>
@@ -34,6 +37,10 @@ public record class ReusableJob
     /// <summary>
     /// Gets the current state of the reusable job.
     /// </summary>
+    /// <remarks>
+    /// <see cref="ReusableJobState.Completed"/> is set before the worker's completion hook runs, and can still change to <see cref="ReusableJobState.Aborted"/>.
+    /// Read the outcome after the job's wait completes.
+    /// </remarks>
     public ReusableJobState State
     {
         get => (ReusableJobState)Volatile.Read(ref this.state);
@@ -41,12 +48,12 @@ public record class ReusableJob
     }
 
     /// <summary>
-    /// Gets the options that control the behavior of this job.
+    /// Gets the options that control the behavior of this job. They are assigned when the job is rented, and reset when it is returned.
     /// </summary>
     public ReusableJobOptions Options { get; internal set; }
 
     /// <summary>
-    /// Gets a value indicating whether the job object is automatically returned to the pool on completion.
+    /// Gets a value indicating whether the job object is automatically returned to the pool when it completes or is aborted.
     /// </summary>
     public bool ReturnsToPoolOnCompletion => (this.Options & ReusableJobOptions.ReturnToPoolOnCompletion) != 0;
 
@@ -57,6 +64,34 @@ public record class ReusableJob
     {
         this._PrepareSynchronizationPrimitive();
     }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ReusableJob"/> class as a copy of another job.<br/>
+    /// Used by <c>with</c> expressions: the copy starts in the <see cref="ReusableJobState.Initial"/> state with default options and its own synchronization primitive.
+    /// </summary>
+    /// <param name="original">The job to copy. Its state, options, and synchronization primitive are not copied.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="original"/> is <see langword="null"/>.</exception>
+    protected ReusableJob(ReusableJob original)
+    {
+        ArgumentNullException.ThrowIfNull(original);
+        this._PrepareSynchronizationPrimitive();
+    }
+
+    /// <summary>
+    /// Determines whether the specified job is this instance.
+    /// </summary>
+    /// <param name="other">The job to compare with this instance.</param>
+    /// <returns><see langword="true"/> if <paramref name="other"/> is this instance; otherwise, <see langword="false"/>.</returns>
+    /// <remarks>Jobs use reference equality, because their state changes while they are processed and pooled.</remarks>
+    public virtual bool Equals(ReusableJob? other)
+        => ReferenceEquals(this, other);
+
+    /// <summary>
+    /// Returns a hash code based on the identity of this instance.
+    /// </summary>
+    /// <returns>A hash code that does not change while the job is processed or pooled.</returns>
+    public override int GetHashCode()
+        => RuntimeHelpers.GetHashCode(this);
 
     /*/// <summary>
     /// Resets the job to its initial state, allowing it to be reused for another execution.<br/>

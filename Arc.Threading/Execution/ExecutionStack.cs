@@ -9,7 +9,9 @@ namespace Arc.Threading;
 /// Represents a collection of <see cref="ExecutionCore"/> instances managed as an execution stack.
 /// </summary>
 /// <remarks>
-/// Mutations and element lookups use <see cref="ExecutionRoot.SyncObject"/>.
+/// A stack tracks executions separately from their parent-child tree. An execution belongs to at most one stack.
+/// Executions are kept in the order they were pushed and are removed when they are disposed.<br/>
+/// Mutations and element lookups use <c>Root.SyncObject</c>.
 /// Counts are advisory during concurrent changes.
 /// </remarks>
 public class ExecutionStack
@@ -34,7 +36,7 @@ public class ExecutionStack
     public bool IsEmpty => this.list.Count == 0;
 
     /// <summary>
-    /// Gets the first execution in the stack.
+    /// Gets the first (oldest) execution in the stack.
     /// </summary>
     /// <value>
     /// The first <see cref="ExecutionCore"/> when available; otherwise, <see langword="null"/>.
@@ -51,7 +53,7 @@ public class ExecutionStack
     }
 
     /// <summary>
-    /// Gets the last execution in the stack.
+    /// Gets the last (most recently pushed) execution in the stack.
     /// </summary>
     /// <value>
     /// The last <see cref="ExecutionCore"/> when available; otherwise, <see langword="null"/>.
@@ -87,13 +89,15 @@ public class ExecutionStack
     /// The owning group. Parent disposal cancels and detaches this group, without completing its completion task.
     /// </param>
     /// <param name="signalHandler">
-    /// An optional handler invoked when this execution processes an <see cref="ExecutionSignal"/>.
+    /// An optional handler for signals sent to the new group. It replaces the default forwarding of signals to the group's children.
     /// </param>
-    /// <returns>The newly created execution.</returns>
+    /// <returns>The new non-independent group, attached to <paramref name="parent"/> and pushed onto this stack.</returns>
     /// <exception cref="System.ArgumentNullException"><paramref name="parent"/> is <see langword="null"/>.</exception>
     /// <exception cref="System.InvalidOperationException">
     /// Thrown when <paramref name="parent"/> belongs to a different <see cref="ExecutionRoot"/>.
     /// </exception>
+    /// <exception cref="System.ObjectDisposedException"><paramref name="parent"/> has been disposed.</exception>
+    /// <remarks>If <paramref name="parent"/> is terminated, the new group is terminated immediately.</remarks>
     public TaskCompletionGroup PushNew(ExecutionGroup parent, ExecutionSignalHandler? signalHandler = default)
     {
         ArgumentNullException.ThrowIfNull(parent);

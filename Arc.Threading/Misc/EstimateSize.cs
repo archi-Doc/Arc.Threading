@@ -29,14 +29,18 @@ public static class EstimateSize
     /// </summary>
     /// <typeparam name="TClass">The class type to estimate the size of. Must have a parameterless constructor.</typeparam>
     /// <returns>The average allocation per constructor call, including objects allocated by the constructor.</returns>
+    /// <remarks>
+    /// Only allocations on the current thread are counted.<br/>
+    /// The constructor runs 1,001 times: one untimed warm-up call excludes one-time costs such as a static constructor.
+    /// </remarks>
     public static int Class<TClass>()
         where TClass : class, new()
     {
         const int N = 1000;
-        long before = GC.GetAllocatedBytesForCurrentThread();
-
         try
         {
+            Volatile.Write(ref sink, new TClass()); // Warm-up.
+            long before = GC.GetAllocatedBytesForCurrentThread();
             for (int i = 0; i < N; i++)
             {
                 Volatile.Write(ref sink, new TClass());
@@ -55,15 +59,16 @@ public static class EstimateSize
     /// </summary>
     /// <param name="factory">A delegate that creates an object instance.</param>
     /// <returns>The average bytes allocated, including allocations made inside the factory.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="factory"/> is null.</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="factory"/> is <see langword="null"/>.</exception>
+    /// <remarks>The factory runs 1,001 times: one untimed warm-up call excludes one-time costs such as a static constructor.</remarks>
     public static int Constructor(Func<object> factory)
     {
         ArgumentNullException.ThrowIfNull(factory);
         const int N = 1000;
-        long before = GC.GetAllocatedBytesForCurrentThread();
-
         try
         {
+            Volatile.Write(ref sink, factory()); // Warm-up.
+            long before = GC.GetAllocatedBytesForCurrentThread();
             for (int i = 0; i < N; i++)
             {
                 Volatile.Write(ref sink, factory());

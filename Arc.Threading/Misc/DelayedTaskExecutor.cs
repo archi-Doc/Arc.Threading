@@ -10,9 +10,11 @@ using System.Threading.Tasks;
 /// Provides coalesced, delayed execution for an asynchronous action.
 /// </summary>
 /// <remarks>
-/// This executor guarantees at most one pending delayed run while idle/waiting, <br/>and at most
-/// one additional delayed rerun request while currently executing.
-/// Handle action exceptions inside the action to observe failures; <see cref="Request"/> does not expose the background task.
+/// Runs never overlap. There is at most one pending delayed run while waiting,<br/>
+/// and at most one additional delayed rerun requested while the action is running. A rerun requested during a failed run is still executed.<br/>
+/// The action is always started on the thread pool, never inline in <see cref="Request"/>.<br/>
+/// Handle action exceptions inside the action to observe failures; <see cref="Request"/> does not expose the background task.<br/>
+/// Cancellation drops pending runs, and later requests are ignored.
 /// </remarks>
 public sealed class DelayedTaskExecutor
 {
@@ -33,13 +35,14 @@ public sealed class DelayedTaskExecutor
     /// The asynchronous action to execute after the configured delay.
     /// </param>
     /// <param name="delay">
-    /// The delay from the first request. Further requests do not restart it.
+    /// The delay before each run, measured from the first request (or, for a rerun, from the end of the previous run).
+    /// Further requests do not restart it.
     /// </param>
     /// <param name="cancellationToken">
     /// Cancels pending delays and is passed to the action for cooperative cancellation.
     /// </param>
     /// <exception cref="ArgumentNullException"><paramref name="action"/> is <see langword="null"/>.</exception>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="delay"/> is negative or exceeds the timer limit.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="delay"/> is negative or exceeds 4,294,967,294 milliseconds.</exception>
     public DelayedTaskExecutor(Func<CancellationToken, Task> action, TimeSpan delay, CancellationToken cancellationToken = default)
     {
         if (delay < TimeSpan.Zero || delay.TotalMilliseconds > uint.MaxValue - 1)
@@ -53,12 +56,13 @@ public sealed class DelayedTaskExecutor
     }
 
     /// <summary>
-    /// Requests delayed execution.<br/>
+    /// Requests delayed execution. This method is thread-safe and does not block.<br/>
     /// Requests during the waiting period are coalesced.<br/>
     /// Requests during execution schedule one additional delayed execution.
     /// </summary>
     /// <returns>
-    /// <see langword="true"/> if this request changed the executor state; otherwise, <see langword="false"/>.
+    /// <see langword="true"/> if this request scheduled a run or a rerun; otherwise, <see langword="false"/>
+    /// (the request was coalesced, or the cancellation token is canceled).
     /// </returns>
     public bool Request()
     {
@@ -134,8 +138,13 @@ public sealed class DelayedTaskExecutor
             Volatile.Write(ref this.state, Idle);
         }
         catch
-        {
-            Volatile.Write(ref this.state, Idle);
+        {// Only the action can fault here, so this loop still owns the state (Running or RerunRequested).
+            if (Interlocked.CompareExchange(ref this.state, Idle, Running) == RerunRequested)
+            {// A failed run still honors a rerun accepted by Request() during it.
+                Volatile.Write(ref this.state, Waiting);
+                _ = this.RunAsync();
+            }
+
             throw;
         }
     }

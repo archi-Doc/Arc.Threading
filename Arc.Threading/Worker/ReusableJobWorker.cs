@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Arc.Collections;
@@ -14,7 +15,7 @@ namespace Arc.Threading;
 #pragma warning disable SA1405 // Debug.Assert should provide message text
 
 /// <summary>
-/// Provides a reusable, pooled job worker that processes <typeparamref name="TJob"/> instances on a background task.<br/>
+/// Provides a job worker that processes pooled, reusable <typeparamref name="TJob"/> instances on a background task.<br/>
 /// To process the actual job, either override <see cref="ProcessJobAsync(TJob, CancellationToken)"/> (recommended) or provide a <see cref="JobProcessor"/> in the constructor.<br/>
 /// <br/>
 /// Example: <br/>
@@ -32,19 +33,26 @@ namespace Arc.Threading;
 /// This worker combines an internal object pool with a pending queue to reduce allocations and support high-throughput scheduling.<br/>
 /// Jobs are expected to follow the lifecycle:<br/>
 /// <see cref="ReusableJobState.Initial"/> -> <see cref="ReusableJobState.Pending"/> ->
-/// <see cref="ReusableJobState.Running"/> -> <see cref="ReusableJobState.Completed"/>.
+/// <see cref="ReusableJobState.Running"/> -> <see cref="ReusableJobState.Completed"/> (or <see cref="ReusableJobState.Aborted"/>) -> <see cref="ReusableJobState.Pooled"/> (after <see cref="Return(TJob)"/>).<br/>
+/// Jobs run under the execution context captured when the worker was created, not that of the thread that adds them.<br/>
+/// When the worker is terminated (its parent is terminated or it is disposed), pending jobs are aborted and their waiters are released.
+/// By default, the worker disposes itself when its processing loop exits, or when it receives the start signal after termination
+/// (see <see cref="ExecutionCoreOptions.NoDisposeOnCompletion"/>).
 /// </remarks>
 public class ReusableJobWorker<TJob> : TaskCore<ReusableJobWorker<TJob>>, IDisposable
     where TJob : ReusableJob, new()
 {
     private const int DefaultPoolCapacity = 32;
-    private const int DelayMilliseconds = 100;
+    private const int FallbackPollMilliseconds = 1_000; // Bounds a completion wait even if an idle notification is missed.
 
     /// <summary>
     /// Represents the method that processes a job.
     /// </summary>
     /// <param name="worker">The <see cref="ReusableJobWorker{TJob}"/> instance which owns the job.</param>
-    /// <param name="job">The job to process.</param>
+    /// <param name="job">The job to process. Its state is <see cref="ReusableJobState.Running"/>.</param>
+    /// <remarks>
+    /// The delegate runs synchronously on a background thread. An exception marks the job as <see cref="ReusableJobState.Aborted"/>.
+    /// </remarks>
     public delegate void JobProcessor(object worker, TJob job);
 
     private static async Task Process(ReusableJobWorker<TJob> worker)
@@ -85,12 +93,12 @@ public class ReusableJobWorker<TJob> : TaskCore<ReusableJobWorker<TJob>>, IDispo
 
                 if (!worker.CanContinue)
                 {// To prevent the job from freezing, complete the acquired job first, then check whether it has been terminated.
-                    Interlocked.Decrement(ref worker.numberOfTasks);
+                    worker.DecrementTasks();
                     goto Terminated;
                 }
             }
 
-            Interlocked.Decrement(ref worker.numberOfTasks);
+            worker.DecrementTasks();
             // worker.OnAfterProcessJob();
         }
 
@@ -99,7 +107,9 @@ Terminated:
         if (Volatile.Read(ref worker.numberOfTasks) != 0)
         {
             var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            Volatile.Write(ref worker.concurrentTasksCompletion, completion);
+
+            // Full fence: the publication must be visible before re-reading the counter (pairs with Interlocked.Decrement in DecrementTasks).
+            Interlocked.Exchange(ref worker.concurrentTasksCompletion, completion);
             if (Volatile.Read(ref worker.numberOfTasks) != 0)
             {
                 await completion.Task.ConfigureAwait(false);
@@ -109,7 +119,9 @@ Terminated:
         worker.OnTerminated();
     }
 
-    private static async Task ProcessJob(ReusableJobWorker<TJob> worker, TJob job)
+    // Pooled builder: avoids a state machine allocation for each job that completes asynchronously. Each result is awaited exactly once.
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder))]
+    private static async ValueTask ProcessJob(ReusableJobWorker<TJob> worker, TJob job)
     {
         try
         {
@@ -150,8 +162,10 @@ Terminated:
     /// The concurrency limit for background processing. The default value is <c>1</c>.
     /// </value>
     /// <remarks>
-    /// Values must be positive. Lowering the limit does not interrupt active processors.
+    /// Values must be positive. Lowering the limit does not interrupt active processors.<br/>
+    /// With a limit greater than 1, the processor delegate, <see cref="ProcessJobAsync(TJob, CancellationToken)"/>, and <see cref="OnJobFinished(TJob)"/> may run concurrently.
     /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">The value is less than 1.</exception>
     public int MaxConcurrentTasks
     {
         get => Volatile.Read(ref this.maxConcurrentTasks);
@@ -174,12 +188,14 @@ Terminated:
     /// </summary>
     public int PendingJobCount => Volatile.Read(ref this.numberOfPendingJobs);
 
+    // Initialized before the base constructor publishes this worker to its parent, so an early Start and termination can safely abort jobs.
+    private readonly ConcurrentQueue<TJob> pendingJobs = new();
+    private readonly ExecutionContext? executionContext = ExecutionContext.Capture(); // The context of the main processing loop.
     private readonly JobProcessor? processJob;
-    private readonly Func<Task> processConcurrentJobs;
     private readonly ObjectPool<TJob> freeJobs;
-    private readonly ConcurrentQueue<TJob> pendingJobs;
     private AsyncPulseEvent? addEvent = new();
     private TaskCompletionSource? concurrentTasksCompletion;
+    private TaskCompletionSource? idleCompletion; // Completed when the worker becomes idle while a completion wait is pending.
     private int numberOfPendingJobs;
     private int numberOfTasks;
     private int numberOfConcurrentTasks;
@@ -195,38 +211,62 @@ Terminated:
     /// <param name="processJob">
     /// Optional delegate used to process each job. If <see langword="null"/>, <see cref="ProcessJobAsync(TJob, CancellationToken)"/> is invoked.
     /// </param>
-    /// <param name="poolCapacity">Initial capacity of the reusable job object pool.</param>
+    /// <param name="poolCapacity">
+    /// The maximum number of idle jobs kept for reuse, rounded up to a power of two (at least 2). Jobs returned while the pool is full are discarded.
+    /// </param>
     /// <param name="options">Behavior flags controlling startup and completion semantics.</param>
+    /// <remarks>
+    /// Unless <see cref="ExecutionCoreOptions.DelayedStart"/> is set, the worker starts immediately.
+    /// If <paramref name="parent"/> is already terminated, the worker is terminated at once and jobs added to it are aborted.
+    /// Unless <see cref="ExecutionCoreOptions.DelayedStart"/> or <see cref="ExecutionCoreOptions.NoDisposeOnCompletion"/> is set, an instance of exactly this type is also disposed
+    /// before the constructor returns; an instance of a derived type is not, because its constructor has not run yet.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="parent"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ObjectDisposedException"><paramref name="parent"/> has been disposed.</exception>
     public ReusableJobWorker(ExecutionGroup parent, JobProcessor? processJob = default, int poolCapacity = DefaultPoolCapacity, ExecutionCoreOptions options = ExecutionCoreOptions.None)
         : base(parent, Process, options, true)
     {
         this.processJob = processJob;
-        this.processConcurrentJobs = this.ProcessConcurrentJobsAsync;
         this.freeJobs = new(() => new(), poolCapacity);
-        this.pendingJobs = new();
         if ((options & ExecutionCoreOptions.DelayedStart) == 0)
         {
-            this.SendSignal(ExecutionSignal.Start);
+            this.StartFromConstructor(typeof(ReusableJobWorker<TJob>));
+        }
+        else
+        {// A delayed worker terminated before Start never runs Process; release the jobs queued so far on cancellation.
+            this.CancellationToken.UnsafeRegister(
+                static state =>
+                {
+                    var worker = (ReusableJobWorker<TJob>)state!;
+                    if (worker.IsTerminated)
+                    {// Not started. A started worker aborts pending jobs in Process.
+                        worker.AbortAllJobs();
+                    }
+                },
+                this);
         }
     }
 
     /// <summary>
-    /// Rents a reusable job instance from the internal pool.
+    /// Rents a reusable job instance from the internal pool, or creates one if the pool is empty.
     /// </summary>
-    /// <param name="options">Options that control the behavior of reusable job instances.</param>
-    /// <returns>A job in the <see cref="ReusableJobState.Initial"/> state.</returns>
+    /// <param name="options">
+    /// Options that control the behavior of the job.
+    /// With <see cref="ReusableJobOptions.ReturnToPoolOnCompletion"/>, do not access the job after passing it to <see cref="Add(TJob)"/>.
+    /// </param>
+    /// <returns>A job in the <see cref="ReusableJobState.Initial"/> state. Custom fields keep the values set before the job was returned.</returns>
     public TJob Rent(ReusableJobOptions options = default)
     {
         var job = this.freeJobs.Rent();
         job.State = ReusableJobState.Initial;
         job.Options = options;
-        job._PrepareSynchronizationPrimitive();
+        job._PrepareSynchronizationPrimitive(); // Options must be assigned first.
         return job;
     }
 
     /// <summary>
     /// Returns a used job to the internal pool.<br/>
-    /// Reset custom state and finish all waits before returning the job. Do not access it afterward.<br/>
+    /// Reset custom state and finish all waits before returning the job. Do not access it afterward.
     /// </summary>
     /// <param name="job">The job to return.</param>
     /// <remarks>
@@ -254,12 +294,13 @@ Terminated:
     }
 
     /// <summary>
-    /// Enqueues a created job for background processing.
+    /// Enqueues a rented or newly created job for background processing.
     /// </summary>
     /// <param name="job">The job to enqueue.</param>
     /// <remarks>
     /// The job transitions from <see cref="ReusableJobState.Initial"/> to <see cref="ReusableJobState.Pending"/>.
-    /// A stopped or disposed worker aborts the job and releases its waiters.
+    /// A stopped or disposed worker aborts the job and releases its waiters.<br/>
+    /// Jobs added to a worker created with <see cref="ExecutionCoreOptions.DelayedStart"/> stay pending until it is started or terminated.
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="job"/> is <see langword="null"/>.</exception>
     /// <exception cref="InvalidOperationException">
@@ -297,8 +338,8 @@ Terminated:
     /// A cancellation token that can be used to cancel the wait operation.
     /// </param>
     /// <returns>
-    /// A task that returns <see langword="true"/> once no jobs remain outstanding, including aborted jobs,<br/>
-    /// or <see langword="false"/> if the wait is canceled or the worker is disposed or stops with jobs outstanding.
+    /// A task that returns <see langword="true"/> once every added job has completed or been aborted,<br/>
+    /// or <see langword="false"/> if the wait is canceled, the worker has been disposed, or the worker stops with jobs outstanding.
     /// </returns>
     public Task<bool> WaitForCompletionAsync(CancellationToken cancellationToken = default)
         => this.WaitForCompletionAsync(Timeout.Infinite, cancellationToken);
@@ -310,7 +351,10 @@ Terminated:
     /// <param name="cancellationToken">
     /// A cancellation token that can be used to cancel the wait operation.
     /// </param>
-    /// <returns><see langword="true"/> if all jobs finish; otherwise, <see langword="false"/> on timeout, cancellation, or disposal.</returns>
+    /// <returns>
+    /// A task that returns <see langword="true"/> once every added job has completed or been aborted;<br/>
+    /// otherwise, <see langword="false"/> on timeout, on cancellation, or if the worker has been disposed or stops with jobs outstanding.
+    /// </returns>
     /// <exception cref="ArgumentOutOfRangeException">The timeout is negative other than -1 ms, or exceeds <see cref="int.MaxValue"/> milliseconds.</exception>
     public Task<bool> WaitForCompletionAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
     {
@@ -330,12 +374,16 @@ Terminated:
     /// <summary>
     /// Waits for the completion of all jobs.
     /// </summary>
-    /// <param name="millisecondsTimeout">The number of milliseconds to wait, or -1 to wait indefinitely.</param>
+    /// <param name="millisecondsTimeout">The number of milliseconds to wait, -1 to wait indefinitely, or 0 to check once without waiting.</param>
     /// <param name="cancellationToken">
     /// A cancellation token that can be used to cancel the wait operation.
     /// </param>
-    /// <returns><see langword="true"/> if all jobs finish; otherwise, <see langword="false"/> on timeout, cancellation, or disposal.</returns>
+    /// <returns>
+    /// A task that returns <see langword="true"/> once every added job has completed or been aborted;<br/>
+    /// otherwise, <see langword="false"/> on timeout, on cancellation, or if the worker has been disposed or stops with jobs outstanding.
+    /// </returns>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="millisecondsTimeout"/> is less than -1.</exception>
+    /// <remarks>The wait is signaled when the worker becomes idle, and re-checks the state at least once per second as a fallback.</remarks>
     public async Task<bool> WaitForCompletionAsync(int millisecondsTimeout, CancellationToken cancellationToken = default)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(millisecondsTimeout, Timeout.Infinite);
@@ -351,54 +399,95 @@ Terminated:
             startTimestamp = Stopwatch.GetTimestamp();
         }
 
-        while (true)
+        CancellationTokenSource? linkedSource = null;
+        try
         {
-            if (this.IsIdle)
+            while (true)
             {
-                return true;
-            }
-            else if (this.IsDisposed)
-            {
-                return false;
-            }
-            else if (this.IsTerminated)
-            {
-                return false;
-            }
-
-            var delayMilliseconds = DelayMilliseconds;
-            if (millisecondsTimeout != Timeout.Infinite)
-            {
-                var remainingMilliseconds = millisecondsTimeout - (long)Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds;
-
-                if (remainingMilliseconds <= 0)
+                if (this.IsIdle)
+                {
+                    return true;
+                }
+                else if (this.IsDisposed)
                 {
                     return false;
                 }
-                else if (delayMilliseconds > remainingMilliseconds)
+                else if (this.IsTerminated)
                 {
-                    delayMilliseconds = (int)remainingMilliseconds;
+                    return false;
                 }
-            }
+                else if (cancellationToken.IsCancellationRequested || this.IsCancellationRequested)
+                {// Canceled, or the worker is stopping with jobs outstanding.
+                    return false;
+                }
 
-            if (await this.TryDelay(delayMilliseconds, cancellationToken).ConfigureAwait(false) == false)
-            {
-                return false;
+                var waitMilliseconds = FallbackPollMilliseconds;
+                if (millisecondsTimeout != Timeout.Infinite)
+                {
+                    var remainingMilliseconds = millisecondsTimeout - (long)Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds;
+                    if (remainingMilliseconds <= 0)
+                    {
+                        return false;
+                    }
+                    else if (waitMilliseconds > remainingMilliseconds)
+                    {
+                        waitMilliseconds = (int)remainingMilliseconds;
+                    }
+                }
+
+                var idleTask = this.GetIdleTask();
+                if (this.IsIdle)
+                {// Re-check after publishing the completion source (pairs with NotifyIfIdle).
+                    return true;
+                }
+
+                CancellationToken token;
+                if (!cancellationToken.CanBeCanceled || cancellationToken == this.CancellationToken)
+                {
+                    token = this.CancellationToken;
+                }
+                else
+                {// One linked source per call, not per wake-up.
+                    linkedSource ??= CancellationTokenSource.CreateLinkedTokenSource(this.CancellationToken, cancellationToken);
+                    token = linkedSource.Token;
+                }
+
+                await idleTask.WaitAsync(TimeSpan.FromMilliseconds(waitMilliseconds), token).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
             }
+        }
+        finally
+        {
+            linkedSource?.Dispose();
         }
     }
 
     /// <summary>
-    /// Processes a single job instance on the background thread.
+    /// Starts the worker once for <see cref="ExecutionSignal.Start"/>; other signals are ignored.
+    /// </summary>
+    /// <param name="signal">The received execution signal.</param>
+    /// <remarks>If the start is skipped because the worker is already terminated, pending jobs are aborted.</remarks>
+    /// <exception cref="InvalidOperationException">The task cannot be started, for example because it was started directly instead of through this signal.</exception>
+    public override void OnSignalReceived(ExecutionSignal signal)
+    {
+        base.OnSignalReceived(signal);
+        if (signal == ExecutionSignal.Start && this.IsTerminated)
+        {// Covers a cancellation that raced with the start, which the cancellation callback cannot observe.
+            this.AbortAllJobs();
+        }
+    }
+
+    /// <summary>
+    /// Processes a single job instance.
     /// </summary>
     /// <param name="job">The job to process. The job's state will be <see cref="ReusableJobState.Running"/> when this method is called.</param>
-    /// <param name="cancellationToken">A cancellation token that signals when the worker is being terminated.</param>
+    /// <param name="cancellationToken">The worker's cancellation token, which is canceled when the worker is terminated or disposed.</param>
     /// <returns>A task representing the asynchronous job processing operation.</returns>
     /// <remarks>
     /// Override this method to implement custom job processing logic.<br/>
     /// This method is called automatically by the worker when a job is dequeued from the pending queue.<br/>
-    /// Alternatively, you can provide a <c>processJob</c> delegate in the constructor instead of overriding this method.
-    /// Exceptions mark the job as <see cref="ReusableJobState.Aborted"/> and do not stop other jobs.
+    /// Alternatively, you can provide a <c>processJob</c> delegate in the constructor; this method is then not called.<br/>
+    /// Exceptions mark the job as <see cref="ReusableJobState.Aborted"/> and do not stop other jobs.<br/>
+    /// Calls run on background threads (the worker's dedicated thread or thread-pool threads), concurrently when <see cref="MaxConcurrentTasks"/> is greater than 1.
     /// </remarks>
     protected virtual Task ProcessJobAsync(TJob job, CancellationToken cancellationToken)
     {
@@ -406,9 +495,14 @@ Terminated:
     }
 
     /// <summary>
-    /// Called before notifying waiters. If this hook throws, the job is aborted and waiters are still notified.
+    /// Called when a job has completed or been aborted, before its waiters are released.
+    /// If this method throws, the job is marked <see cref="ReusableJobState.Aborted"/> and waiters are still released.
     /// </summary>
     /// <param name="job">A completed or aborted job.</param>
+    /// <remarks>
+    /// May run concurrently and on any thread, including the caller of <see cref="Add(TJob)"/> or of disposal or termination when pending jobs are aborted.<br/>
+    /// A job rented with <see cref="ReusableJobOptions.ReturnToPoolOnCompletion"/> is returned to the pool right after this call; do not keep a reference to it.
+    /// </remarks>
     protected virtual void OnJobFinished(TJob job)
     {
     }
@@ -428,8 +522,9 @@ Terminated:
     }*/
 
     /// <summary>
-    /// Called when the worker loop exits, after all active processors finish.
+    /// Called when the worker loop exits, after pending jobs are aborted and all active processors finish.
     /// </summary>
+    /// <remarks>Not called if the worker is terminated or disposed before it starts.</remarks>
     protected virtual void OnTerminated()
     {
     }
@@ -438,19 +533,18 @@ Terminated:
     /// Releases the resources used by this worker, and aborts the pending jobs.
     /// </summary>
     /// <param name="disposing"><see langword="true"/> to release both managed and unmanaged resources; <see langword="false"/> to release only unmanaged resources.</param>
+    /// <remarks>
+    /// Termination is requested before pending jobs are aborted. Jobs that are already running are not awaited; they observe the canceled token.
+    /// </remarks>
     protected override void Dispose(bool disposing)
     {
         if (!this.IsDisposed)
         {
-            if (disposing)
-            {
-                this.addEvent = null;
-            }
-
-            base.Dispose(disposing);
+            base.Dispose(disposing); // Cancel first, so the processing loop can exit only after CanContinue is false.
 
             if (disposing)
             {// Release the jobs which will never be processed (e.g. the worker has not been started).
+                this.addEvent = null;
                 this.AbortAllJobs();
             }
         }
@@ -480,7 +574,20 @@ Terminated:
             return;
         }
 
-        _ = Task.Run(this.processConcurrentJobs);
+        // Do not flow the recruiting thread's context: jobs from other producers would observe its AsyncLocal values.
+        ThreadPool.UnsafeQueueUserWorkItem(static worker => worker.StartConcurrentProcessor(), this, preferLocal: false);
+    }
+
+    private void StartConcurrentProcessor()
+    {
+        if (this.executionContext is { } context)
+        {// Run additional processors under the same context as the main processing loop.
+            ExecutionContext.Run(context, static state => _ = ((ReusableJobWorker<TJob>)state!).ProcessConcurrentJobsAsync(), this);
+        }
+        else
+        {
+            _ = this.ProcessConcurrentJobsAsync();
+        }
     }
 
     private async Task ProcessConcurrentJobsAsync()
@@ -516,9 +623,36 @@ Terminated:
             this.TryAddConcurrentTask(Volatile.Read(ref this.numberOfPendingJobs));
         }
 
+        this.DecrementTasks();
+    }
+
+    private void DecrementTasks()
+    {
         if (Interlocked.Decrement(ref this.numberOfTasks) == 0)
         {
             Volatile.Read(ref this.concurrentTasksCompletion)?.TrySetResult();
+            this.NotifyIfIdle();
+        }
+    }
+
+    private Task GetIdleTask()
+    {
+        var source = Volatile.Read(ref this.idleCompletion);
+        if (source is null)
+        {
+            var created = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            source = Interlocked.CompareExchange(ref this.idleCompletion, created, null) ?? created;
+        }
+
+        Interlocked.MemoryBarrier(); // The publication must be visible before the caller re-checks IsIdle.
+        return source.Task;
+    }
+
+    private void NotifyIfIdle()
+    {// Called right after a counter reaches 0 through an Interlocked decrement, which is a full fence.
+        if (Volatile.Read(ref this.idleCompletion) is not null && this.IsIdle)
+        {
+            Interlocked.Exchange(ref this.idleCompletion, null)?.TrySetResult();
         }
     }
 
@@ -551,7 +685,10 @@ Terminated:
                 this.Return(job);
             }
 
-            Interlocked.Decrement(ref this.numberOfOutstandingJobs);
+            if (Interlocked.Decrement(ref this.numberOfOutstandingJobs) == 0)
+            {
+                this.NotifyIfIdle();
+            }
         }
     }
 }

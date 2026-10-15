@@ -14,7 +14,8 @@ public struct LockScope : IDisposable
     private bool locked;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="LockScope"/> struct, and acquires the exclusive lock.
+    /// Initializes a new instance of the <see cref="LockScope"/> struct, and acquires the exclusive lock with <see cref="ILockable.Enter"/>.<br/>
+    /// <see cref="IsLocked"/> reports whether the lock was acquired.
     /// </summary>
     /// <param name="lockable">The object to lock.</param>
     /// <exception cref="ArgumentNullException"><paramref name="lockable"/> is <see langword="null"/>.</exception>

@@ -17,7 +17,8 @@ public enum ReusableJobOptions : byte
     None = 0,
 
     /// <summary>
-    /// Automatically returns a completed or aborted job to the pool. Do not await or access it after submission.
+    /// Automatically returns a completed or aborted job to the pool. Do not await or access it after submission.<br/>
+    /// A pooled <see cref="ReusableTaskJob"/> rented with this option has no completion source, so its wait members throw <see cref="InvalidOperationException"/>.
     /// </summary>
     ReturnToPoolOnCompletion = 1 << 1,
 }

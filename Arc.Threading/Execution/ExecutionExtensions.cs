@@ -18,12 +18,15 @@ public static class ExecutionExtensions
         /// <summary>
         /// Asynchronously waits for the specified duration.
         /// </summary>
-        /// <param name="delay">The duration to wait.</param>
+        /// <param name="delay">The duration to wait, or <see cref="Timeout.InfiniteTimeSpan"/> to wait until canceled.</param>
         /// <param name="cancellationToken">The cancellation token used to cancel the delay.</param>
         /// <returns>
         /// A task that returns <see langword="true"/> if the delay elapsed successfully;
         /// otherwise, <see langword="false"/> if the delay was canceled.
         /// </returns>
+        /// <exception cref="ArgumentOutOfRangeException">
+        /// <paramref name="delay"/> is negative other than <see cref="Timeout.InfiniteTimeSpan"/>, or exceeds the range supported by <see cref="Task.Delay(TimeSpan)"/>.
+        /// </exception>
         public static async Task<bool> TryDelay(TimeSpan delay, CancellationToken cancellationToken = default)
         {
             try
@@ -48,6 +51,9 @@ public static class ExecutionExtensions
         /// A task that returns <see langword="true"/> if the delay elapsed successfully;
         /// otherwise, <see langword="false"/> if the delay was canceled.
         /// </returns>
+        /// <exception cref="ArgumentOutOfRangeException">
+        /// <paramref name="millisecondsDelay"/> is less than <see cref="Timeout.Infinite"/>.
+        /// </exception>
         public static async Task<bool> TryDelay(int millisecondsDelay, CancellationToken cancellationToken = default)
         {
             try
@@ -70,7 +76,8 @@ public static class ExecutionExtensions
     /// </typeparam>
     /// <param name="cancellationToken">The token to inspect.</param>
     /// <returns>
-    /// An instance of <typeparamref name="TExecution"/> when the underlying source is compatible; otherwise, <see langword="null"/>.
+    /// The execution that is the source of the token when it is a <typeparamref name="TExecution"/>; otherwise, <see langword="null"/>,
+    /// including for <see cref="CancellationToken.None"/> and tokens from other sources such as linked token sources.
     /// </returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static TExecution? AsExecution<TExecution>(this CancellationToken cancellationToken)
@@ -148,7 +155,8 @@ public static class ExecutionExtensions
     /// Converts an <see cref="ExecutionCore"/> instance to a <see cref="CancellationToken"/>.
     /// </summary>
     /// <param name="executionCore">The execution instance to convert.</param>
-    /// <returns>A token that carries the specified execution instance.</returns>
+    /// <returns>A token whose source is <paramref name="executionCore"/>; it is canceled when termination of the execution is requested.</returns>
+    /// <remarks>Unlike <see cref="CancellationTokenSource.Token"/>, this method does not throw after the execution is disposed.</remarks>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static CancellationToken ToCancellationToken(this ExecutionCore executionCore)
     {

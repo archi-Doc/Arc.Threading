@@ -7,10 +7,15 @@ using System.Threading.Tasks;
 namespace Arc.Threading;
 
 /// <summary>
-/// An async pulse event with a single waiter.
+/// Provides an asynchronous pulse event that supports one waiter at a time.<br/>
 /// By default, a pulse is retained until it is consumed by one wait operation.
 /// If multiple pulses arrive before a wait, they are coalesced into one.
 /// </summary>
+/// <remarks>
+/// <see cref="Pulse"/> is thread-safe and never runs the waiter's continuation inline.<br/>
+/// Timeout and cancellation complete the wait with <see langword="false"/> instead of throwing.
+/// A wait with an already canceled token returns <see langword="false"/> without consuming a retained pulse.
+/// </remarks>
 public sealed class AsyncPulseEvent
 {
     private static readonly TaskCompletionSource<bool> PulsedSentinel;
@@ -115,7 +120,7 @@ public sealed class AsyncPulseEvent
     /// <summary>
     /// Waits asynchronously for a pulse, with optional timeout and cancellation.
     /// </summary>
-    /// <param name="timeout">The maximum time to wait for a pulse. Use <see cref="Timeout.InfiniteTimeSpan"/> to wait indefinitely.</param>
+    /// <param name="timeout">The maximum time to wait for a pulse. Use <see cref="Timeout.InfiniteTimeSpan"/> to wait indefinitely, or <see cref="TimeSpan.Zero"/> to only check for a retained pulse.</param>
     /// <param name="cancellationToken">A token used to observe cancellation while waiting.</param>
     /// <returns>
     /// A task that resolves to <see langword="true"/> when a pulse is consumed; otherwise <see langword="false"/> if the wait is canceled or times out.

@@ -8,22 +8,23 @@ namespace Arc.Threading;
 public enum MicroSleepMode
 {
     /// <summary>
-    /// MicroSleep instance has been disposed.
+    /// The <see cref="MicroSleep"/> instance has been disposed.
     /// </summary>
     Disposed,
 
     /// <summary>
-    /// MicroSleep instance uses the nanosleep method for sleep operations.
+    /// Uses the POSIX nanosleep function (non-Windows platforms).
     /// </summary>
     Nanosleep,
 
     /// <summary>
-    /// MicroSleep instance uses the WaitableTimerEx method for sleep operations.
+    /// Uses a high-resolution waitable timer created by CreateWaitableTimerEx (Windows).
     /// </summary>
     WaitableTimerEx,
 
     /// <summary>
-    /// MicroSleep instance uses the timeBeginPeriod method for sleep operations.
+    /// Uses <see cref="System.Threading.Thread.Sleep(int)"/> after raising the system timer resolution to 1 ms with timeBeginPeriod (Windows fallback).
+    /// Durations are rounded up to whole milliseconds.
     /// </summary>
     TimeBeginPeriod,
 }

@@ -28,7 +28,18 @@ public record class ReusableBlockingJob : ReusableJob
     }
 
     /// <summary>
-    /// Blocks the calling thread until this job is signaled as completed.
+    /// Initializes a new instance of the <see cref="ReusableBlockingJob"/> class as a copy of another job.<br/>
+    /// The copy starts in the <see cref="ReusableJobState.Initial"/> state with its own wait handle.
+    /// </summary>
+    /// <param name="original">The job to copy. Its state, options, and wait handle are not copied.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="original"/> is <see langword="null"/>.</exception>
+    protected ReusableBlockingJob(ReusableBlockingJob original)
+        : base(original)
+    {
+    }
+
+    /// <summary>
+    /// Blocks the calling thread until this job completes or is aborted.
     /// </summary>
     /// <param name="cancellationToken">
     /// A token that can be used to cancel the wait operation.
@@ -46,15 +57,16 @@ public record class ReusableBlockingJob : ReusableJob
     }
 
     /// <summary>
-    /// Blocks the calling thread until this job is signaled as completed, a timeout expires, or cancellation is requested.
+    /// Blocks the calling thread until this job completes or is aborted, a timeout expires, or cancellation is requested.
     /// </summary>
-    /// <param name="timeout">The maximum time to wait for the job to complete.</param>
+    /// <param name="timeout">The maximum time to wait for the job to complete, or <see cref="Timeout.InfiniteTimeSpan"/> to wait indefinitely.</param>
     /// <param name="cancellationToken">A token that can be used to cancel the wait operation.</param>
     /// <returns>
-    /// <see langword="true"/> if the job was signaled as completed before the timeout elapsed; otherwise, <see langword="false"/>.
+    /// <see langword="true"/> if the job completed or was aborted before the timeout elapsed; otherwise, <see langword="false"/>.
     /// </returns>
     /// <exception cref="InvalidOperationException">The job has no synchronization primitive (it has been returned to the pool).</exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="timeout"/> is negative other than -1 ms, or exceeds <see cref="int.MaxValue"/> milliseconds.</exception>
     public bool Wait(TimeSpan timeout, CancellationToken cancellationToken = default)
     {
         if (this.eventSlim is null || this.State == ReusableJobState.Pooled)
@@ -64,6 +76,13 @@ public record class ReusableBlockingJob : ReusableJob
 
         return this.eventSlim.Wait(timeout, cancellationToken);
     }
+
+    /// <summary>
+    /// Returns an identity-based hash code.
+    /// </summary>
+    /// <returns>The hash code of the base job.</returns>
+    public override int GetHashCode()
+        => base.GetHashCode();
 
     internal override void _PrepareSynchronizationPrimitive()
     {

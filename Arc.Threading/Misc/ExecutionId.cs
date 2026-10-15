@@ -6,7 +6,7 @@ using System.Threading;
 namespace Arc.Threading;
 
 /// <summary>
-/// Represents an ambient execution id (<see cref="long"/>) that is local to a given asynchronous control flow.
+/// Provides an ambient execution id (<see cref="long"/>) that is local to a given asynchronous control flow.
 /// </summary>
 public static class ExecutionId
 {
@@ -15,10 +15,14 @@ public static class ExecutionId
 
     /// <summary>
     /// Gets the execution id of the current asynchronous control flow.<br/>
-    /// A new id is assigned on the first call, and the same id is returned within the flow.<br/>
-    /// Note that the id is unique only within the process lifetime, and may be shared with control flows that were forked after the id was assigned.
+    /// A new id is assigned on the first call, and the same id is returned within the flow.
     /// </summary>
-    /// <returns>The identifier.</returns>
+    /// <returns>A nonzero id. Newly assigned ids are sequential and unique within the process lifetime.</returns>
+    /// <remarks>
+    /// The id is shared with control flows that were forked after it was assigned (for example, tasks started later).<br/>
+    /// An id first assigned in a child flow (for example, inside an awaited async method) does not flow back to the caller;
+    /// call this method at the start of the logical operation so that nested calls share the id.
+    /// </remarks>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static long Get()
     {
